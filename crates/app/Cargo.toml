@@ -1,0 +1,25 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Application/session layer for the Pipefader audio engine"
+
+[dependencies]
+protocol = { path = "../protocol" }
+media = { path = "../media" }
+audio = { path = "../audio" }
+library = { path = "../library" }
+stems = { path = "../stems", optional = true }
+controller = { path = "../controller" }
+crossbeam-channel = { workspace = true }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+
+[features]
+# Stem separation is optional: `--no-default-features` builds without the `stems` crate, its
+# model cache/network stack and ONNX Runtime. Playback, analysis and mixing are unchanged; the
+# `stem separate|model|cache|cancel` commands report that support is missing.
+default = ["stems"]
+stems = ["dep:stems"]
+cuda = ["stems", "stems/cuda"]

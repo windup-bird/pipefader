@@ -1,0 +1,26 @@
+[package]
+name = "stems"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Offline stem separation: HTDemucs model management, a result cache, and the backend"
+
+[dependencies]
+protocol = { path = "../protocol" }
+media = { path = "../media" }
+sha2 = "0.10"
+# Only the real backend needs to fetch a model, so the HTTP client and the ML runtime ride the
+# same feature. `--no-default-features` gives the trait + mock + cache with no network and no
+# ONNX Runtime, which is what a build that never separates anything should pay.
+ureq = { version = "3", optional = true }
+charon-audio = { version = "0.1", default-features = false, features = [
+    "ort-backend",
+], optional = true }
+ndarray = { version = "0.15", optional = true }
+
+[features]
+default = ["onnx"]
+onnx = ["dep:ureq", "dep:charon-audio", "dep:ndarray"]
+# GPU inference, off by default: it needs CUDA 13 + cuDNN 9 on the host and makes `ort` fetch a
+# larger prebuilt (183 MB vs 101 MB). With it off, the CPU path is unchanged and complete.
+cuda = ["onnx", "charon-audio/cuda"]

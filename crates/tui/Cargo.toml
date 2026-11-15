@@ -1,0 +1,39 @@
+[package]
+name = "tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal front-end (TUI and REPL) for the Pipefader audio engine"
+
+[[bin]]
+name = "pipefader"
+path = "src/main.rs"
+
+[dependencies]
+app = { path = "../app", default-features = false }
+protocol = { path = "../protocol" }
+media = { path = "../media" }
+audio = { path = "../audio" }
+library = { path = "../library" }
+controller = { path = "../controller" }
+crossbeam-channel = { workspace = true }
+toml = { workspace = true }
+# Comment-preserving TOML rewrite for the settings screen: `toml` alone would drop every comment
+# and reorder a hand-written config.
+toml_edit = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+sysinfo = { workspace = true }
+unicode-width = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+# Only for the TUI's stderr capture: rebinding fd 2 so engine/ALSA diagnostics land in the response
+# log instead of scribbling the alternate screen.
+libc = "0.2"
+
+[features]
+# The terminal front-end forwards the application's optional capabilities; the app crate owns the
+# actual `stems` dependency and its `cuda` flag.
+default = ["stems"]
+stems = ["app/stems"]
+cuda = ["stems", "app/cuda"]

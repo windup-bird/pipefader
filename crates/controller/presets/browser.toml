@@ -1,0 +1,43 @@
+# Library navigation. Global only: every load button is a separate slot.
+[[preset]]
+name = "browser"
+scope = "global"
+start = "default"
+
+# A two-point encoder: 1 = one step, 127 = the other. Reversed once here because the shipped
+# encoder turns the other way.
+[[preset.slot]]
+slot = "choose"
+type = "RelKnob"
+[[preset.slot]]
+slot = "open"
+type = "Button"
+[[preset.slot]]
+slot = "exit"
+type = "Button"
+[[preset.slot]]
+slot = "load-1"
+type = "Button"
+[[preset.slot]]
+slot = "load-2"
+type = "Button"
+
+[[preset.mode]]
+name = "default"
+[[preset.mode.bind]]
+slot = "choose"
+action = "browser down"
+down = "browser up"
+[[preset.mode.bind]]
+slot = "open"
+action = "browser open"
+[[preset.mode.bind]]
+slot = "exit"
+action = "browser exit"
+# Each load slot names its deck: the unit is global, so there is no deck to inherit.
+[[preset.mode.bind]]
+slot = "load-1"
+action = "browser load 1"
+[[preset.mode.bind]]
+slot = "load-2"
+action = "browser load 2"

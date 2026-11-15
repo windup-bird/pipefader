@@ -1,0 +1,33 @@
+# Transport buttons. One per deck; the unit binds the note numbers.
+[[preset]]
+name = "transport"
+scope = "deck"
+start = "default"
+
+[[preset.slot]]
+slot = "play"
+type = "Button"
+[[preset.slot]]
+slot = "cue"
+type = "Button"
+[[preset.slot]]
+slot = "sync"
+type = "Button"
+[[preset.slot]]
+slot = "keylock"
+type = "Button"
+
+[[preset.mode]]
+name = "default"
+[[preset.mode.bind]]
+slot = "play"
+action = "play"
+[[preset.mode.bind]]
+slot = "cue"
+action = "cue"
+[[preset.mode.bind]]
+slot = "sync"
+action = "sync phase"
+[[preset.mode.bind]]
+slot = "keylock"
+action = "keylock toggle"

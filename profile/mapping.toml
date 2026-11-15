@@ -1,0 +1,495 @@
+[[unit]]
+id = "global.browser"
+preset = "browser"
+mode = []
+
+[[unit.control]]
+slot = "choose"
+type = "RelKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+encoding = "two_point"
+channel = 15
+id = 0
+
+[[unit.control]]
+slot = "open"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 15
+id = 7
+
+[[unit.control]]
+slot = "load-1"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 15
+id = 2
+
+[[unit.control]]
+slot = "load-2"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 15
+id = 3
+
+[[unit]]
+id = "global.crossfader"
+preset = "crossfader"
+mode = []
+
+[[unit.control]]
+slot = "fader"
+type = "BipolKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 15
+id = 8
+
+[[unit]]
+id = "deck1.jog"
+preset = "jog"
+deck = 1
+mode = []
+
+[[unit.control]]
+slot = "jog"
+type = "JogWheel"
+
+[[unit.control.endpoint]]
+role = "press"
+midi = "note"
+channel = 0
+id = 80
+
+[[unit.control.endpoint]]
+role = "turn"
+midi = "cc"
+encoding = "two_point"
+channel = 0
+id = 6
+
+[[unit]]
+id = "deck1.mixer"
+preset = "mixer"
+deck = 1
+mode = []
+
+[[unit.control]]
+slot = "high"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 0
+id = 23
+
+[[unit.control]]
+slot = "mid"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 0
+id = 24
+
+[[unit.control]]
+slot = "low"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 0
+id = 25
+
+[[unit.control]]
+slot = "fader"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 0
+id = 28
+
+[[unit.control]]
+slot = "cue-toggle"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 0
+id = 27
+
+[[unit.control]]
+slot = "filter"
+type = "BipolKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 0
+id = 26
+
+[[unit]]
+id = "deck1.pad"
+preset = "pad"
+deck = 1
+mode = []
+
+[[unit.control]]
+slot = "pad1"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 20
+
+[[unit.control]]
+slot = "pad2"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 21
+
+[[unit.control]]
+slot = "pad3"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 22
+
+[[unit.control]]
+slot = "pad4"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 23
+
+[[unit.control]]
+slot = "pad5"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 24
+
+[[unit.control]]
+slot = "pad6"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 25
+
+[[unit.control]]
+slot = "pad7"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 26
+
+[[unit.control]]
+slot = "pad8"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 27
+
+[[unit.control]]
+slot = "mode-next"
+type = "Button"
+role = "mode_cycle"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 4
+id = 0
+
+[[unit]]
+id = "deck1.tempofader"
+preset = "tempofader"
+deck = 1
+mode = []
+
+[[unit.control]]
+slot = "fader"
+type = "BipolKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+lsb = 41
+channel = 0
+id = 9
+
+[[unit]]
+id = "deck1.transport"
+preset = "transport"
+deck = 1
+mode = []
+
+[[unit.control]]
+slot = "play"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 0
+id = 0
+
+[[unit.control]]
+slot = "cue"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 0
+id = 1
+
+[[unit.control]]
+slot = "sync"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 0
+id = 2
+
+[[unit]]
+id = "deck2.jog"
+preset = "jog"
+deck = 2
+mode = []
+
+[[unit.control]]
+slot = "jog"
+type = "JogWheel"
+
+[[unit.control.endpoint]]
+role = "press"
+midi = "note"
+channel = 1
+id = 80
+
+[[unit.control.endpoint]]
+role = "turn"
+midi = "cc"
+encoding = "two_point"
+channel = 1
+id = 6
+
+[[unit]]
+id = "deck2.mixer"
+preset = "mixer"
+deck = 2
+mode = []
+
+[[unit.control]]
+slot = "high"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 1
+id = 23
+
+[[unit.control]]
+slot = "mid"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 1
+id = 24
+
+[[unit.control]]
+slot = "low"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 1
+id = 25
+
+[[unit.control]]
+slot = "fader"
+type = "Knob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 1
+id = 28
+
+[[unit.control]]
+slot = "cue-toggle"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 1
+id = 27
+
+[[unit.control]]
+slot = "filter"
+type = "BipolKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+channel = 1
+id = 26
+
+[[unit]]
+id = "deck2.pad"
+preset = "pad"
+deck = 2
+mode = []
+
+[[unit.control]]
+slot = "pad1"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 20
+
+[[unit.control]]
+slot = "pad2"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 21
+
+[[unit.control]]
+slot = "pad3"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 22
+
+[[unit.control]]
+slot = "pad4"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 23
+
+[[unit.control]]
+slot = "pad5"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 24
+
+[[unit.control]]
+slot = "pad6"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 25
+
+[[unit.control]]
+slot = "pad7"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 26
+
+[[unit.control]]
+slot = "pad8"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 27
+
+[[unit.control]]
+slot = "mode-next"
+type = "Button"
+role = "mode_cycle"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 5
+id = 0
+
+[[unit]]
+id = "deck2.tempofader"
+preset = "tempofader"
+deck = 2
+mode = []
+
+[[unit.control]]
+slot = "fader"
+type = "BipolKnob"
+
+[unit.control.endpoint]
+midi = "cc"
+lsb = 41
+channel = 1
+id = 9
+
+[[unit]]
+id = "deck2.transport"
+preset = "transport"
+deck = 2
+mode = []
+
+[[unit.control]]
+slot = "play"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 1
+id = 0
+
+[[unit.control]]
+slot = "cue"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 1
+id = 1
+
+[[unit.control]]
+slot = "sync"
+type = "Button"
+
+[unit.control.endpoint]
+midi = "note"
+channel = 1
+id = 2

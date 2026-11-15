@@ -1,0 +1,25 @@
+[package]
+name = "library"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Track metadata, editable beat specs, the grid compiler, and the beat/key analyser"
+
+[dependencies]
+protocol = { path = "../protocol" }
+media = { path = "../media" }
+crossbeam-channel = { workspace = true }
+stratum-dsp = { git = "https://github.com/HLLMR/stratum-dsp.git", rev = "758e0b6" }
+# Analysis only: the streaming/stretch side lives in `audio` (signalsmith). The
+# `analysis` feature gates the beat/key/rigid-grid modules; `accelerate` (the default) is a
+# macOS framework and is dropped for Linux builds.
+timestretch = { version = "0.16.0", default-features = false, features = ["analysis"] }
+serde = { version = "1", features = ["derive"] }
+symphonia = { workspace = true }
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher"] }
+sha2 = "0.10"
+walkdir = "2.5"
+serde_json = "1"
+quick-xml = "0.41"
+base64 = "0.23"
+rekordbox-pdb = "0.1.0"

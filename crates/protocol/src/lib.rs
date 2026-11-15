@@ -1,0 +1,39 @@
+//! Pipefader shared protocol crate: types every layer speaks, zero engine/analysis logic.
+//!
+//! Dependency rule: this crate depends only on `serde`. Nothing here knows about cpal,
+//! symphonia, stratum-dsp or timestretch.
+
+pub mod action;
+pub mod analysis;
+pub mod beatgrid;
+pub mod browser;
+pub mod command;
+pub mod deck;
+pub mod key;
+pub mod live;
+pub mod output;
+pub mod source;
+pub mod stem;
+
+pub use action::{ActionSpec, ArgSpec, ACTIONS};
+pub use analysis::TrackAnalysis;
+pub use beatgrid::BeatGrid;
+pub use browser::BrowserAction;
+pub use command::{
+    Backend, BeatLen, Command, CommandResponse, CueOp, FaderTarget, FxChainId, FxParamStatus,
+    FxSlotRef, FxSlotStatus, HotCueOp, KeylockMode, LoopEditOp, LoopOp, LoopQuantum, NudgeOp,
+    PhaseMode, SyncOp, VinylOp,
+};
+pub use deck::{deck_label, DeckId, DeckState, HotCue, HOT_CUE_SLOTS};
+pub use key::{Key, KeyFormat, KeyMode};
+pub use live::{AudioSettings, AutogainSettings, KeylockSettings, LiveConfig, StemSettings};
+pub use output::{OutputOp, OutputRole, OutputState, OutputStatus};
+pub use source::{Shared, Source};
+pub use stem::{Stem, StemOp, StemPreset, StemSet, StemStatus};
+
+/// The **default** engine sample rate, and the rate the stem models were exported at. The engine's
+/// real rate is a live setting (`[audio] sample_rate`); the decoder resamples everything to it at
+/// load time, so nothing downstream of the decoder assumes this constant.
+pub const SAMPLE_RATE: u32 = 44_100;
+/// Interleaved stereo.
+pub const CHANNELS: usize = 2;

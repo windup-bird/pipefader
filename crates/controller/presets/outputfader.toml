@@ -1,0 +1,21 @@
+# Master and cue bus trims. Not tied to a deck.
+[[preset]]
+name = "outputfader"
+scope = "global"
+start = "default"
+
+[[preset.slot]]
+slot = "master"
+type = "Knob"
+[[preset.slot]]
+slot = "cue"
+type = "Knob"
+
+[[preset.mode]]
+name = "default"
+[[preset.mode.bind]]
+slot = "master"
+action = "fader master"
+[[preset.mode.bind]]
+slot = "cue"
+action = "fader cue"

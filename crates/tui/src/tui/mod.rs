@@ -1,0 +1,325 @@
+//! The TUI front-end (the default): terminal setup, the render/poll loop, and shutdown.
+//!
+//! The loop never blocks on the engine. Commands go out over the same unbounded channel the REPL
+//! uses; responses are drained with `try_recv`; the one blocking call in the loop is the meters
+//! query, which the producer answers between blocks. Drawing and input therefore cannot stall the
+//! audio thread.
+
+pub mod app;
+pub mod browser;
+pub mod devices;
+pub mod guide;
+pub mod image_slot;
+pub mod input;
+pub mod overview;
+pub mod picker;
+pub mod popup;
+pub mod settings;
+mod stderr;
+pub mod text;
+pub mod view;
+pub mod waveform_view;
+
+use std::io;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use audio::{AudioPipeline, Command};
+use crossterm::event::{self, Event, KeyEventKind};
+
+use self::app::App;
+use crate::preference;
+use ::app::command::{Dispatcher, Slots};
+use ::app::intent;
+use ::app::intent::UiIntent;
+use ::app::response::LogLine;
+use ::app::session::Session;
+
+/// ~60Hz. The image waveform transports can use the extra ticks; braille is still cheap at this
+/// rate, and the engine block (5.8ms) is comfortably inside it.
+const TICK: Duration = Duration::from_millis(16);
+/// Ask for meters every sixth tick (~10Hz): enough for a readable meter, far from chatty. The FX
+/// slot poll that feeds the knobs rides the same cadence.
+const METERS_EVERY: u64 = 6;
+
+/// Runs the TUI until the user quits. Restores the terminal and stops the engine on the way out.
+///
+/// `midi_port` / `midi_map` come from the startup flags; when a port is given the TUI connects it
+/// itself (so the F9 settings screen can replace it), otherwise it stays disconnected until one is
+/// chosen there.
+#[allow(clippy::too_many_arguments)]
+pub fn run(pipeline: &AudioPipeline, session: Session) {
+    let Session {
+        command_tx: engine_tx,
+        backends,
+        decks,
+        notice_tx,
+        notice_rx,
+        topology,
+        live,
+        live_source,
+        midi_port,
+        midi_map,
+        midi_control,
+        midi_state,
+        deck_routes,
+        controller_sessions,
+        auto_analyse,
+        library,
+    } = session;
+    let preference_path = preference_path(topology.as_deref());
+    // All commands (the command line, mouse hits and MIDI) pass through one fan-out before the
+    // engine. It is the only place that sees both origins; it extracts a lightweight panel intent
+    // and forwards the command unchanged.
+    let (command_tx, command_rx) = crossbeam_channel::unbounded();
+    let (event_tx, event_rx) = crossbeam_channel::unbounded();
+    let mut dispatcher = Dispatcher::new(command_tx.clone(), notice_tx).tap_events(event_tx);
+    if let (Some(control), Some(state)) = (midi_control, midi_state) {
+        dispatcher.set_midi(control, state);
+    }
+    // The settings screen keeps the paths after the dispatcher takes them.
+    let topology_path = topology.clone();
+    let live_path = live_source.clone();
+    dispatcher.with_topology(topology);
+    let ring_frames = live.audio.ring_frames;
+    let sample_rate = live.audio.sample_rate;
+    dispatcher.with_live(live, live_source);
+    dispatcher.with_library(library.clone());
+    let mut app = App::new(
+        decks,
+        backends,
+        notice_rx,
+        event_rx,
+        dispatcher.slots(),
+        dispatcher.scan(),
+    );
+    app.deck_routes = deck_routes;
+    app.controller_sessions = controller_sessions;
+    app.auto_analyse = auto_analyse;
+    // Start the fan-out before `prime` so its `ListFx` requests reach the engine.
+    spawn_command_fanout(command_rx, engine_tx, dispatcher.slots(), app.intent_slot());
+    // Prime every chain's slot list so `fx remove <name>` works from the first command.
+    dispatcher.prime(decks, pipeline.response_rx());
+    app.library = library;
+    // The header reports the configured ring and rate, not the compile-time defaults.
+    app.ring_frames = ring_frames;
+    app.sample_rate = sample_rate;
+    // The settings screen edits the one config the session was started from. Controller choices
+    // are written back to this path, so it must survive the topology swap below.
+    app.profile_path = topology_path.clone();
+    // Probe here, not in the settings screen: cpal's ALSA/JACK backends print warnings to stderr, and
+    // anything printed after `ratatui::try_init` lands on top of the alternate screen.
+    app.devices = audio::output_devices(Some(sample_rate));
+    app.preference_path = preference_path.clone();
+    app.live_path = live_path;
+    app.mixer_path = topology_path.or_else(|| Some(::app::command::DEFAULT_TOPOLOGY.to_owned()));
+    match preference::load(&preference_path) {
+        Ok((preference, notes)) => {
+            app.waveform = preference.waveform;
+            app.waveform_low_hz = preference.waveform.low_hz;
+            app.waveform_high_hz = preference.waveform.high_hz;
+            app.theme = preference.theme;
+            app.key_format = preference.display.key_format;
+            app.follow_commands = preference.display.follow;
+            for note in notes {
+                app.push_log(LogLine::info(format!("[preference] {note}")));
+            }
+            app.sync_library(&preference.library);
+        }
+        Err(err) => {
+            app.push_log(LogLine::error(format!("preference: {err}")));
+            app.reload_browser();
+        }
+    }
+    app.midi_map = (!midi_map.is_empty()).then_some(midi_map);
+    if let Some(port) = midi_port {
+        app.midi_port = Some(port);
+        app.connect_midi(
+            dispatcher.command_tx.clone(),
+            &dispatcher.notices,
+            &dispatcher,
+        );
+    }
+
+    let mut terminal = match ratatui::try_init() {
+        Ok(terminal) => terminal,
+        Err(err) => {
+            eprintln!("error: terminal: {err}");
+            return;
+        }
+    };
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+    // Detection needs the terminal's cell size, so it runs after `try_init` and before the first
+    // draw. A failed guess falls back to braille, never to a broken screen.
+    let (waveform_view, note) =
+        crate::tui::waveform_view::WaveformView::detect(app.waveform, app.decks);
+    app.waveform_view = waveform_view;
+    let renderer = app.waveform_view.backend().label();
+    app.push_log(LogLine::info(format!("[waveform] renderer {renderer}")));
+    if let Some(note) = note {
+        app.push_log(LogLine::info(format!("[waveform] {note}")));
+    }
+    // From here on, whatever the engine and libasound print goes into the response log instead of
+    // under the UI (a single `F9 › output` binding prints a dozen lines). Dropped after `restore`,
+    // so a fatal message still reaches the real terminal.
+    let stderr = stderr::start();
+    let outcome = event_loop(
+        &mut terminal,
+        &mut app,
+        pipeline,
+        &dispatcher,
+        stderr.as_ref().map(|(_, rx)| rx),
+    );
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+    ratatui::restore();
+    drop(stderr);
+
+    // However the loop ended, stop the engine so the producer joins. Report a terminal failure on
+    // the normal screen, after `restore`.
+    let _ = dispatcher.command_tx.send(Command::Quit);
+    drop(dispatcher);
+    drop(command_tx);
+    if let Err(err) = outcome {
+        eprintln!("tui: {err}");
+    }
+}
+
+/// Watches every command before the engine does, leaves the newest panel intent for the UI, and
+/// forwards the command unchanged. The extra hop is on the control thread, never the audio thread.
+fn spawn_command_fanout(
+    command_rx: crossbeam_channel::Receiver<Command>,
+    engine_tx: crossbeam_channel::Sender<Command>,
+    slots: Slots,
+    intent: Arc<Mutex<Option<UiIntent>>>,
+) {
+    let _ = std::thread::Builder::new()
+        .name("pipefader-command-fanout".to_owned())
+        .spawn(move || {
+            while let Ok(command) = command_rx.recv() {
+                // Polls and state requests classify to `None`; only user-visible actions replace
+                // the pending intent, so a 60Hz poll cannot fight the panel the user chose.
+                if let Some(next) = intent::from_command(&command, &slots) {
+                    if let Ok(mut pending) = intent.lock() {
+                        *pending = Some(next);
+                    }
+                }
+                if engine_tx.send(command).is_err() {
+                    break;
+                }
+            }
+        });
+}
+
+/// Preferences are a section of the one config, so the TUI reads them from the config file. The
+/// fallback is only for a session started without a config path.
+pub(crate) fn preference_path(config: Option<&str>) -> String {
+    config
+        .map(str::to_owned)
+        .unwrap_or_else(|| preference::DEFAULT_PATH.to_owned())
+}
+
+/// A light exponential moving average: enough to keep the header from flickering on every frame,
+/// while still showing a strip-rebuild spike for a second or so.
+fn ema(previous: &mut f32, sample: f32) {
+    if *previous <= 0.0 {
+        *previous = sample;
+    } else {
+        *previous = *previous * 0.9 + sample * 0.1;
+    }
+}
+
+fn event_loop(
+    terminal: &mut ratatui::DefaultTerminal,
+    app: &mut App,
+    pipeline: &AudioPipeline,
+    dispatcher: &Dispatcher,
+    stderr: Option<&crossbeam_channel::Receiver<String>>,
+) -> io::Result<()> {
+    let mut next_tick = Instant::now() + TICK;
+    let mut ticks: u64 = 0;
+    while !app.quit {
+        let now = Instant::now();
+        if let Some(last) = app.last_draw_at {
+            let interval_ms = now.duration_since(last).as_secs_f32() * 1000.0;
+            ema(&mut app.ui_fps, 1000.0 / interval_ms.max(0.001));
+        }
+        app.last_draw_at = Some(now);
+        let draw_start = Instant::now();
+        terminal.draw(|frame| view::render(frame, app))?;
+        ema(
+            &mut app.ui_draw_ms,
+            draw_start.elapsed().as_secs_f32() * 1000.0,
+        );
+
+        // Engine responses. State answers update the deck readouts silently; the rest is logged.
+        while let Ok(response) = pipeline.response_rx().try_recv() {
+            app.on_response(&response, pipeline);
+        }
+        if app.drain() {
+            app.refresh_completion();
+        }
+        if let Some(lines) = stderr {
+            // Engine/ALSA diagnostics, kept out of the canvas by `stderr::start`.
+            for line in lines.try_iter() {
+                app.push_log(LogLine::info(line));
+            }
+        }
+        for action in app.drain_browser_actions() {
+            input::apply_browser_action(app, action, dispatcher);
+        }
+
+        ticks = ticks.wrapping_add(1);
+        // One outstanding state request at a time: a stalled engine must not build a backlog.
+        // Polling every tick is what lets a 60Hz Kitty waveform move at 60Hz; the playhead is the
+        // value it animates.
+        if app.pending_states == 0 && dispatcher.command_tx.send(Command::GetAllStates).is_ok() {
+            app.pending_states = 1;
+        }
+        if ticks.is_multiple_of(METERS_EVERY) {
+            app.meters = pipeline.meters();
+            // One poll in flight at a time, like the state poll: a stalled engine must not queue
+            // knob reads. `GetFxState` is silent, so this never touches the response log.
+            if app.fx_pending == 0 {
+                app.fx_pending = app.decks;
+                for deck in 0..app.decks {
+                    let chain = protocol::FxChainId::Deck(deck as u8);
+                    if dispatcher
+                        .command_tx
+                        .send(Command::GetFxState { chain })
+                        .is_err()
+                    {
+                        app.fx_pending = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        // Once a second; kept after the draw so a sysinfo read never sits in the input path.
+        app.process.refresh();
+
+        // Handle input until the next tick, then redraw. Keys stay responsive between frames.
+        loop {
+            let now = Instant::now();
+            if now >= next_tick {
+                break;
+            }
+            if event::poll(next_tick - now)? {
+                let event = event::read()?;
+                match event {
+                    Event::Key(key) if key.kind != KeyEventKind::Release => {
+                        input::handle(app, key, dispatcher, pipeline);
+                    }
+                    Event::Mouse(mouse) => input::handle_mouse(app, mouse, dispatcher),
+                    _ => {}
+                }
+            } else {
+                break;
+            }
+        }
+        next_tick += TICK;
+        if next_tick <= Instant::now() {
+            next_tick = Instant::now() + TICK;
+        }
+    }
+    Ok(())
+}

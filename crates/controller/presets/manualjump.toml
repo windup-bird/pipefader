@@ -1,0 +1,41 @@
+# Manual beat-jump keys plus a persistent jump step. `forward`/`backward` use `jump_beats`;
+# double/halve change that value.
+[[preset]]
+name = "manualjump"
+scope = "deck"
+start = "default"
+
+[[preset.slot]]
+slot = "forward"
+type = "Button"
+[[preset.slot]]
+slot = "backward"
+type = "Button"
+[[preset.slot]]
+slot = "double"
+type = "Button"
+[[preset.slot]]
+slot = "halve"
+type = "Button"
+[[preset.slot]]
+slot = "autojump"
+type = "RelKnob"
+
+[[preset.mode]]
+name = "default"
+[[preset.mode.bind]]
+slot = "forward"
+action = "beatjump forward"
+[[preset.mode.bind]]
+slot = "backward"
+action = "beatjump backward"
+[[preset.mode.bind]]
+slot = "double"
+action = "jumpbeats double"
+[[preset.mode.bind]]
+slot = "halve"
+action = "jumpbeats halve"
+[[preset.mode.bind]]
+slot = "autojump"
+action = "beatjump forward"
+down = "beatjump backward"

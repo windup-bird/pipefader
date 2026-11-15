@@ -1,0 +1,154 @@
+# An 8-pad grid with four modes. The mode slots are ordinary controls: the unit binds one note
+# each, and pressing one switches the unit's mode without emitting a command.
+[[preset]]
+name = "pad"
+scope = "deck"
+start = "hotcue"
+
+[[preset.slot]]
+slot = "pad1"
+type = "Button"
+[[preset.slot]]
+slot = "pad2"
+type = "Button"
+[[preset.slot]]
+slot = "pad3"
+type = "Button"
+[[preset.slot]]
+slot = "pad4"
+type = "Button"
+[[preset.slot]]
+slot = "pad5"
+type = "Button"
+[[preset.slot]]
+slot = "pad6"
+type = "Button"
+[[preset.slot]]
+slot = "pad7"
+type = "Button"
+[[preset.slot]]
+slot = "pad8"
+type = "Button"
+
+[[preset.slot]]
+slot = "mode-hotcue"
+type = "Button"
+role = "mode_trigger"
+target = "hotcue"
+[[preset.slot]]
+slot = "mode-loop"
+type = "Button"
+role = "mode_trigger"
+target = "loop"
+[[preset.slot]]
+slot = "mode-beatjump"
+type = "Button"
+role = "mode_trigger"
+target = "beatjump"
+[[preset.slot]]
+slot = "mode-stems"
+type = "Button"
+role = "mode_trigger"
+target = "stems"
+[[preset.slot]]
+slot = "mode-next"
+type = "Button"
+role = "mode_cycle"
+
+[[preset.mode]]
+name = "hotcue"
+[[preset.mode.bind]]
+slot = "pad1"
+action = "hotcue trigger 1"
+[[preset.mode.bind]]
+slot = "pad2"
+action = "hotcue trigger 2"
+[[preset.mode.bind]]
+slot = "pad3"
+action = "hotcue trigger 3"
+[[preset.mode.bind]]
+slot = "pad4"
+action = "hotcue trigger 4"
+[[preset.mode.bind]]
+slot = "pad5"
+action = "hotcue trigger 5"
+[[preset.mode.bind]]
+slot = "pad6"
+action = "hotcue trigger 6"
+[[preset.mode.bind]]
+slot = "pad7"
+action = "hotcue trigger 7"
+[[preset.mode.bind]]
+slot = "pad8"
+action = "hotcue trigger 8"
+
+# Beat-loop lengths, shortest first: 1/4, 1/2, 1, 2, 4, 8, 16, 32 beats.
+[[preset.mode]]
+name = "loop"
+[[preset.mode.bind]]
+slot = "pad1"
+action = "loop 1/4"
+[[preset.mode.bind]]
+slot = "pad2"
+action = "loop 1/2"
+[[preset.mode.bind]]
+slot = "pad3"
+action = "loop 1"
+[[preset.mode.bind]]
+slot = "pad4"
+action = "loop 2"
+[[preset.mode.bind]]
+slot = "pad5"
+action = "loop 4"
+[[preset.mode.bind]]
+slot = "pad6"
+action = "loop 8"
+[[preset.mode.bind]]
+slot = "pad7"
+action = "loop 16"
+[[preset.mode.bind]]
+slot = "pad8"
+action = "loop 32"
+
+[[preset.mode]]
+name = "beatjump"
+[[preset.mode.bind]]
+slot = "pad1"
+action = "beatjump -2"
+[[preset.mode.bind]]
+slot = "pad2"
+action = "beatjump 2"
+[[preset.mode.bind]]
+slot = "pad3"
+action = "beatjump -4"
+[[preset.mode.bind]]
+slot = "pad4"
+action = "beatjump 4"
+[[preset.mode.bind]]
+slot = "pad5"
+action = "beatjump -8"
+[[preset.mode.bind]]
+slot = "pad6"
+action = "beatjump 8"
+[[preset.mode.bind]]
+slot = "pad7"
+action = "beatjump -16"
+[[preset.mode.bind]]
+slot = "pad8"
+action = "beatjump 16"
+
+# Pads 1-4 latch the four stems' mute; 5-8 are deliberately unbound in this mode.
+[[preset.mode]]
+name = "stems"
+[[preset.mode.bind]]
+slot = "pad1"
+action = "drums mute"
+[[preset.mode.bind]]
+slot = "pad2"
+action = "bass mute"
+[[preset.mode.bind]]
+slot = "pad3"
+action = "other mute"
+[[preset.mode.bind]]
+slot = "pad4"
+action = "vocals mute"

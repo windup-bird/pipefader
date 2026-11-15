@@ -1,0 +1,70 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/protocol",
+    "crates/media",
+    "crates/audio",
+    "crates/library",
+    "crates/stems",
+    "crates/controller",
+    "crates/app",
+    "crates/tui",
+]
+exclude = ["vendor/signalsmith-stretch"]
+
+# Pipefader needs one change to `charon-audio` that upstream 0.1.2 does not have: a CUDA
+# execution provider alongside its CPU/CoreML ones. It lives in our fork,
+# `windup-bird/charon-audio-cuda`, branch `feat/cuda-ep`, which is upstream `v0.1.2` plus
+# that provider. See `docs/stem.md` §4 for why a fork and not a patch, and the fork's
+# `FORK.md` for the diff and the measurements.
+[patch.crates-io]
+charon-audio = { git = "https://github.com/windup-bird/charon-audio-cuda", branch = "feat/cuda-ep" }
+
+[workspace.package]
+# Bumped past the v2 band-scan fitter: the `analysis` cache keys on this version, so tracks
+# re-analyse with the v3 sequence-indexed least-squares fit.
+version = "0.1.2"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+cpal = "0.15"
+rtrb = "0.3"
+symphonia = { version = "0.5", default-features = false, features = [
+    "mp3",
+    "mp1",
+    "mp2",
+    "wav",
+    "aiff",
+    "flac",
+    "pcm",
+    "isomp4",
+    "aac",
+    "ogg",
+    "vorbis",
+] }
+crossbeam-channel = "0.5"
+# Cover art decoding. `jpeg` + `png` only: those are what ID3/FLAC artwork uses, and the default
+# feature set would drag in every animation/webp/tiff decoder for a 48px thumbnail.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+arc-swap = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+toml_edit = "0.22"
+# TUI only. Minimal features: `crossterm` pulls in std + the widgets crate; the default
+# `all-widgets` would drag in the calendar/time stack we never draw.
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+crossterm = "0.29"
+# Process CPU/RSS for the TUI header: cross-platform without hand-written /proc and Win32 FFI.
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+# Display width for column/title truncation. ratatui already pulls it in; making it direct lets
+# the browser and deck titles keep CJK filenames aligned.
+unicode-width = "0.2"
+# MIDI input. `midir`'s ALSA backend rides the `alsa`/`alsa-sys` crates cpal already pulls in, so
+# this adds no new C dependency. Input and output share one API, which keeps LED feedback (future)
+# on the same library.
+midir = "0.11"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
