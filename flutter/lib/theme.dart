@@ -8,10 +8,13 @@ abstract final class T {
   // Page: neutral charcoal, one grey per band. No colour cast — the accent is
   // the only blue in the room.
   static const bg = Color(0xFF161616);
+
   /// Header, deck info and the control strip.
   static const band = Color(0xFF1B1B1B);
+
   /// The waveform strip, the darkest band.
   static const wave = Color(0xFF0B0B0B);
+
   /// The browser sits between the two.
   static const browser = Color(0xFF131313);
   static const surface = Color(0xFF242424);
@@ -79,8 +82,8 @@ abstract final class Ty {
     letterSpacing: 1.2,
   );
   static const title = TextStyle(
-    fontSize: 18,
-    height: 1.05,
+    fontSize: 20,
+    height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
@@ -92,20 +95,19 @@ abstract final class Ty {
     fontWeight: FontWeight.w600,
     fontFeatures: _tab,
   );
-  static const numDim = TextStyle(
-    fontSize: 12,
+  static const meta = TextStyle(
+    fontSize: 10,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w500,
     fontFeatures: _tab,
   );
-  static const clock = TextStyle(
-    fontSize: 12,
+  static const value = TextStyle(
+    fontSize: 20,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,
     fontFeatures: _tab,
-    letterSpacing: 0.2,
   );
   static const bpm = TextStyle(
     fontSize: 22,
@@ -122,7 +124,7 @@ abstract final class Ty {
     letterSpacing: 0.3,
   );
   static const key = TextStyle(
-    fontSize: 15,
+    fontSize: 20,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,

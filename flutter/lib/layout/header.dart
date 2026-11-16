@@ -12,9 +12,7 @@ class Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: height,
-      child: Center(
-        child: LogoMark(size: height * 0.52),
-      ),
+      child: Center(child: LogoMark(size: height * 0.75)),
     );
   }
 }

@@ -27,10 +27,8 @@ class WaveformRow extends StatelessWidget {
       child: ClipRect(
         child: ValueListenableBuilder<int>(
           valueListenable: model.clock,
-          builder: (context, _, _) => Waveform(
-            deck: deck,
-            framesPerPixel: model.framesPerPixel,
-          ),
+          builder: (context, _, _) =>
+              Waveform(deck: deck, framesPerPixel: model.framesPerPixel),
         ),
       ),
     );
@@ -46,11 +44,9 @@ class WaveZoomKeys extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _ZoomKey(
-          glyph: GlyphKind.plus,
-          onTap: () => model.zoom(inward: true),
-        ),
+        _ZoomKey(glyph: GlyphKind.plus, onTap: () => model.zoom(inward: true)),
         const SizedBox(height: 6),
         _ZoomKey(
           glyph: GlyphKind.minus,
@@ -71,7 +67,7 @@ class _ZoomKey extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: T.bg,
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(1),
       child: GlyphButton(glyph: glyph, size: 22, onTap: onTap),
     );
   }

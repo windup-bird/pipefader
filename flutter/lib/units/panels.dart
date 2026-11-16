@@ -10,11 +10,7 @@ import '../widgets/unit_menu.dart';
 /// Tempo: sync state, the BPM with its two step keys, the fader range and the
 /// bend pair. Four rows, centred, nothing else.
 class TempoPanel extends StatelessWidget {
-  const TempoPanel({
-    required this.model,
-    required this.deck,
-    super.key,
-  });
+  const TempoPanel({required this.model, required this.deck, super.key});
 
   final AppModel model;
   final DeckRuntime deck;
@@ -25,8 +21,8 @@ class TempoPanel extends StatelessWidget {
     final syncLabel = !synced
         ? 'sync off'
         : model.decks.indexOf(deck) == 0
-            ? 'sync leader'
-            : 'sync follower';
+        ? 'sync leader'
+        : 'sync follower';
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -79,11 +75,7 @@ class TempoPanel extends StatelessWidget {
 /// column is the step keys, the centre the value or call key, the right the
 /// other step key — so the rows line up and a longer number never shifts a key.
 class BeatctlPanel extends StatefulWidget {
-  const BeatctlPanel({
-    required this.model,
-    required this.deck,
-    super.key,
-  });
+  const BeatctlPanel({required this.model, required this.deck, super.key});
 
   final AppModel model;
   final DeckRuntime deck;
@@ -99,78 +91,76 @@ class _BeatctlPanelState extends State<BeatctlPanel> {
   Widget build(BuildContext context) {
     final model = widget.model;
     final deck = widget.deck;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: LayoutBuilder(builder: (context, constraints) {
-        // One grid for all three rows: a key column, a wider value column, a
-        // key column. Fixed in the panel, so a longer number never shifts a key.
-        final side = (constraints.maxWidth * 0.16).clamp(28.0, 44.0);
-        final centre = (constraints.maxWidth - 2 * side - 8).clamp(56.0, 140.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The three columns are 1:2:1, so the side keys cover one pad column and
+        // the centre two, and the rows fill the pad grid's height edge to edge.
+        const gap = 4.0;
+        final side = (constraints.maxWidth - 2 * gap) / 4;
+        final centre = side * 2;
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _BeatRow(
-              side: side,
-              centre: centre,
-              left: PanelButton(
-                label: '-',
-                height: 22,
-                onTap: () => model.stepLoop(deck, true),
-              ),
-              center: Center(
-                child: _ValueLabel(value: deck.loopLabel, label: 'loop'),
-              ),
-              right: PanelButton(
-                label: '+',
-                height: 22,
-                onTap: () => model.stepLoop(deck, false),
-              ),
-            ),
-            const SizedBox(height: 6),
-            _BeatRow(
-              side: side,
-              centre: centre,
-              left: PanelButton(
-                label: 'in',
-                height: 22,
-                active: deck.loopArmed,
-                onTap: () => model.loopIn(deck),
-              ),
-              center: PanelButton(
-                label: 'call',
-                height: 22,
-                active: deck.loopActive,
-                onTap: () => model.toggleLoopCall(deck),
-              ),
-              right: PanelButton(
-                label: 'out',
-                height: 22,
-                onTap: () => model.loopOut(deck),
+            Expanded(
+              child: _BeatRow(
+                side: side,
+                centre: centre,
+                left: PanelButton(
+                  label: '-',
+                  onTap: () => model.stepLoop(deck, true),
+                ),
+                center: Center(
+                  child: _ValueLabel(value: deck.loopLabel, label: 'loop'),
+                ),
+                right: PanelButton(
+                  label: '+',
+                  onTap: () => model.stepLoop(deck, false),
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            _BeatRow(
-              side: side,
-              centre: centre,
-              left: PanelButton(
-                label: '<',
-                height: 22,
-                onTap: () => model.jumpBy(deck, -1),
+            const SizedBox(height: gap),
+            Expanded(
+              child: _BeatRow(
+                side: side,
+                centre: centre,
+                left: PanelButton(
+                  label: 'in',
+                  active: deck.loopArmed,
+                  onTap: () => model.loopIn(deck),
+                ),
+                center: PanelButton(
+                  label: 'call',
+                  active: deck.loopActive,
+                  onTap: () => model.toggleLoopCall(deck),
+                ),
+                right: PanelButton(
+                  label: 'out',
+                  onTap: () => model.loopOut(deck),
+                ),
               ),
-              center: _JumpButton(
-                anchorKey: _jumpAnchor,
-                size: deck.jumpSize,
-                onTap: _pickJump,
-              ),
-              right: PanelButton(
-                label: '>',
-                height: 22,
-                onTap: () => model.jumpBy(deck, 1),
+            ),
+            const SizedBox(height: gap),
+            Expanded(
+              child: _BeatRow(
+                side: side,
+                centre: centre,
+                left: PanelButton(
+                  label: '<',
+                  onTap: () => model.jumpBy(deck, -1),
+                ),
+                center: _JumpButton(
+                  anchorKey: _jumpAnchor,
+                  size: deck.jumpSize,
+                  onTap: _pickJump,
+                ),
+                right: PanelButton(
+                  label: '>',
+                  onTap: () => model.jumpBy(deck, 1),
+                ),
               ),
             ),
           ],
         );
-      }),
+      },
     );
   }
 
@@ -205,7 +195,7 @@ class _BeatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(width: side, child: left),
         const SizedBox(width: 4),
@@ -271,7 +261,6 @@ class _JumpButtonState extends State<_JumpButton> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          height: 22,
           alignment: Alignment.center,
           color: _hover ? T.surfaceHi : T.surface,
           child: _ValueLabel(value: '${widget.size}', label: 'jump'),
@@ -370,11 +359,7 @@ class _HoldKeyState extends State<_HoldKey> {
 
 /// The channel strip: high / mid / low / filter as vertical bars.
 class MixerPanel extends StatelessWidget {
-  const MixerPanel({
-    required this.model,
-    required this.deck,
-    super.key,
-  });
+  const MixerPanel({required this.model, required this.deck, super.key});
 
   final AppModel model;
   final DeckRuntime deck;
@@ -415,11 +400,7 @@ class MixerPanel extends StatelessWidget {
 /// One FX slot: beat division, two parameters, hold/instant, and the slot name
 /// which opens the picker.
 class FxPanel extends StatelessWidget {
-  const FxPanel({
-    required this.model,
-    required this.deck,
-    super.key,
-  });
+  const FxPanel({required this.model, required this.deck, super.key});
 
   final AppModel model;
   final DeckRuntime deck;
@@ -538,43 +519,42 @@ class _ParamSliderState extends State<_ParamSlider> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(
-          width: 26,
-          child: Text(widget.label, style: Ty.labelSmall),
-        ),
+        SizedBox(width: 26, child: Text(widget.label, style: Ty.labelSmall)),
         const SizedBox(width: 6),
         Expanded(
-          child: LayoutBuilder(builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            return Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (event) {
-                setState(() => _active = true);
-                _setFromLocal(event.localPosition, width);
-              },
-              onPointerMove: (event) {
-                if (!_active) return;
-                _setFromLocal(event.localPosition, width);
-              },
-              onPointerUp: (_) {
-                setState(() => _active = false);
-                widget.onChanged(_value);
-              },
-              onPointerCancel: (_) {
-                setState(() => _active = false);
-                widget.onChanged(_value);
-              },
-              child: Container(
-                height: 8,
-                color: T.surface,
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: _value,
-                  child: Container(color: T.accent),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              return Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
+                  setState(() => _active = true);
+                  _setFromLocal(event.localPosition, width);
+                },
+                onPointerMove: (event) {
+                  if (!_active) return;
+                  _setFromLocal(event.localPosition, width);
+                },
+                onPointerUp: (_) {
+                  setState(() => _active = false);
+                  widget.onChanged(_value);
+                },
+                onPointerCancel: (_) {
+                  setState(() => _active = false);
+                  widget.onChanged(_value);
+                },
+                child: Container(
+                  height: 8,
+                  color: T.surface,
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: _value,
+                    child: Container(color: T.accent),
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
         ),
       ],
     );

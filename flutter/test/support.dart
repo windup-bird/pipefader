@@ -10,8 +10,21 @@ import 'package:pipefader_gui/theme.dart';
 /// Loads the SDK's Roboto into the test engine so goldens show real glyphs
 /// instead of Ahem boxes. A machine without that path still runs, only boxed.
 Future<void> loadTestFonts() async {
-  const dir = '/home/windupbird/flutter/bin/cache/artifacts/material_fonts';
-  if (!Directory(dir).existsSync()) return;
+  final roots = <String>[
+    ?Platform.environment['FLUTTER_ROOT'],
+    '/home/windupbird/.cache/flutter_sdk',
+    '/home/windupbird/flutter',
+    '/opt/flutter',
+  ];
+  String? dir;
+  for (final root in roots) {
+    final candidate = '$root/bin/cache/artifacts/material_fonts';
+    if (Directory(candidate).existsSync()) {
+      dir = candidate;
+      break;
+    }
+  }
+  if (dir == null) return;
   final loader = FontLoader('Roboto');
   for (final name in const [
     'Roboto-Regular.ttf',

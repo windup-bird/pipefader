@@ -75,15 +75,11 @@ class _AppShellState extends State<AppShell>
     final height = constraints.maxHeight;
     final roomy = width >= 1080;
     final hpad = roomy ? 20.0 : 14.0;
-    final headerH = roomy ? 56.0 : 52.0;
-    const base = 72.0;
-    const browserMin = 150.0;
-    final room = height - headerH - 14 - browserMin;
-    var deckH = base;
-    if (room < 5 * deckH) deckH = (room / 5).clamp(64.0, deckH);
-    final waveH = deckH;
-    final controlH = deckH * 2;
-    final bandsHeight = headerH + 14 + 5 * deckH;
+    const headerH = 44.0;
+    const deckH = 60.0;
+    const waveH = 72.0;
+    const controlH = 144.0;
+    const bandsHeight = headerH + 8 + deckH + 8 + waveH + 6 + waveH + controlH;
     final scrollable = height - bandsHeight < 110;
 
     final bands = <Widget>[
@@ -115,6 +111,7 @@ class _AppShellState extends State<AppShell>
                 ],
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -140,10 +137,14 @@ class _AppShellState extends State<AppShell>
                 ],
               ),
             ),
-            Positioned(
-              left: hpad + 6,
-              top: 8,
-              child: WaveZoomKeys(model: _model),
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: EdgeInsets.only(left: hpad + 6),
+                  child: WaveZoomKeys(model: _model),
+                ),
+              ),
             ),
           ],
         ),
@@ -170,20 +171,28 @@ class _AppShellState extends State<AppShell>
         child: SingleChildScrollView(
           controller: _pageScroll,
           child: Column(
-            children: [...bands, SizedBox(height: 300, child: browser)],
+            children: [
+              ...bands,
+              SizedBox(height: 300, child: browser),
+            ],
           ),
         ),
       );
     }
-    return Column(children: [...bands, Expanded(child: browser)]);
+    return Column(
+      children: [
+        ...bands,
+        Expanded(child: browser),
+      ],
+    );
   }
 
   Widget _stacked(BoxConstraints constraints) {
     final width = constraints.maxWidth;
     final height = constraints.maxHeight;
     const hpad = 12.0;
-    const headerH = 46.0;
-    const deckH = 68.0;
+    const headerH = 40.0;
+    const deckH = 60.0;
     const waveH = 56.0;
     final controlH = width >= 620 ? 184.0 : 172.0;
 
@@ -202,6 +211,7 @@ class _AppShellState extends State<AppShell>
                 height: deckH,
               ),
             ),
+            const SizedBox(height: 6),
           ],
         ),
       ),
@@ -209,37 +219,39 @@ class _AppShellState extends State<AppShell>
         color: T.wave,
         child: Stack(
           children: [
-            WaveformRow(
-              model: _model,
-              deck: _model.decks[0],
-              height: waveH,
-            ),
-            Positioned(
-              left: hpad + 6,
-              top: 6,
-              child: WaveZoomKeys(model: _model),
+            WaveformRow(model: _model, deck: _model.decks[0], height: waveH),
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: hpad + 6),
+                  child: WaveZoomKeys(model: _model),
+                ),
+              ),
             ),
           ],
         ),
       ),
       ColoredBox(
         color: T.band,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: hpad),
-          child: DeckInfo(
-            model: _model,
-            deck: _model.decks[1],
-            height: deckH,
-          ),
+        child: Column(
+          children: [
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: hpad),
+              child: DeckInfo(
+                model: _model,
+                deck: _model.decks[1],
+                height: deckH,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
         ),
       ),
       ColoredBox(
         color: T.wave,
-        child: WaveformRow(
-          model: _model,
-          deck: _model.decks[1],
-          height: waveH,
-        ),
+        child: WaveformRow(model: _model, deck: _model.decks[1], height: waveH),
       ),
       SizedBox(
         height: controlH,
@@ -274,7 +286,8 @@ class _AppShellState extends State<AppShell>
     ];
     final browser = _browserBand(hpad);
 
-    final fixed = headerH + 6 + deckH + waveH + deckH + waveH + controlH;
+    final fixed =
+        headerH + 6 + deckH + 6 + waveH + 6 + deckH + 6 + waveH + controlH;
     if (fixed + 80 > height) {
       return Scrollbar(
         controller: _pageScroll,
@@ -284,12 +297,20 @@ class _AppShellState extends State<AppShell>
         child: SingleChildScrollView(
           controller: _pageScroll,
           child: Column(
-            children: [...bands, SizedBox(height: 300, child: browser)],
+            children: [
+              ...bands,
+              SizedBox(height: 300, child: browser),
+            ],
           ),
         ),
       );
     }
-    return Column(children: [...bands, Expanded(child: browser)]);
+    return Column(
+      children: [
+        ...bands,
+        Expanded(child: browser),
+      ],
+    );
   }
 
   Widget _browserBand(double hpad) {
@@ -345,21 +366,23 @@ class _ScrollHintState extends State<_ScrollHint> {
     final viewport = position.viewportDimension;
     final fraction = (viewport / (viewport + extent)).clamp(0.0, 1.0);
     final progress = (position.pixels / extent).clamp(0.0, 1.0).toDouble();
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final thumb = width * fraction;
-      return Stack(
-        children: [
-          const Positioned.fill(child: ColoredBox(color: T.surface)),
-          Positioned(
-            left: (width - thumb) * progress,
-            width: thumb,
-            top: 0,
-            bottom: 0,
-            child: const ColoredBox(color: T.dim),
-          ),
-        ],
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final thumb = width * fraction;
+        return Stack(
+          children: [
+            const Positioned.fill(child: ColoredBox(color: T.surface)),
+            Positioned(
+              left: (width - thumb) * progress,
+              width: thumb,
+              top: 0,
+              bottom: 0,
+              child: const ColoredBox(color: T.dim),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

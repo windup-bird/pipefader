@@ -29,11 +29,7 @@ const List<UnitKind> innerUnits = <UnitKind>[
 /// inverted on the right. The centre holds the two channel faders, their meters
 /// and the crossfader.
 class ControlBand extends StatelessWidget {
-  const ControlBand({
-    required this.model,
-    required this.height,
-    super.key,
-  });
+  const ControlBand({required this.model, required this.height, super.key});
 
   final AppModel model;
   final double height;
@@ -49,15 +45,23 @@ class ControlBand extends StatelessWidget {
         children: [
           _Transport(model: model, deck: first),
           const SizedBox(width: 8),
-          Expanded(child: _PadSlot(model: model, deck: first)),
+          Expanded(
+            child: _PadSlot(model: model, deck: first),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: _UnitSlot(model: model, deck: first)),
+          Expanded(
+            child: _UnitSlot(model: model, deck: first),
+          ),
           const SizedBox(width: 10),
           _Centre(model: model),
           const SizedBox(width: 10),
-          Expanded(child: _UnitSlot(model: model, deck: second)),
+          Expanded(
+            child: _UnitSlot(model: model, deck: second),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: _PadSlot(model: model, deck: second)),
+          Expanded(
+            child: _PadSlot(model: model, deck: second),
+          ),
           const SizedBox(width: 8),
           _Transport(model: model, deck: second),
         ],
@@ -135,7 +139,9 @@ class _PadSlot extends StatelessWidget {
           ),
         ),
         const SizedBox(height: topGap),
-        Expanded(child: PadGrid(model: model, deck: deck)),
+        Expanded(
+          child: PadGrid(model: model, deck: deck),
+        ),
       ],
     );
   }
@@ -182,11 +188,14 @@ class _UnitSlotState extends State<_UnitSlot> {
                       widget.model.setUnit(widget.deck, innerUnits[index]),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   child: Text(
                     _kind.label.toUpperCase(),
                     style: Ty.labelSmall.copyWith(
-                      color: _hover ? T.text : T.dim,
+                      color: _hover ? T.accentHi : T.accent,
                     ),
                   ),
                 ),
@@ -260,10 +269,7 @@ class _Centre extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Crossfader(
-            value: model.crossfader,
-            onChanged: model.setCrossfader,
-          ),
+          Crossfader(value: model.crossfader, onChanged: model.setCrossfader),
         ],
       ),
     );
