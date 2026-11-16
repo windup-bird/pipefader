@@ -3017,7 +3017,7 @@ start = "beatjump"
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         // `mapping.toml` is the shipped unit-map template the guide edits.
         let mut checked = 0;
-        for name in ["profile/mapping.toml"] {
+        for name in ["crates/controller/mapping.toml"] {
             let path = root.join(name);
             let Ok(text) = std::fs::read_to_string(&path) else {
                 continue;

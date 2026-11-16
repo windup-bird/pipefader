@@ -873,7 +873,7 @@ mod tests {
 
     #[test]
     fn the_reference_toml_parses_into_simple_dj() {
-        // The contract the shipped template → edit → `--config` path depends on: that text and the
+        // The contract the shipped template → edit → `--profile` path depends on: that text and the
         // built-in constructor describe the same mixer. Ids are positional (the mixer renumbers),
         // so they are normalised before the comparison.
         let mut parsed = MixerConfig::from_toml_str(reference_toml())

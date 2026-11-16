@@ -204,7 +204,7 @@ pub struct Dispatcher {
     pub command_tx: Sender<Command>,
     pub notices: NoticeTx,
     pub events: Option<Sender<UiEvent>>,
-    /// Where `mixer reload` reads from when no path is given: `--config`'s file, or the shipped
+    /// Where `mixer reload` reads from when no path is given: `--profile`'s file, or the shipped
     /// default under `./config/`. The front-end owns file IO, so the engine only ever sees text.
     topology: Arc<Mutex<Option<String>>>,
     /// Where `live reload` reads from: the config file the session started with.
@@ -328,7 +328,7 @@ impl Dispatcher {
             .unwrap_or_else(|| DEFAULT_LIVE.to_owned())
     }
 
-    /// Remembers which topology file `mixer reload` should fall back to (`--config`), and which one
+    /// Remembers which topology file `mixer reload` should fall back to (`--profile`), and which one
     /// the session is actually running: a profile switch replaces it, so it is a setter rather than a
     /// builder step.
     pub fn with_topology(&self, path: Option<String>) {
@@ -337,7 +337,7 @@ impl Dispatcher {
         }
     }
 
-    /// The topology file to reload: the one from `--config`, else the shipped default.
+    /// The topology file to reload: the one from `--profile`, else the shipped default.
     fn topology_path(&self) -> String {
         self.topology
             .lock()

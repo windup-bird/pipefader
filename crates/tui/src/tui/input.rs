@@ -479,7 +479,7 @@ fn persist_controller(app: &mut App, port: Option<&str>, map: Option<&std::path:
 
 /// Reloads the mixer topology after the settings screen rewrote an output.
 ///
-/// The fallback is the point: a session started without `--config`/`--profile` boots from
+/// The fallback is the point: a session started without `--profile` boots from
 /// [`command::DEFAULT_TOPOLOGY`] (`main::default_config` reads exactly that file), but leaves
 /// `app.mixer_path` unset. Without the fallback the screen would write the file and the running
 /// engine would keep the old device bindings — silence that only a restart cures. The write path is

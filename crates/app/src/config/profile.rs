@@ -1,7 +1,7 @@
 //! The one configuration file: where it lives, how it is created, and how its sections are read.
 //!
 //! A config is a single TOML file with `[mixer]`, `[live]`, `[preference]` and `[controller]`
-//! sections. `--config <file>` reads exactly that file; without it the platform default is used, and
+//! sections. `--profile <file>` reads exactly that file; without it the platform default is used, and
 //! on the first start the shipped template is copied there. An existing file is never overwritten,
 //! and a read-only config directory does not stop the engine: the built-in template runs instead.
 //!
@@ -26,12 +26,12 @@ pub fn template() -> &'static str {
     reference_toml()
 }
 
-/// The shipped unit-map template (`profile/mapping.toml`), embedded so `--guide` has a map to edit
-/// on a machine with no checkout. It is written only when the guide opens a map that does not exist
-/// yet, never at startup — the first start still creates exactly one file, the config.
+/// The shipped unit-map template (`crates/controller/mapping.toml`), embedded so `--guide` has a map
+/// to edit on a machine with no checkout. It is written only when the guide opens a map that does
+/// not exist yet, never at startup — the first start still creates exactly one file, the config.
 pub const MAP_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../profile/mapping.toml"
+    "/../controller/mapping.toml"
 ));
 
 /// The `[controller]` section: a pointer to one unit-map file, plus an optional port override.

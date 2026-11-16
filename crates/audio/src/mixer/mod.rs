@@ -289,7 +289,7 @@ impl Mixer {
         &self.config
     }
 
-    /// Rebuilds the topology from `text`, which is parsed exactly as `--config` parses a file:
+    /// Rebuilds the topology from `text`, which is parsed exactly as `--profile` parses a file:
     /// **undefined keys take their defaults**, they do not keep the running value.
     ///
     /// What survives is everything that is *not* a config value: each channel's deck and its

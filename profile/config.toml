@@ -1,6 +1,6 @@
 # Pipefader configuration — one file, one path.
 #
-# `--config <file>` reads exactly that file. With no flag, the platform default is used:
+# `--profile <file>` reads exactly that file. With no flag, the platform default is used:
 #   Linux / Termux : $XDG_CONFIG_HOME/pipefader/config.toml  (or ~/.config/pipefader/config.toml)
 #   Windows        : %APPDATA%/Pipefader/config.toml
 # On the first start this template is copied there; an existing file is never overwritten.

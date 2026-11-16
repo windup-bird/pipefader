@@ -55,7 +55,7 @@ pub struct Input {
 /// returned connection lives.
 ///
 /// `query` is either a 0-based index (as [`list_ports`] reports) or an exact port name. A bad query
-/// is a clean error listing the alternatives, matching the CLI's habit of failing a bad `--config`
+/// is a clean error listing the alternatives, matching the CLI's habit of failing a bad `--profile`
 /// instead of starting half-configured.
 pub fn open(query: &str, tx: Sender<Received>) -> Result<Input, String> {
     let mut input = MidiInput::new("pipefader").map_err(|err| err.to_string())?;

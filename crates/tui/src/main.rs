@@ -23,7 +23,7 @@ pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
     let args = CliArgs::parse();
-    // One config for the whole run: `--config` names it, otherwise the platform default is used
+    // One config for the whole run: `--profile` names it, otherwise the platform default is used
     // and created from the shipped template on the first start.
     let mut config = match profile::load_or_create(args.config.as_deref()) {
         Ok(config) => config,
@@ -239,12 +239,12 @@ fn main() {
     drop(midi_sessions);
 }
 
-/// Reads `--config <path>` (the one config file), `--4-decks` (a four-deck rig), `--cli` (line REPL
-/// instead of the TUI) and `--guide [<file>]` (the unit map guide, no engine). Without `--config`
+/// Reads `--profile <path>` (the one config file), `--4-decks` (a four-deck rig), `--cli` (line REPL
+/// instead of the TUI) and `--guide [<file>]` (the unit map guide, no engine). Without `--profile`
 /// the platform default path is used and created on the first start. The terminal UI is the default
 /// front-end; `--cli` asks for the line REPL. Controllers are only ever described by the config
 /// (`[[controller]]`), never by a flag. Unknown flags are errors rather than silently ignored: a
-/// typo'd `--conifg` that launches the default rig instead is the kind of surprise nobody wants
+/// typo'd `--proifile` that launches the default rig instead is the kind of surprise nobody wants
 /// mid-set.
 #[derive(Debug, Default)]
 struct CliArgs {
@@ -265,9 +265,9 @@ impl CliArgs {
             match arg.as_str() {
                 "--4-decks" => args.four_decks = true,
                 "--cli" => args.cli = true,
-                "--config" => {
+                "--profile" => {
                     args.config = raw.next().or_else(|| {
-                        eprintln!("error: --config needs a path");
+                        eprintln!("error: --profile needs a path");
                         std::process::exit(1);
                     });
                 }
@@ -283,7 +283,7 @@ impl CliArgs {
                 }
                 other => {
                     eprintln!(
-                        "error: unknown argument `{other}`\n  flags: --config, --4-decks, \
+                        "error: unknown argument `{other}`\n  flags: --profile, --4-decks, \
                          --cli, --guide"
                     );
                     std::process::exit(1);

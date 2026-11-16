@@ -281,7 +281,7 @@ impl AudioPipeline {
     }
 
     /// How many channels (deck slots) the engine was configured with. A front-end validating
-    /// deck ids should ask this rather than assuming a count — a custom `--config` topology may
+    /// deck ids should ask this rather than assuming a count — a custom `--profile` topology may
     /// name any number of channels.
     pub fn channel_count(&self) -> Option<usize> {
         let (answer_tx, answer_rx) = crossbeam_channel::unbounded::<QueryResponse>();

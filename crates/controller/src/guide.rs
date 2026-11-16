@@ -2210,7 +2210,7 @@ chain = "deck1"
     fn the_shipped_maps_open_in_the_guide() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut checked = 0;
-        for name in ["profile/mapping.toml"] {
+        for name in ["crates/controller/mapping.toml"] {
             let path = root.join(name);
             if !path.exists() {
                 continue;
