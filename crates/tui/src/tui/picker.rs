@@ -18,6 +18,9 @@ pub struct Entry {
     pub name: String,
     pub path: PathBuf,
     pub is_dir: bool,
+    /// `true` for a built-in template row (shown with a `<built-in>` prefix), `false` for a
+    /// filesystem entry (shown with a `<user>` prefix).
+    pub builtin: bool,
 }
 
 /// A directory browser with an optional extension filter.
@@ -34,6 +37,11 @@ pub struct FilePicker {
     /// `Some` in save mode: the file name to write in the current directory. Typing edits it; Enter
     /// overwrites that path. Open mode leaves it `None`.
     filename: Option<String>,
+    /// Virtual rows shown above the filesystem, each a label and the source id it selects. Used to
+    /// offer the built-in template alongside the user's files.
+    builtins: Vec<(String, PathBuf)>,
+    /// When true, filesystem rows are shown with a `<user>` prefix so the two sources are distinct.
+    show_source: bool,
 }
 
 impl FilePicker {
@@ -50,9 +58,22 @@ impl FilePicker {
             title: title.to_owned(),
             error: None,
             filename: None,
+            builtins: Vec::new(),
+            show_source: false,
         };
         picker.reload();
         picker
+    }
+
+    /// Adds a virtual row that selects `source` (a source id such as the built-in marker) instead of
+    /// a filesystem path. `filename` is shown as `<built-in> <filename>`; built-in rows sit above the
+    /// directory listing and cannot be descended into. Several built-ins may be added.
+    pub fn with_builtin(mut self, filename: &str, source: &str) -> Self {
+        self.builtins
+            .push((filename.to_owned(), PathBuf::from(source)));
+        self.show_source = true;
+        self.reload();
+        self
     }
 
     /// A save-as picker: the same browser plus an editable file name. The default name is used when
@@ -68,7 +89,8 @@ impl FilePicker {
         picker
     }
 
-    /// Re-reads the current directory.
+    /// Re-reads the current directory. Built-in rows, when any, lead the list and stay selectable
+    /// even if the directory cannot be read.
     pub fn reload(&mut self) {
         self.entries.clear();
         self.error = None;
@@ -84,6 +106,7 @@ impl FilePicker {
                         name: entry.file_name().to_string_lossy().into_owned(),
                         path,
                         is_dir,
+                        builtin: false,
                     });
                 }
                 self.entries.sort_by(|a, b| {
@@ -96,6 +119,19 @@ impl FilePicker {
             }
             Err(err) => self.error = Some(err.to_string()),
         }
+        // Built-in rows lead the list; prepend after sorting so they stay at the top.
+        let mut ordered: Vec<Entry> = self
+            .builtins
+            .iter()
+            .map(|(filename, source)| Entry {
+                name: filename.clone(),
+                path: source.clone(),
+                is_dir: false,
+                builtin: true,
+            })
+            .collect();
+        ordered.append(&mut self.entries);
+        self.entries = ordered;
         if self.selected >= self.entries.len() {
             self.selected = self.entries.len().saturating_sub(1);
         }
@@ -258,10 +294,19 @@ impl FilePicker {
             );
         }
         for entry in &self.entries {
-            let label = if entry.is_dir {
+            let base = if entry.is_dir {
                 format!("{}/", entry.name)
             } else {
                 entry.name.clone()
+            };
+            let label = if self.show_source {
+                if entry.builtin {
+                    format!("<built-in> {base}")
+                } else {
+                    format!("<user> {base}")
+                }
+            } else {
+                base
             };
             rows.push(Row::new(label));
         }
@@ -306,6 +351,12 @@ impl PortList {
 fn resolve_start(start: Option<&Path>) -> PathBuf {
     let cwd = || std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     match start {
+        // A built-in source has no directory on disk; open where a real config would live instead.
+        Some(path) if ::app::config::profile::is_builtin(&path.to_string_lossy()) => {
+            ::app::config::profile::default_path()
+                .and_then(|p| p.parent().map(Path::to_path_buf))
+                .unwrap_or_else(cwd)
+        }
         Some(path) if path.is_dir() => path.to_path_buf(),
         // `parent()` of a bare filename is `Some("")`, which `read_dir` rejects; fall back to cwd.
         Some(path) => match path.parent() {
@@ -360,6 +411,27 @@ mod tests {
         let dir = temp_dir("all");
         let picker = FilePicker::new(Some(&dir), &[], "any");
         assert_eq!(picker.entries().len(), 3, "sub + a.toml + b.txt");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_builtin_row_leads_the_list_and_selects_its_marker() {
+        let dir = temp_dir("builtin");
+        let mut picker = FilePicker::new(Some(&dir), &["toml"], "map")
+            .with_builtin("mapping.toml", "<built-in>/mapping.toml");
+        assert_eq!(picker.entries().first().unwrap().name, "mapping.toml");
+        assert!(picker.entries().first().unwrap().builtin);
+        assert_eq!(picker.entries().len(), 3, "built-in + sub + a.toml");
+        // Labels in the view carry the source prefix for both kinds of row.
+        let view = picker.view();
+        let labels: Vec<&str> = view.rows.iter().map(|row| row.label.as_str()).collect();
+        assert_eq!(labels[0], "<built-in> mapping.toml");
+        assert!(labels[1..].iter().all(|label| label.starts_with("<user> ")));
+        // The built-in row is first and selects its marker, not a file on disk.
+        assert_eq!(
+            picker.activate().unwrap(),
+            PathBuf::from("<built-in>/mapping.toml")
+        );
         fs::remove_dir_all(&dir).ok();
     }
 

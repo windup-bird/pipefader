@@ -18,7 +18,6 @@
 //! the engine with `ListFx`. A binding whose slot cannot be found is skipped rather than sent as a
 //! bogus index.
 
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -74,17 +73,14 @@ impl MidiSession {
     }
 }
 
-/// Reads a map file and compiles it twice: once with every controller face resolved to its normal
-/// deck, once to its mirror deck. Each unit chooses between them when its mirror toggle fires.
+/// Reads a map *source* and compiles it twice: once with every controller face resolved to its
+/// normal deck, once to its mirror deck. Each unit chooses between them when its mirror toggle
+/// fires. A source is either a file path or the built-in map marker (resolved to the embedded text).
 pub fn read_map_pair(map_path: &str, routes: &DeckRoutes) -> Result<(Map, Map), String> {
-    let text = std::fs::read_to_string(map_path).map_err(|err| format!("{map_path}: {err}"))?;
-    let base = Path::new(map_path)
-        .parent()
-        .filter(|dir| !dir.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let normal = Map::from_toml_str_at_routes(&text, base, routes, false)
+    let (text, base) = crate::config::profile::read_map_text(map_path)?;
+    let normal = Map::from_toml_str_at_routes(&text, &base, routes, false)
         .map_err(|err| format!("{map_path}: {err}"))?;
-    let mirror = Map::from_toml_str_at_routes(&text, base, routes, true)
+    let mirror = Map::from_toml_str_at_routes(&text, &base, routes, true)
         .map_err(|err| format!("{map_path}: {err}"))?;
     Ok((normal, mirror))
 }

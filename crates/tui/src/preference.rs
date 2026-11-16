@@ -145,8 +145,8 @@ pub fn load(path: &str) -> Result<(Preference, Vec<String>), String> {
     source::load(path).map(|(preference, notes)| (preference.into(), notes))
 }
 
-/// Parses the file body. Unknown keys are notes, not failures.
-#[cfg(test)]
+/// Parses preference text. Unknown keys are notes, not failures. Used when the source is the
+/// built-in template (text, no file) as well as by tests.
 pub fn parse(text: &str) -> Result<(Preference, Vec<String>), String> {
     source::parse(text).map(|(preference, notes)| (preference.into(), notes))
 }

@@ -201,9 +201,6 @@ pub fn handle_mouse(app: &mut App, mouse: MouseEvent, dispatcher: &Dispatcher) {
 fn open_settings(app: &App) -> SettingsScreen {
     SettingsScreen::open(crate::tui::settings::Context {
         profile: app.profile_path.clone(),
-        mixer: app.mixer_path.clone(),
-        live: app.live_path.clone(),
-        preference: Some(app.preference_path.clone()),
         controller_port: app.midi_port.clone(),
         controller_map: app.midi_map.clone(),
         controller: app.midi_port.clone(),
@@ -467,6 +464,13 @@ fn persist_controller(app: &mut App, port: Option<&str>, map: Option<&std::path:
     let Some(config) = app.profile_path.clone() else {
         return;
     };
+    // A built-in session has no file to write the choice back to; reconnecting still happens.
+    if ::app::config::profile::is_builtin(&config) {
+        app.push_log(LogLine::info(
+            "[config] built-in template is read-only; controller choice not saved".to_owned(),
+        ));
+        return;
+    }
     match ::app::config::profile::write_controller(std::path::Path::new(&config), port, map) {
         Ok(()) => app.push_log(LogLine::info(format!(
             "[config] controller saved to {config}"
@@ -490,26 +494,92 @@ fn reload_mixer(app: &mut App, dispatcher: &Dispatcher) {
         .clone()
         .unwrap_or_else(|| command::DEFAULT_TOPOLOGY.to_owned());
     app.mixer_path = Some(path.clone());
-    match std::fs::read_to_string(&path) {
+    match ::app::config::profile::read_profile_text(&path) {
         Ok(text) => {
             let _ = dispatcher.command_tx.send(Command::MixerReload { text });
         }
-        Err(err) => app.push_log(LogLine::error(format!("{path}: {err}"))),
+        Err(err) => app.push_log(LogLine::error(err)),
     }
 }
 
-/// Points the session at a different topology file: remember it, then reload from its text (the
-/// settings screen's `mixer` row). The typed equivalent is `mixer reload <path>`.
-fn switch_mixer(app: &mut App, dispatcher: &Dispatcher, path: &str) {
-    match std::fs::read_to_string(path) {
-        Ok(text) => {
-            app.mixer_path = Some(path.to_owned());
-            dispatcher.with_topology(Some(path.to_owned()));
-            let _ = dispatcher.command_tx.send(Command::MixerReload { text });
-            app.push_log(LogLine::info(format!("mixer <- {path}")));
+/// Points the session at a different profile source (the settings screen's `profile` row) and
+/// rebuilds everything the one config carries: mixer topology, live, preference theme and MIDI.
+/// Analysis backends and engine-clock values are deliberately left alone — they still apply only
+/// on the next launch, exactly as a typed `config reload` would.
+fn switch_profile(app: &mut App, dispatcher: &Dispatcher, source: &str) {
+    let cfg = match ::app::config::profile::load_source(source) {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            app.push_log(LogLine::error(err));
+            return;
         }
-        Err(err) => app.push_log(LogLine::error(format!("{path}: {err}"))),
+    };
+    let label = ::app::config::profile::source_label(source);
+
+    // Mixer topology: the engine only ever sees text; file IO stays in the front-end.
+    let text = match ::app::config::profile::read_profile_text(source) {
+        Ok(text) => text,
+        Err(err) => {
+            app.push_log(LogLine::error(err));
+            return;
+        }
+    };
+    if let Err(err) = audio::MixerConfig::from_toml_str(&text) {
+        app.push_log(LogLine::error(format!("{label}: {}", err.message())));
+        return;
     }
+    let _ = dispatcher.command_tx.send(Command::MixerReload { text });
+    dispatcher.with_topology(Some(source.to_owned()));
+    app.mixer_path = Some(source.to_owned());
+    app.profile_path = Some(source.to_owned());
+
+    // Live settings: re-read from the same source, engine keeps running.
+    dispatcher.with_live(cfg.live.clone(), Some(source.to_owned()));
+    app.live_path = Some(source.to_owned());
+
+    // Preference theme: parse the embedded/text config; colours apply immediately.
+    let pref = crate::preference::parse(&source_text_of(source))
+        .map(|(preference, notes)| (preference, notes));
+    match pref {
+        Ok((preference, notes)) => {
+            app.theme = preference.theme;
+            for note in notes {
+                app.push_log(LogLine::error(note));
+            }
+        }
+        Err(err) => app.push_log(LogLine::error(err)),
+    }
+    app.preference_path = source.to_owned();
+
+    // Controllers: rebuild one session per `[[controller]]` from the new profile, then reconnect
+    // the remembered port (or the one the new map names).
+    let map_device = |map: &str| {
+        ::app::config::profile::read_map_text(map)
+            .ok()
+            .and_then(|(text, base)| controller::Map::from_toml_str_at(&text, &base).ok())
+            .and_then(|map| map.meta.and_then(|meta| meta.device))
+    };
+    let sessions = ::app::config::profile::sessions_from(&cfg, map_device);
+    let map_path = sessions
+        .first()
+        .map(|s| s.map.clone())
+        .unwrap_or_else(|| ::app::config::profile::map_path_for(std::path::Path::new(source)));
+    app.controller_sessions = sessions;
+    app.deck_routes = ::app::config::profile::deck_routes(&cfg.mixer, None);
+    app.midi_map = Some(map_path);
+    app.connect_midi(
+        dispatcher.command_tx.clone(),
+        &dispatcher.notices,
+        dispatcher,
+    );
+
+    app.push_log(LogLine::info(format!("profile <- {label}")));
+}
+
+/// The text behind a profile source, for parsing preference sections. Built-in sources resolve to
+/// the embedded template; a user file is read from disk.
+fn source_text_of(source: &str) -> String {
+    ::app::config::profile::read_profile_text(source).unwrap_or_default()
 }
 
 /// Sends the buffer as a command line and logs the echo, exactly like the REPL prompt.
@@ -1031,10 +1101,10 @@ fn handle_overlay(app: &mut App, key: KeyEvent, dispatcher: &Dispatcher) {
         },
         Overlay::Settings(mut screen) => {
             let outcome = screen.handle_key(key.code);
-            // A newly chosen topology first, then any device binding the screen just wrote into it:
-            // the second step has to read the file the first one selected.
-            if let Some(path) = outcome.mixer.clone() {
-                switch_mixer(app, dispatcher, &path);
+            // A newly chosen profile rebuilds every section; an output binding the screen just
+            // wrote into the current profile is then reloaded from that same source.
+            if let Some(source) = outcome.profile {
+                switch_profile(app, dispatcher, &source);
             }
             if outcome.mixer_saved {
                 reload_mixer(app, dispatcher);
@@ -1052,27 +1122,6 @@ fn handle_overlay(app: &mut App, key: KeyEvent, dispatcher: &Dispatcher) {
                     dispatcher,
                 );
                 persist_controller(app, Some(&port_name), Some(std::path::Path::new(&map)));
-            }
-            if let Some(path) = outcome.live {
-                // Re-read the file exactly as `live reload <path>` would; the engine keeps running.
-                app.live_path = Some(path.clone());
-                match command::reload_live(dispatcher, Some(&path)) {
-                    Action::Message(text) => push_block(app, text),
-                    Action::Failed(message) => app.push_log(LogLine::error(message)),
-                    Action::Continue | Action::Quit => {}
-                }
-            }
-            if let Some(path) = outcome.preference {
-                app.preference_path = path.clone();
-                match crate::preference::load(&path) {
-                    Ok((preference, notes)) => {
-                        app.theme = preference.theme;
-                        for note in notes {
-                            app.push_log(LogLine::error(note));
-                        }
-                    }
-                    Err(err) => app.push_log(LogLine::error(err)),
-                }
             }
             if !outcome.close {
                 app.overlay = Some(Overlay::Settings(screen));

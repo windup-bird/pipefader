@@ -743,7 +743,7 @@ fn model_choice(
 /// Reads a live-settings file: TOML, then made sane. Returns the settings and whatever had to be
 /// substituted, so the caller can say so once rather than silently changing a user's machine.
 pub fn read_live_config(path: &str) -> Result<(LiveConfig, Vec<String>), String> {
-    let text = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
+    let text = crate::config::profile::read_profile_text(path)?;
     read_live_text(&text).map_err(|err| format!("{path}: {err}"))
 }
 
@@ -793,9 +793,9 @@ fn config_command<'a>(
                 .next()
                 .map(str::to_owned)
                 .unwrap_or_else(|| dispatcher.topology_path());
-            let text = match std::fs::read_to_string(&path) {
+            let text = match crate::config::profile::read_profile_text(&path) {
                 Ok(text) => text,
-                Err(err) => return Action::Failed(format!("{path}: {err}")),
+                Err(err) => return Action::Failed(err),
             };
             // Validate before sending anything, so a bad file leaves the running mixer untouched.
             if let Err(err) = audio::MixerConfig::from_toml_str(&text) {
@@ -924,9 +924,9 @@ fn mixer_command<'a>(words: &mut impl Iterator<Item = &'a str>, dispatcher: &Dis
                 .next()
                 .map(str::to_owned)
                 .unwrap_or_else(|| dispatcher.topology_path());
-            match std::fs::read_to_string(&path) {
+            match crate::config::profile::read_profile_text(&path) {
                 Ok(text) => send(&dispatcher.command_tx, Command::MixerReload { text }),
-                Err(err) => Action::Failed(format!("{path}: {err}")),
+                Err(err) => Action::Failed(err),
             }
         }
         other => Action::Failed(format!("unknown mixer subcommand `{other}` (reload)")),

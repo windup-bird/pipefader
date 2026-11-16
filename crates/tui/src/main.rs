@@ -56,23 +56,15 @@ fn main() {
 
     // The guide is a self-contained editor: no audio engine, no mixer. It still reads the config,
     // so the rate it probes with and the file its `Output` pane edits are the ones a session uses.
-    if let Some(path) = args.midi_guide.as_deref() {
-        // The conventional map sits next to the config and does not exist on a fresh install.
-        // Give the guide a real file to edit; an explicit `--guide <file>` that is missing gets the
-        // same starting point rather than an empty editor.
-        if !std::path::Path::new(path).is_file() {
-            if let Some(parent) = std::path::Path::new(path)
-                .parent()
-                .filter(|parent| !parent.as_os_str().is_empty())
-            {
-                if let Err(err) = std::fs::create_dir_all(parent) {
-                    eprintln!("warning: {}: {err}", parent.display());
-                }
-            }
-            if let Err(err) = std::fs::write(path, profile::MAP_TEMPLATE) {
-                eprintln!("warning: {path}: {err}");
-            }
-        }
+    if let Some(hint) = args.midi_guide.as_deref() {
+        // A missing map is not copied to disk. The guide opens the built-in template from memory
+        // instead, and only writes a file if the user explicitly saves one. An existing user map is
+        // opened as-is.
+        let path = if profile::is_builtin(hint) || !std::path::Path::new(hint).is_file() {
+            profile::BUILTIN_MAP
+        } else {
+            hint
+        };
         let decks = if args.four_decks { 4 } else { 1 };
         let rate = live.audio.sample_rate;
         let outputs = tui::guide::Outputs {

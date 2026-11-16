@@ -1,11 +1,9 @@
-//! The settings screen: five things, one flat list.
+//! The settings screen: three things, one flat list.
 //!
 //! ```
 //! > controller   Numark Party Mix III · mapping.toml
 //!   output       2 output(s)
-//!   mixer        config.toml
-//!   live         config.toml
-//!   preference   config.toml
+//!   profile      config.toml
 //! ```
 //!
 //! `Enter`/`→` goes a level deeper, `←` comes back, `Esc` closes. Every level is the same
@@ -13,16 +11,16 @@
 //! deeper levels are the choosers themselves:
 //!
 //! * `controller › input` (MIDI ports) → `controller › map` (a `.toml` file) → reconnect.
-//! * `mixer` picks the **topology** file (a `.toml`), exactly like `live`/`preference`; the caller
-//!   reloads the engine from it.
+//! * `profile` picks the one config file (built-in or user). Every section it carries — mixer,
+//!   live, preference and controllers — is reloaded together by the caller; analysis and clock
+//!   settings still apply on the next launch.
 //! * `output › {destination}` (one row per `[[output]]` of that topology) → `… › input` (hardware) →
-//!   `… › channels` → writes `device`/`channels` back into the topology file and reloads it. This is
-//!   the device-binding half only: which topology file is `mixer`'s question.
+//!   `… › channels` → writes `device`/`channels` back into the profile file and reloads it. This is
+//!   the device-binding half only: which file holds the topology is `profile`'s question.
 //!   Opening `output` **re-probes the host's devices**, and `r` does it again from inside: a device
 //!   that was plugged in (or released by the sound server) after the TUI started has to show up
 //!   without restarting. Probing opens every PCM, so ALSA complains — those lines now land in the
 //!   response log instead of over the canvas (see `stderr.rs`).
-//! * `live` and `preference` are file pickers; the caller reloads what they point at.
 
 use std::fs;
 
@@ -40,11 +38,8 @@ use crate::tui::popup::{self, Row, View};
 /// What the settings screen was opened with.
 #[derive(Clone, Debug, Default)]
 pub struct Context {
-    /// The profile file this session was started from, if any (shown, never edited).
+    /// The profile source this session runs on (shown; changing it is the `profile` row's job).
     pub profile: Option<String>,
-    pub mixer: Option<String>,
-    pub live: Option<String>,
-    pub preference: Option<String>,
     pub controller_port: Option<String>,
     pub controller_map: Option<String>,
     /// The connected controller's name, used to point at its own audio interface.
@@ -60,45 +55,31 @@ pub struct Context {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub close: bool,
-    /// The topology file was rewritten (`device`/`channels`), so the caller reloads it.
+    /// The profile file was rewritten by an output binding (`device`/`channels`); reload it.
     pub mixer_saved: bool,
-    /// A different topology file was chosen; the caller reloads *that* file and remembers it.
-    pub mixer: Option<String>,
+    /// A different profile source was chosen; the caller reloads every section from it.
+    pub profile: Option<String>,
     /// The controller selection changed: `(port, map path)`. The caller reconnects.
     pub controller: Option<(String, String)>,
-    /// A new `live.toml` was chosen.
-    pub live: Option<String>,
-    /// A new `preference.toml` was chosen.
-    pub preference: Option<String>,
 }
 
-/// The four rows of the root list, in order.
+/// The three rows of the root list, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Item {
     Controller,
-    /// Which topology file the engine runs from.
-    Mixer,
     /// Where each of that topology's destinations goes (device + channel pair).
     Output,
-    Live,
-    Preference,
+    /// The one config file: mixer, live, preference and controllers all come from it.
+    Profile,
 }
 
-const ITEMS: [Item; 5] = [
-    Item::Controller,
-    Item::Output,
-    Item::Mixer,
-    Item::Live,
-    Item::Preference,
-];
+const ITEMS: [Item; 3] = [Item::Controller, Item::Output, Item::Profile];
 
-/// Which file a picker is choosing.
+/// Which source a picker is choosing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FileTarget {
     ControllerMap,
-    Mixer,
-    Live,
-    Preference,
+    Profile,
 }
 
 /// A mixer output, read back from `mixer.toml`.
@@ -169,10 +150,11 @@ pub struct SettingsScreen {
 
 impl SettingsScreen {
     pub fn open(context: Context) -> Self {
+        // The profile is the one file whose `[[mixer.output]]` rows the output screen binds.
         let mixer_path = context
-            .mixer
+            .profile
             .clone()
-            .unwrap_or_else(|| "profile/config.toml".to_owned());
+            .unwrap_or_else(|| ::app::config::profile::BUILTIN_PROFILE.to_owned());
         let devices = context.devices.clone();
         let mut screen = Self {
             context,
@@ -249,30 +231,18 @@ impl SettingsScreen {
         }
         let level = match item {
             Item::Controller => Level::Ports(PortList::refresh()),
-            Item::Mixer => Level::Files(
+            Item::Output => Level::Outputs { cursor: 0 },
+            Item::Profile => Level::Files(
                 FilePicker::new(
                     Some(std::path::Path::new(&self.mixer_path)),
                     &["toml"],
-                    "mixer",
+                    "profile",
+                )
+                .with_builtin(
+                    "config.toml",
+                    ::app::config::profile::BUILTIN_PROFILE,
                 ),
-                FileTarget::Mixer,
-            ),
-            Item::Output => Level::Outputs { cursor: 0 },
-            Item::Live => Level::Files(
-                FilePicker::new(
-                    self.context.live.as_deref().map(std::path::Path::new),
-                    &["toml"],
-                    "live",
-                ),
-                FileTarget::Live,
-            ),
-            Item::Preference => Level::Files(
-                FilePicker::new(
-                    self.context.preference.as_deref().map(std::path::Path::new),
-                    &["toml"],
-                    "preference",
-                ),
-                FileTarget::Preference,
+                FileTarget::Profile,
             ),
         };
         self.stack.push(level);
@@ -314,6 +284,10 @@ impl SettingsScreen {
                                     .map(std::path::Path::new),
                                 &["toml"],
                                 "controller map",
+                            )
+                            .with_builtin(
+                                "<built-in> map",
+                                ::app::config::profile::BUILTIN_MAP,
                             ),
                             FileTarget::ControllerMap,
                         ));
@@ -454,35 +428,24 @@ impl SettingsScreen {
     }
 
     fn choose_file(&mut self, path: String, target: FileTarget, outcome: &mut Outcome) {
+        let shown = ::app::config::profile::source_label(&path);
         match target {
             FileTarget::ControllerMap => {
                 self.context.controller_map = Some(path.clone());
-                self.status = Some(format!("map: {path}"));
+                self.status = Some(format!("map: {shown}"));
                 if let Some(port) = self.context.controller_port.clone() {
                     outcome.controller = Some((port, path));
                 }
                 self.stack.clear();
             }
-            // A topology is a pointer to the file the `output` rows read and write, so the list has
-            // to be re-read here: the new file names different destinations.
-            FileTarget::Mixer => {
-                self.context.mixer = Some(path.clone());
+            // The profile carries every section, including the topology the `output` rows bind, so
+            // the output list is re-read here: a new profile may name different destinations.
+            FileTarget::Profile => {
+                self.context.profile = Some(path.clone());
                 self.mixer_path = path.clone();
-                self.status = Some(format!("mixer: {path}"));
+                self.status = Some(format!("profile: {shown}"));
                 self.refresh();
-                outcome.mixer = Some(path);
-                self.stack.clear();
-            }
-            FileTarget::Live => {
-                self.context.live = Some(path.clone());
-                self.status = Some(format!("live: {path}"));
-                outcome.live = Some(path);
-                self.stack.clear();
-            }
-            FileTarget::Preference => {
-                self.context.preference = Some(path.clone());
-                self.status = Some(format!("preference: {path}"));
-                outcome.preference = Some(path);
+                outcome.profile = Some(path);
                 self.stack.clear();
             }
         }
@@ -560,9 +523,7 @@ impl SettingsScreen {
             Some(Level::Files(picker, target)) => {
                 let level = match target {
                     FileTarget::ControllerMap => "controller › map",
-                    FileTarget::Mixer => "mixer",
-                    FileTarget::Live => "live",
-                    FileTarget::Preference => "preference",
+                    FileTarget::Profile => "profile",
                 };
                 let view = picker.view();
                 View {
@@ -649,7 +610,6 @@ impl SettingsScreen {
     }
 
     fn root_view(&self) -> View {
-        let note = |value: &Option<String>| value.clone().unwrap_or_else(|| "<none>".to_owned());
         let rows = vec![
             Row::new("controller").note(
                 match (&self.context.controller_port, &self.context.controller_map) {
@@ -659,17 +619,17 @@ impl SettingsScreen {
                 },
             ),
             Row::new("output").note(format!("{} output(s)", self.outputs.len())),
-            Row::new("mixer").note(self.mixer_path.clone()),
-            Row::new("live").note(note(&self.context.live)),
-            Row::new("preference").note(note(&self.context.preference)),
+            Row::new("profile").note(::app::config::profile::source_label(&self.mixer_path)),
         ];
-        // The profile is the pointer all five paths come from, so it belongs on screen — but it is
-        // not a sixth row: it is where the rows came from.
+        // The hint below carries the profile source; the `profile` row is where it is changed.
         let hint = self
             .status
             .clone()
             .unwrap_or_else(|| match &self.context.profile {
-                Some(profile) => format!("from {profile} · ↑↓ move · →/Enter open · Esc close"),
+                Some(profile) => format!(
+                    "from {} · ↑↓ move · →/Enter open · Esc close",
+                    ::app::config::profile::source_label(profile)
+                ),
                 None => "↑↓ move · →/Enter open · Esc close".to_owned(),
             });
         View::new("settings", rows).cursor(self.cursor).hint(hint)
@@ -711,7 +671,10 @@ pub fn render(frame: &mut Frame, area: Rect, screen: &SettingsScreen, theme: &Th
 }
 
 fn read_doc(path: &str) -> Option<DocumentMut> {
-    fs::read_to_string(path).ok()?.parse().ok()
+    ::app::config::profile::read_profile_text(path)
+        .ok()?
+        .parse()
+        .ok()
 }
 
 /// The `[[output]]` tables of a mixer document.
@@ -757,6 +720,10 @@ fn write_output(
     device: &str,
     channels: Option<(u16, u16)>,
 ) -> Result<(), String> {
+    if ::app::config::profile::is_builtin(path) {
+        return Err("the built-in template is read-only; load a user config to bind outputs"
+            .to_owned());
+    }
     let text = fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
     let mut doc: DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
     let table = ::app::config::profile::output_tables_mut(&mut doc)
@@ -880,9 +847,7 @@ mod tests {
         );
         let map = write(&dir, "controller.toml", "x = 1\n");
         SettingsScreen::open(Context {
-            mixer: Some(mixer),
-            live: Some("/live.toml".to_owned()),
-            preference: Some("/preference.toml".to_owned()),
+            profile: Some(mixer),
             controller_port: Some("Numark Party Mix III MIDI 1".to_owned()),
             controller_map: Some(map),
             controller: Some("Numark Party Mix III MIDI 1".to_owned()),
@@ -903,14 +868,11 @@ mod tests {
     }
 
     #[test]
-    fn the_root_list_is_controller_output_mixer_live_preference() {
+    fn the_root_list_is_controller_output_profile() {
         let screen = screen();
         let rows = screen.rows();
         let labels: Vec<String> = rows.iter().map(|(label, _)| label.clone()).collect();
-        assert_eq!(
-            labels,
-            vec!["controller", "output", "mixer", "live", "preference"]
-        );
+        assert_eq!(labels, vec!["controller", "output", "profile"]);
         assert_eq!(screen.title(), "settings");
         assert_eq!(
             rows[1].1, "2 output(s)",
@@ -918,7 +880,7 @@ mod tests {
         );
         assert!(
             rows[2].1.ends_with("mixer.toml"),
-            "the mixer row names the topology file: {:?}",
+            "the profile row names the config file: {:?}",
             rows[2]
         );
     }
@@ -929,7 +891,7 @@ mod tests {
         for _ in 0..6 {
             screen.handle_key(KeyCode::Down);
         }
-        assert_eq!(screen.cursor_row(), 4, "clamped to the last item");
+        assert_eq!(screen.cursor_row(), 2, "clamped to the last item");
         for _ in 0..6 {
             screen.handle_key(KeyCode::Up);
         }
@@ -1009,18 +971,21 @@ mod tests {
             "aaa.toml",
             "[mixer]\n[[mixer.output]]\nname = \"only\"\nrole = \"master\"\n",
         );
-        assert!(screen.focus("mixer"));
+        assert!(screen.focus("profile"));
         screen.handle_key(KeyCode::Enter);
-        assert_eq!(screen.title(), "settings › mixer");
-        assert_eq!(screen.rows()[0].0, "aaa.toml");
+        assert_eq!(screen.title(), "settings › profile");
+        // Row 0 is the built-in template; the first user file is one row down.
+        assert_eq!(screen.rows()[0].0, "<built-in> config.toml");
+        screen.handle_key(KeyCode::Down);
+        assert_eq!(screen.rows()[1].0, "<user> aaa.toml");
         let outcome = screen.handle_key(KeyCode::Enter);
-        assert_eq!(outcome.mixer.as_deref(), Some(other.as_str()));
+        assert_eq!(outcome.profile.as_deref(), Some(other.as_str()));
         assert!(!outcome.mixer_saved, "choosing a file writes nothing");
         assert_eq!(screen.mixer_path, other);
         assert_eq!(screen.depth(), 0);
         let rows = screen.rows();
         assert_eq!(rows[1].1, "1 output(s)", "the output rows are re-read");
-        assert_eq!(rows[2].1, other, "the mixer row names the new file");
+        assert_eq!(rows[2].1, other, "the profile row names the new file");
     }
 
     /// The device list is a snapshot, so the chooser has to be able to ask again: a controller
@@ -1079,16 +1044,16 @@ mod tests {
     #[test]
     fn choosing_a_file_hands_the_path_back_to_the_caller() {
         let mut screen = screen();
-        let live = screen
+        let profile = screen
             .rows()
             .into_iter()
-            .find(|(label, _)| label == "live")
-            .expect("live row");
-        assert!(live.1.ends_with("live.toml"), "{live:?}");
-        // `live` opens a picker rooted at the current file's directory.
-        assert!(screen.focus("live"));
+            .find(|(label, _)| label == "profile")
+            .expect("profile row");
+        assert!(profile.1.ends_with("mixer.toml"), "{profile:?}");
+        // `profile` opens a picker rooted at the current file's directory.
+        assert!(screen.focus("profile"));
         screen.handle_key(KeyCode::Enter);
-        assert_eq!(screen.title(), "settings › live");
+        assert_eq!(screen.title(), "settings › profile");
         assert_eq!(screen.depth(), 1);
         screen.handle_key(KeyCode::Esc);
         assert!(screen.handle_key(KeyCode::Esc).close);

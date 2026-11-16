@@ -13,7 +13,6 @@
 //! folder. Leaving it out means no controller input, which is the shipped state.
 
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use audio::{reference_toml, MixerConfig};
@@ -33,6 +32,55 @@ pub const MAP_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../controller/mapping.toml"
 ));
+
+/// Reserved source ids for the built-in template of each kind. They are never real files; every
+/// reader resolves them to the embedded text. `map_path_for(BUILTIN_PROFILE)` deliberately yields
+/// `BUILTIN_MAP`, so a session started on the built-in config defaults to the built-in map too.
+pub const BUILTIN_PROFILE: &str = "<built-in>/config.toml";
+pub const BUILTIN_MAP: &str = "<built-in>/mapping.toml";
+
+/// True when `source` names the compiled-in template rather than a file on disk.
+pub fn is_builtin(source: &str) -> bool {
+    source == BUILTIN_PROFILE || source == BUILTIN_MAP
+}
+
+/// A short label for a source, used in the settings screen and command reports.
+pub fn source_label(source: &str) -> String {
+    if is_builtin(source) {
+        "built-in".to_owned()
+    } else {
+        source.to_owned()
+    }
+}
+
+/// The text of a profile-shaped source: the embedded template for built-in, else the file.
+pub fn read_profile_text(source: &str) -> Result<String, String> {
+    if source == BUILTIN_PROFILE {
+        Ok(template().to_owned())
+    } else if is_builtin(source) {
+        Err(format!("{source}: not a config source"))
+    } else {
+        std::fs::read_to_string(source).map_err(|err| format!("{source}: {err}"))
+    }
+}
+
+/// The text and include base of a controller-map source.
+pub fn read_map_text(source: &str) -> Result<(String, PathBuf), String> {
+    if source == BUILTIN_MAP {
+        // Presets the map names are embedded in the controller crate; a "." base is enough.
+        Ok((MAP_TEMPLATE.to_owned(), PathBuf::from(".")))
+    } else if is_builtin(source) {
+        Err(format!("{source}: not a controller-map source"))
+    } else {
+        let text = std::fs::read_to_string(source).map_err(|err| format!("{source}: {err}"))?;
+        let base = Path::new(source)
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
+        Ok((text, base))
+    }
+}
 
 /// The `[controller]` section: a pointer to one unit-map file, plus an optional port override.
 /// Parsed by hand because this crate does not depend on serde; two keys do not warrant one.
@@ -216,50 +264,75 @@ pub fn default_path() -> Option<PathBuf> {
     Some(dir.join("config.toml"))
 }
 
-/// Loads `explicit`, or the platform default. Only the *default* path is created on a first start:
-/// a path the user named must exist, so a typo is an error rather than a silently copied template.
+/// Loads `explicit`, or the platform default. Nothing is ever written here: an explicit path must
+/// exist (a typo is an error), and when no user config exists the session runs on the built-in
+/// template in memory rather than copying a file into the user's directory.
 pub fn load_or_create(explicit: Option<&str>) -> Result<Config, String> {
-    let (path, create_missing) = match explicit {
-        Some(path) => (PathBuf::from(path), false),
-        None => (
-            default_path().ok_or_else(|| {
-                "cannot find the platform config directory (set PIPEFADER_CONFIG)".to_owned()
-            })?,
-            true,
-        ),
-    };
-    load_or_create_at(&path, create_missing)
+    if let Some(path) = explicit {
+        return load_user(PathBuf::from(path));
+    }
+    match default_path() {
+        Some(path) if path.is_file() => load_user(path),
+        // Missing (or no platform directory at all) → built-in, entirely in memory.
+        _ => load_builtin(),
+    }
 }
 
-/// The same load with the "create on first start" decision already made, so a test can exercise
-/// the first-start path without touching the process-wide config environment variables.
-fn load_or_create_at(path: &Path, create_missing: bool) -> Result<Config, String> {
-    let mut notes = Vec::new();
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(err) if err.kind() == ErrorKind::NotFound && create_missing => {
-            match first_copy(path) {
-                Ok(()) => notes.push(format!("created {}", path.display())),
-                Err(err) => notes.push(format!(
-                    "{}: {err}; running on the built-in template",
-                    path.display()
-                )),
+/// Reads a user config; a missing or unreadable file is an error, never a silent fallback.
+fn load_user(path: PathBuf) -> Result<Config, String> {
+    let text = std::fs::read_to_string(&path).map_err(|err| format!("{}: {err}", path.display()))?;
+    parse(&path, &text, Vec::new())
+}
+
+/// Parses the compiled-in config as a source in its own right. Its `path` is the built-in marker so
+/// every downstream reader resolves it back to the embedded text instead of a file.
+fn load_builtin() -> Result<Config, String> {
+    let notes = vec!["no user config found; running on the built-in template".to_owned()];
+    parse(Path::new(BUILTIN_PROFILE), template(), notes)
+}
+
+/// Loads a profile from an arbitrary source id: the built-in marker or a user file path. Unlike
+/// `load_or_create` this never picks a default or creates anything; it is what a runtime source
+/// switch uses to re-read every section from the source just chosen.
+pub fn load_source(source: &str) -> Result<Config, String> {
+    if source == BUILTIN_PROFILE {
+        parse(Path::new(BUILTIN_PROFILE), template(), Vec::new())
+    } else if is_builtin(source) {
+        Err(format!("{source}: not a profile source"))
+    } else {
+        load_user(PathBuf::from(source))
+    }
+}
+
+/// Builds one attachable session per `[[controller]]` of `config`. `map_device` resolves the device
+/// named in `[meta].device` of a map (a closure so this crate does not depend on how the front-end
+/// parses a map). Ports declared on the controller entry win; the named map device is the fallback.
+pub fn sessions_from(
+    config: &Config,
+    map_device: impl Fn(&str) -> Option<String>,
+) -> Vec<ControllerSession> {
+    let map_path = config
+        .controller
+        .map
+        .clone()
+        .unwrap_or_else(|| map_path_for(&config.path));
+    config
+        .controllers
+        .iter()
+        .map(|entry| {
+            let map = entry.map.clone().unwrap_or_else(|| map_path.clone());
+            let port = entry
+                .device
+                .clone()
+                .or_else(|| entry.map.as_ref().and_then(|_| map_device(&map)));
+            ControllerSession {
+                routes: deck_routes(&config.mixer, Some(&entry.id)),
+                id: entry.id.clone(),
+                port,
+                map,
             }
-            template().to_owned()
-        }
-        Err(err) => return Err(format!("{}: {err}", path.display())),
-    };
-    parse(path, &text, notes)
-}
-
-/// Writes the template once. The caller has already established the file is absent.
-fn first_copy(path: &Path) -> Result<(), String> {
-    let dir = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(dir).map_err(|err| format!("{}: {err}", dir.display()))?;
-    std::fs::write(path, template()).map_err(|err| err.to_string())
+        })
+        .collect()
 }
 
 /// Writes the controller choice into the config the session runs on.
@@ -547,6 +620,9 @@ pub fn default_map_path() -> &'static str {
 /// The unit-map file next to one specific config: the guide's default target and the path a session
 /// shows. `[controller].map` overrides it, but a config that names no map simply opens no input.
 pub fn map_path_for(config_path: &Path) -> String {
+    if config_path == Path::new(BUILTIN_PROFILE) {
+        return BUILTIN_MAP.to_owned();
+    }
     config_path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -744,31 +820,45 @@ device = "DDJ-400"
     }
 
     #[test]
-    fn first_copy_creates_the_parent_directories() {
-        let dir = temp("copy");
-        let path = dir.join("nested/config.toml");
-        std::fs::remove_dir_all(&dir).ok();
-        first_copy(&path).expect("copies");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), template());
-        std::fs::remove_dir_all(&dir).ok();
+    fn a_missing_default_config_runs_on_builtin_without_writing_a_file() {
+        // The old code copied the template to the default path on first start. The new code runs
+        // in memory: the built-in source has no file and needs no directory created.
+        let cfg = load_builtin().expect("built-in start");
+
+        assert_eq!(cfg.path, Path::new(BUILTIN_PROFILE));
+        assert!(cfg.notes.iter().any(|note| note.contains("built-in")));
+        // The built-in config still parses into a usable rig.
+        assert!(!cfg.mixer.channels.is_empty());
+        // Its map source is the built-in too, not a sibling file.
+        assert_eq!(map_path_for(&cfg.path), BUILTIN_MAP);
     }
 
     #[test]
-    fn a_first_start_creates_the_config_and_never_overwrites_it() {
-        let dir = temp("first-start");
-        let path = dir.join("nested/config.toml");
-        std::fs::remove_dir_all(&dir).ok();
-        let cfg = load_or_create_at(&path, true).expect("first start creates the config");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), template());
-        assert_eq!(cfg.path, path);
-        assert!(cfg.notes.iter().any(|note| note.contains("created")));
-
+    fn a_user_config_is_read_verbatim_and_never_rewritten() {
+        let path = temp("user-config.toml");
         let edited = "[mixer]\n[[multideck.deck]]\nside = \"center\"\n";
         std::fs::write(&path, edited).unwrap();
-        let again = load_or_create_at(&path, true).expect("reads the edited config");
-        assert_eq!(again.mixer.channels.len(), 1);
+        let cfg = load_or_create(Some(path.to_string_lossy().as_ref())).expect("reads");
+        assert_eq!(cfg.path, path);
+        assert_eq!(cfg.mixer.channels.len(), 1);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
-        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn builtin_sources_resolve_to_the_embedded_text() {
+        assert_eq!(
+            read_profile_text(BUILTIN_PROFILE).unwrap(),
+            template(),
+            "the built-in config resolves to the embedded template"
+        );
+        let (map, base) = read_map_text(BUILTIN_MAP).unwrap();
+        assert_eq!(map, MAP_TEMPLATE);
+        assert_eq!(base, Path::new("."));
+        assert!(is_builtin(BUILTIN_PROFILE) && is_builtin(BUILTIN_MAP));
+        assert!(!is_builtin("mapping.toml"));
+        // A built-in profile's sibling map is the built-in map, not a path next to a real file.
+        assert_eq!(map_path_for(Path::new(BUILTIN_PROFILE)), BUILTIN_MAP);
     }
 
     #[test]

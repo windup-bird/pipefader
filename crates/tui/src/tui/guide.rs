@@ -291,7 +291,12 @@ impl Session {
         // The map (or the port) names the controller; that is what the device list marks.
         session.outputs.controller = session.guide.device().or_else(|| session.port.clone());
 
-        if Path::new(open_hint).exists() {
+        // An explicit built-in marker opens the embedded template unsaved (Save asks where to
+        // write); an existing file opens normally; a plain missing path keeps the old behaviour:
+        // an empty guide with a prompt. Nothing is copied to disk before an explicit Save.
+        if ::app::config::profile::is_builtin(open_hint) {
+            session.open_source(::app::config::profile::BUILTIN_MAP, None);
+        } else if Path::new(open_hint).exists() {
             session.open_map(Path::new(open_hint));
         } else {
             session.prompt(format!("open a map file — File ({open_hint})"));
@@ -320,6 +325,27 @@ impl Session {
         self.overlay = Overlay::None;
         self.ok(format!("connected `{name}`"));
         Ok(())
+    }
+
+    /// Opens a source (file path or built-in marker) through the app resolver. `save_as` overrides
+    /// the path Save writes to — used when seeding an unsaved buffer from the built-in template.
+    fn open_source(&mut self, source: &str, save_as: Option<String>) {
+        match ::app::config::profile::read_map_text(source) {
+            Ok((text, base)) => {
+                let label = save_as.or_else(|| Some(source.to_owned()));
+                match self.guide.open_text(&text, &base, label.as_deref()) {
+                    Ok(()) => {
+                        if let Some(label) = label {
+                            self.open_hint = label.clone();
+                        }
+                        self.overlay = Overlay::None;
+                        self.ok(format!("opened {}", ::app::config::profile::source_label(source)));
+                    }
+                    Err(err) => self.error(err),
+                }
+            }
+            Err(err) => self.error(err),
+        }
     }
 
     fn open_map(&mut self, path: &Path) {
@@ -668,7 +694,12 @@ fn activate_command(session: &mut Session, index: usize) {
                 .path()
                 .map(Path::new)
                 .unwrap_or_else(|| Path::new(&session.open_hint));
-            session.overlay = Overlay::Files(FilePicker::new(Some(start), &["toml"], "map file"));
+            session.overlay = Overlay::Files(
+                FilePicker::new(Some(start), &["toml"], "map file").with_builtin(
+                    "mapping.toml",
+                    ::app::config::profile::BUILTIN_MAP,
+                ),
+            );
         }
         4 => save(session),
         5 => {
@@ -842,6 +873,9 @@ fn delete_output(session: &mut Session) {
 
 /// Drops `[[output]]` at `index`, keeping the rest of the file as it was written.
 fn remove_output(path: &str, index: usize) -> Result<(), String> {
+    if ::app::config::profile::is_builtin(path) {
+        return Err("the built-in template is read-only".to_owned());
+    }
     let text = std::fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
     let mut doc: toml_edit::DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
     let tables = ::app::config::profile::output_tables_mut(&mut doc)
@@ -1076,7 +1110,12 @@ fn handle_overlay(session: &mut Session, key: KeyEvent) {
             KeyCode::Left => {}
             KeyCode::Enter => match picker.activate() {
                 Some(path) => {
-                    session.open_map(Path::new(&path));
+                    let path_text = path.display().to_string();
+                    if ::app::config::profile::is_builtin(&path_text) {
+                        session.open_source(&path_text, None);
+                    } else {
+                        session.open_map(Path::new(&path));
+                    }
                     if !matches!(session.overlay, Overlay::None) {
                         session.overlay = Overlay::Files(picker);
                     }
@@ -1684,6 +1723,9 @@ fn bind_device(
     device: &str,
     channels: Option<(u16, u16)>,
 ) -> Result<String, String> {
+    if ::app::config::profile::is_builtin(path) {
+        return Err("the built-in template is read-only".to_owned());
+    }
     let text = std::fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
     let mut doc: toml_edit::DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
     let tables = ::app::config::profile::output_tables_mut(&mut doc)

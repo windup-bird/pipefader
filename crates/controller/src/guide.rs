@@ -354,17 +354,28 @@ impl Guide {
 
     pub fn open(&mut self, path: &str) -> Result<(), String> {
         let text = std::fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
-        let file = MapFile::from_toml_str(&text).map_err(|err| err.to_string())?;
         let base = Path::new(path)
             .parent()
             .filter(|dir| !dir.as_os_str().is_empty())
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
-        let presets = PresetRegistry::load(file.meta.as_ref(), &base)?;
-        self.base = base;
+        self.open_text(&text, &base, Some(path))
+    }
+
+    /// Opens map text already in memory (e.g. the built-in template) without reading a file.
+    /// `path` is the label to show / the target Save writes to; `None` leaves the guide unsaved.
+    pub fn open_text(
+        &mut self,
+        text: &str,
+        base: &Path,
+        path: Option<&str>,
+    ) -> Result<(), String> {
+        let file = MapFile::from_toml_str(text).map_err(|err| err.to_string())?;
+        let presets = PresetRegistry::load(file.meta.as_ref(), base)?;
+        self.base = base.to_path_buf();
         self.map = file;
         self.presets = presets;
-        self.path = Some(path.to_owned());
+        self.path = path.map(str::to_owned);
         self.extra_decks.clear();
         self.nav = Nav::default();
         self.capture = None;

@@ -3357,7 +3357,7 @@ mod tests {
         let mut app = test_app();
         app.overlay = Some(Overlay::Settings(Box::new(
             crate::tui::settings::SettingsScreen::open(crate::tui::settings::Context {
-                mixer: Some(mixer.display().to_string()),
+                profile: Some(mixer.display().to_string()),
                 controller_port: Some("Numark Party Mix III".to_owned()),
                 ..Default::default()
             }),
@@ -3369,11 +3369,11 @@ mod tests {
             text.contains("controller"),
             "the controller row is on screen"
         );
+        assert!(text.contains("output"), "the output row is on screen");
         assert!(
-            text.contains("preference"),
-            "the preference row is on screen"
+            text.contains("profile"),
+            "the profile row is on screen: {text}"
         );
-        assert!(text.contains("mixer"), "the mixer row is on screen: {text}");
         assert!(text.contains("Esc close"), "the key hint is on screen");
     }
 
@@ -3414,10 +3414,7 @@ mod tests {
         ];
         let mut screen =
             crate::tui::settings::SettingsScreen::open(crate::tui::settings::Context {
-                profile: None,
-                mixer: Some(mixer.display().to_string()),
-                live: Some("config.toml".to_owned()),
-                preference: Some("config.toml".to_owned()),
+                profile: Some(mixer.display().to_string()),
                 controller_port: Some("Numark Party Mix III".to_owned()),
                 controller_map: Some("mapping.toml".to_owned()),
                 controller: Some("Numark Party Mix III".to_owned()),
