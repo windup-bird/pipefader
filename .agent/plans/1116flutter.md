@@ -20,42 +20,49 @@ control
 browser
 ---
 
+无边框无卡片设计，不要显示标题, 全部使用响应式布局，边界对齐内部元素对齐，匀称美感
+
 ## header
 
-logo居中, 可能带点监视数据，其他我还没想好
+logo图标居中,不显示名称, 可能带点监视数据，其他我还没想好
 
 logo：形似'TT'，像两个推子（fader）, 内部无线条，比例匀称协调
 
 ## deckinfo
 
+空间关系：多行相同名称的意思是元素横跨多行，下同
+
 ---
-cover | artist	| time | key | bpm |
-cover | title	| time | key | bpm |
-cover | overview |
+cover | artist	| 已播放时间 | key | tempo(例如+2.0%) | sync
+cover | title	| 剩余时间 | key | bpm(当前而不是原本) | sync
 cover | overview |
 ---
+
+三行比例1:2:3
 
 ## waveforms
 
-同tui
+同tui, 无边框滚动波形，中线对齐，统一缩放，按钮在最左边叠在波形上
 
 左侧放缩放按钮，上下排列，+-
 
 ## control
 
-对称排列(tui目前不是对称，相当于把左边的翻折到右边)，可选不同控件，响应式布局
+对称排列(tui目前不是对称，相当于把左边的翻折到右边)，可选不同控件
+
+响应式布局, 内部元件各自对齐
 
 ---
 trans | unit1 | unit2 | fader | 电平 | fader | ...
 ---
 
-unit 可选以下
+unit名称在面板下方，可选以下
 
 ### pads
 
-同tui
+同tui, padmode在上方
 
-### beatctl
+### tempo
 
 ---
 sync leader/follower
@@ -64,7 +71,17 @@ temporange
 < | bend | >
 ---
 
-### tempo
+### beatctl
+
+---
+- | 4 loop | +
+in | call(点击激活/退出) | out
+< | 16 jump | >
+---
+
+beats只控制loop，jump的beats通过点击jump按钮弹出菜单设置
+
+
 
 ### mixer
 
@@ -97,4 +114,9 @@ library(左栏) | list and tracks | ???
 ## 风格
 
 1. 按照plan方案，不要私自添加元素，除非问我后同意
-2. 现代深色，少线条，看着像专业软件不要有ai味
+2. 现代深色，高对比度，主题色蓝，少线条，颜色统一定义统一配置，看着像专业软件不要有ai味
+3. 除了封面小角度圆角，其他均不用圆角
+4. 无边框沉浸式布局，不要用web常用的卡片设计，web仅测试目标是桌面级专业软件
+5. 推子：横向长条＋纵向细槽，按住/拖动后细槽展开成同宽度, 点击拖动的手感是记录相对位置而不是绝对
+6. 按钮：无圆角矩形，间距统一，未激活时比背景稍亮模拟真实碟机
+7. 
