@@ -1,6 +1,5 @@
 /target
 /mp3
-#/plans
 /.cache
 /.model
 # Machine-local native toolchain paths (see README "Windows（MSVC）"); they are absolute.
