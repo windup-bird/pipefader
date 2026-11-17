@@ -80,36 +80,6 @@ class DeckInfo extends StatelessWidget {
                               ],
                             ),
                           ),
-                          SizedBox(
-                            width: clockWidth,
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: model.clock,
-                              builder: (context, _, _) => Column(
-                                children: [
-                                  SizedBox(
-                                    height: row1,
-                                    child: Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        clock(deck.frame, deck.view.sampleRate),
-                                        style: Ty.meta,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    height: row2,
-                                    child: Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        '-${clock(deck.view.totalFrames - deck.frame, deck.view.sampleRate)}',
-                                        style: Ty.value,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
                           if (showKey)
                             SizedBox(
                               width: 52,
@@ -160,6 +130,36 @@ class DeckInfo extends StatelessWidget {
                                 ],
                               ),
                             ),
+                          SizedBox(
+                            width: clockWidth,
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: model.clock,
+                              builder: (context, _, _) => Column(
+                                children: [
+                                  SizedBox(
+                                    height: row1,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        clock(deck.frame, deck.view.sampleRate),
+                                        style: Ty.meta,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height: row2,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        '-${clock(deck.view.totalFrames - deck.frame, deck.view.sampleRate)}',
+                                        style: Ty.value,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
