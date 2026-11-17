@@ -52,7 +52,18 @@ abstract final class T {
   static const gapS = 4.0;
   static const gapL = 16.0;
 
-  // Type sizes, referenced by [Ty].
+  // Type sizes (px). Single source of truth for every font size in the app.
+  static const s8 = 8.0;
+  static const s9 = 9.0;
+  static const s10 = 10.0;
+  static const s11 = 11.0;
+  static const s12 = 12.0;
+  static const s12_5 = 12.5;
+  static const s13 = 13.0;
+  static const s14 = 14.0;
+  static const s16 = 16.0;
+  static const s22 = 22.0;
+
   static const _tabular = <FontFeature>[FontFeature.tabularFigures()];
 }
 
@@ -61,56 +72,56 @@ abstract final class Ty {
   static const _tab = T._tabular;
 
   static const label = TextStyle(
-    fontSize: 10,
+    fontSize: T.s10,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.1,
   );
   static const labelSmall = TextStyle(
-    fontSize: 9,
+    fontSize: T.s9,
     height: 1.0,
     color: T.faint,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.0,
   );
   static const artist = TextStyle(
-    fontSize: 10,
+    fontSize: T.s8,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w500,
     letterSpacing: 1.2,
   );
   static const title = TextStyle(
-    fontSize: 20,
+    fontSize: T.s16,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
   );
   static const num = TextStyle(
-    fontSize: 12,
+    fontSize: T.s12,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,
     fontFeatures: _tab,
   );
   static const meta = TextStyle(
-    fontSize: 10,
+    fontSize: T.s9,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w500,
     fontFeatures: _tab,
   );
   static const value = TextStyle(
-    fontSize: 20,
+    fontSize: T.s16,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,
     fontFeatures: _tab,
   );
   static const bpm = TextStyle(
-    fontSize: 22,
+    fontSize: T.s22,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w700,
@@ -118,13 +129,13 @@ abstract final class Ty {
     letterSpacing: -0.3,
   );
   static const pad = TextStyle(
-    fontSize: 12,
+    fontSize: T.s12,
     height: 1.0,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.3,
   );
   static const key = TextStyle(
-    fontSize: 20,
+    fontSize: T.s16,
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,
@@ -132,7 +143,7 @@ abstract final class Ty {
     letterSpacing: 0.4,
   );
   static const button = TextStyle(
-    fontSize: 10,
+    fontSize: T.s10,
     height: 1.0,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.0,
@@ -155,7 +166,7 @@ ThemeData buildTheme() {
     focusColor: Colors.transparent,
     textTheme: const TextTheme(
       bodyMedium: TextStyle(
-        fontSize: 13,
+        fontSize: T.s13,
         height: 1.2,
         color: T.text,
         decoration: TextDecoration.none,

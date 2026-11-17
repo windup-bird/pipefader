@@ -17,7 +17,7 @@ class PipefaderApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       builder: (context, child) => DefaultTextStyle.merge(
-        style: const TextStyle(fontSize: 13, height: 1.2, color: T.text),
+        style: const TextStyle(fontSize: T.s13, height: 1.2, color: T.text),
         child: child!,
       ),
       home: const Material(

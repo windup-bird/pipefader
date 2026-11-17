@@ -118,7 +118,8 @@ class DeckInfo extends StatelessWidget {
                                   SizedBox(height: row1),
                                   SizedBox(
                                     height: row2,
-                                    child: Center(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
                                       child: Text(deck.view.key, style: Ty.key),
                                     ),
                                   ),

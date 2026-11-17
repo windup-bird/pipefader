@@ -58,7 +58,7 @@ void showChoiceMenu({
               ),
               child: DefaultTextStyle.merge(
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: T.s13,
                   color: T.text,
                   decoration: TextDecoration.none,
                 ),

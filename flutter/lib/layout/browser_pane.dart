@@ -106,7 +106,7 @@ class _BrowserBarState extends State<_BrowserBar> {
                       cursorColor: T.accent,
                       cursorWidth: 1,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: T.s12,
                         color: T.text,
                         height: 1.2,
                       ),
@@ -115,7 +115,7 @@ class _BrowserBarState extends State<_BrowserBar> {
                         border: InputBorder.none,
                         hintText: 'search library',
                         hintStyle: TextStyle(
-                          fontSize: 12,
+                          fontSize: T.s12,
                           color: T.faint,
                           height: 1.2,
                         ),
@@ -230,7 +230,7 @@ class _EntryRowState extends State<EntryRow> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: T.s12,
               height: 1.0,
               color: color,
               fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
@@ -259,7 +259,7 @@ class _TracksColumn extends StatelessWidget {
         return const Center(
           child: Text(
             'no matches',
-            style: TextStyle(fontSize: 12, color: T.faint),
+            style: TextStyle(fontSize: T.s12, color: T.faint),
           ),
         );
       }
@@ -347,7 +347,7 @@ class _TrackRowState extends State<_TrackRow> {
                       TextSpan(
                         text: track.title,
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: T.s12_5,
                           height: 1.0,
                           color: selected ? T.accent : T.text,
                           fontWeight: FontWeight.w500,
@@ -356,7 +356,7 @@ class _TrackRowState extends State<_TrackRow> {
                       TextSpan(
                         text: '   ${track.artist}',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: T.s11,
                           height: 1.0,
                           color: T.dim,
                         ),

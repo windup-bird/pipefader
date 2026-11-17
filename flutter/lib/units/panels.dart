@@ -220,11 +220,11 @@ class _ValueLabel extends StatelessWidget {
         children: [
           TextSpan(
             text: value,
-            style: Ty.num.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+            style: Ty.num.copyWith(fontSize: T.s16, fontWeight: FontWeight.w700),
           ),
           TextSpan(
             text: ' $label',
-            style: const TextStyle(fontSize: 9, color: T.faint),
+            style: const TextStyle(fontSize: T.s9, color: T.faint),
           ),
         ],
       ),
@@ -426,7 +426,7 @@ class FxPanel extends StatelessWidget {
                 child: Text(
                   fxBeats[deck.beatsIndex],
                   textAlign: TextAlign.center,
-                  style: Ty.num.copyWith(fontSize: 14),
+                  style: Ty.num.copyWith(fontSize: T.s14),
                 ),
               ),
               const SizedBox(width: 8),

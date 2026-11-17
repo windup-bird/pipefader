@@ -88,7 +88,7 @@ class _Transport extends StatelessWidget {
             child: PanelButton(
               label: 'sync',
               active: deck.sync,
-              style: Ty.button.copyWith(fontSize: 9),
+              style: Ty.button.copyWith(fontSize: T.s9),
               onTap: () => model.toggleSync(deck),
             ),
           ),
@@ -96,7 +96,7 @@ class _Transport extends StatelessWidget {
           Expanded(
             child: PanelButton(
               label: 'cue',
-              style: Ty.button.copyWith(fontSize: 12),
+              style: Ty.button.copyWith(fontSize: T.s12),
               onTap: () => model.cue(deck),
             ),
           ),
@@ -105,7 +105,7 @@ class _Transport extends StatelessWidget {
             child: PanelButton(
               label: deck.playing ? 'pause' : 'play',
               active: deck.playing,
-              style: Ty.button.copyWith(fontSize: 12),
+              style: Ty.button.copyWith(fontSize: T.s12),
               onTap: () => model.togglePlay(deck),
             ),
           ),
