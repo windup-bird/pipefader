@@ -3,18 +3,21 @@ import 'package:material_ui/material_ui.dart';
 
 import '../state/app_model.dart';
 import '../theme.dart';
+import 'all_in_one_layout.dart';
 import 'browser_pane.dart';
-import 'control_band.dart';
-import 'deck_info.dart';
-import 'header.dart';
-import 'waveform_row.dart';
+import 'full_layout.dart';
+import 'landscape_layout.dart';
+import 'layout_mode.dart';
+import 'stacked_layout.dart';
 
-/// The page: header, deck rows, waveforms, the control band and the browser.
-/// Every section is a full-bleed band with its own grey so the rows read apart:
-/// the waveform strip is the darkest, the browser sits between it and the
-/// header/deck/control grey.
+/// The page: owns the clock, picks one of the four layouts and hosts the phone
+/// browser overlay. Every section below is full-bleed; the layouts decide how
+/// the bands share the space.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({this.model, super.key});
+
+  /// Tests inject a model to pin the layout or the deck count.
+  final AppModel? model;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -22,9 +25,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell>
     with SingleTickerProviderStateMixin {
-  final AppModel _model = AppModel();
-  final ScrollController _controlScroll = ScrollController();
-  final ScrollController _pageScroll = ScrollController();
+  late final AppModel _model = widget.model ?? AppModel();
+  late final bool _ownsModel = widget.model == null;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
 
@@ -43,346 +45,50 @@ class _AppShellState extends State<AppShell>
   @override
   void dispose() {
     _ticker.dispose();
-    _controlScroll.dispose();
-    _pageScroll.dispose();
-    _model.dispose();
+    if (_ownsModel) _model.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: T.band,
+      color: T.bg,
       child: SafeArea(
         child: AnimatedBuilder(
           animation: _model,
           builder: (context, _) => LayoutBuilder(
             builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              if (width >= 760) {
-                return _wide(constraints);
-              }
-              return _stacked(constraints);
+              final size = constraints.biggest;
+              final mode =
+                  _model.forcedLayout ??
+                  autoLayout(size, fullDecks: _model.fullDecks);
+              final count = _model.deckCountFor(mode);
+              final page = switch (mode) {
+                LayoutMode.full => FullLayout(model: _model, deckCount: count),
+                LayoutMode.landscape => LandscapeLayout(
+                  model: _model,
+                  deckCount: count,
+                ),
+                LayoutMode.stacked => StackedLayout(
+                  model: _model,
+                  deckCount: count,
+                ),
+                LayoutMode.allInOne => AllInOneLayout(
+                  model: _model,
+                  deckCount: count,
+                ),
+              };
+              return Stack(
+                children: [
+                  Positioned.fill(child: page),
+                  if (_model.browserOverlayOpen && mode.isPhone)
+                    Positioned.fill(child: BrowserOverlay(model: _model)),
+                ],
+              );
             },
           ),
         ),
       ),
-    );
-  }
-
-  Widget _wide(BoxConstraints constraints) {
-    final width = constraints.maxWidth;
-    final height = constraints.maxHeight;
-    final roomy = width >= 1080;
-    final hpad = roomy ? 20.0 : 14.0;
-    const headerH = 44.0;
-    const deckH = 60.0;
-    const waveH = 72.0;
-    const controlH = 144.0;
-    const bandsHeight = headerH + 8 + deckH + 8 + waveH + 6 + waveH + controlH;
-    final scrollable = height - bandsHeight < 110;
-
-    final bands = <Widget>[
-      ColoredBox(
-        color: T.band,
-        child: Column(
-          children: [
-            Header(height: headerH),
-            const SizedBox(height: 8),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hpad),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: DeckInfo(
-                      model: _model,
-                      deck: _model.decks[0],
-                      height: deckH,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: DeckInfo(
-                      model: _model,
-                      deck: _model.decks[1],
-                      height: deckH,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-      ColoredBox(
-        color: T.wave,
-        child: Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hpad),
-              child: Column(
-                children: [
-                  WaveformRow(
-                    model: _model,
-                    deck: _model.decks[0],
-                    height: waveH,
-                  ),
-                  const SizedBox(height: 6),
-                  WaveformRow(
-                    model: _model,
-                    deck: _model.decks[1],
-                    height: waveH,
-                  ),
-                ],
-              ),
-            ),
-            Positioned.fill(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: hpad + 6),
-                  child: WaveZoomKeys(model: _model),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      SizedBox(
-        height: controlH,
-        child: ColoredBox(
-          color: T.band,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: hpad, vertical: 10),
-            child: ControlBand(model: _model, height: controlH - 20),
-          ),
-        ),
-      ),
-    ];
-    final browser = _browserBand(hpad);
-
-    if (scrollable) {
-      return Scrollbar(
-        controller: _pageScroll,
-        thumbVisibility: true,
-        thickness: 3,
-        radius: Radius.zero,
-        child: SingleChildScrollView(
-          controller: _pageScroll,
-          child: Column(
-            children: [
-              ...bands,
-              SizedBox(height: 300, child: browser),
-            ],
-          ),
-        ),
-      );
-    }
-    return Column(
-      children: [
-        ...bands,
-        Expanded(child: browser),
-      ],
-    );
-  }
-
-  Widget _stacked(BoxConstraints constraints) {
-    final width = constraints.maxWidth;
-    final height = constraints.maxHeight;
-    const hpad = 12.0;
-    const headerH = 40.0;
-    const deckH = 60.0;
-    const waveH = 56.0;
-    final controlH = width >= 620 ? 184.0 : 172.0;
-
-    final bands = <Widget>[
-      ColoredBox(
-        color: T.band,
-        child: Column(
-          children: [
-            const Header(height: headerH),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: hpad),
-              child: DeckInfo(
-                model: _model,
-                deck: _model.decks[0],
-                height: deckH,
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-        ),
-      ),
-      ColoredBox(
-        color: T.wave,
-        child: Stack(
-          children: [
-            WaveformRow(model: _model, deck: _model.decks[0], height: waveH),
-            Positioned.fill(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: hpad + 6),
-                  child: WaveZoomKeys(model: _model),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      ColoredBox(
-        color: T.band,
-        child: Column(
-          children: [
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: hpad),
-              child: DeckInfo(
-                model: _model,
-                deck: _model.decks[1],
-                height: deckH,
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-        ),
-      ),
-      ColoredBox(
-        color: T.wave,
-        child: WaveformRow(model: _model, deck: _model.decks[1], height: waveH),
-      ),
-      SizedBox(
-        height: controlH,
-        child: ColoredBox(
-          color: T.band,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: hpad, vertical: 10),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: SingleChildScrollView(
-                    controller: _controlScroll,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: 980,
-                      child: ControlBand(model: _model, height: controlH - 20),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 3,
-                  child: _ScrollHint(controller: _controlScroll),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ];
-    final browser = _browserBand(hpad);
-
-    final fixed =
-        headerH + 6 + deckH + 6 + waveH + 6 + deckH + 6 + waveH + controlH;
-    if (fixed + 80 > height) {
-      return Scrollbar(
-        controller: _pageScroll,
-        thumbVisibility: true,
-        thickness: 3,
-        radius: Radius.zero,
-        child: SingleChildScrollView(
-          controller: _pageScroll,
-          child: Column(
-            children: [
-              ...bands,
-              SizedBox(height: 300, child: browser),
-            ],
-          ),
-        ),
-      );
-    }
-    return Column(
-      children: [
-        ...bands,
-        Expanded(child: browser),
-      ],
-    );
-  }
-
-  Widget _browserBand(double hpad) {
-    return Container(
-      color: T.browser,
-      padding: EdgeInsets.fromLTRB(hpad, 0, hpad, 10),
-      child: BrowserPane(model: _model),
-    );
-  }
-}
-
-/// A thin bar under a horizontally scrolled band: when the band is wider than
-/// the page, this is the only cue that it can be dragged.
-class _ScrollHint extends StatefulWidget {
-  const _ScrollHint({required this.controller});
-
-  final ScrollController controller;
-
-  @override
-  State<_ScrollHint> createState() => _ScrollHintState();
-}
-
-class _ScrollHintState extends State<_ScrollHint> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onChange);
-    // The controller has no clients on the first build, so re-check once the
-    // scrollable has laid out.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  void _onChange() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onChange);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = widget.controller;
-    if (!controller.hasClients) return const SizedBox.shrink();
-    final position = controller.position;
-    if (!position.hasContentDimensions) return const SizedBox.shrink();
-    final extent = position.maxScrollExtent;
-    if (extent <= 0) return const SizedBox.shrink();
-    final viewport = position.viewportDimension;
-    final fraction = (viewport / (viewport + extent)).clamp(0.0, 1.0);
-    final progress = (position.pixels / extent).clamp(0.0, 1.0).toDouble();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final thumb = width * fraction;
-        return Stack(
-          children: [
-            const Positioned.fill(child: ColoredBox(color: T.surface)),
-            Positioned(
-              left: (width - thumb) * progress,
-              width: thumb,
-              top: 0,
-              bottom: 0,
-              child: const ColoredBox(color: T.dim),
-            ),
-          ],
-        );
-      },
     );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import '../theme.dart';
+import 'device.dart';
 
 /// A small square popup anchored above the tapped label. Material's popup menu
 /// brings rounded corners and a shadow; the sketch wants neither, so the menu
@@ -52,10 +53,7 @@ void showChoiceMenu({
             top: top,
             width: width,
             child: Container(
-              decoration: BoxDecoration(
-                color: T.surfaceHi,
-                border: Border.all(color: T.line),
-              ),
+              decoration: panelFace(color: T.surfaceHi),
               child: DefaultTextStyle.merge(
                 style: const TextStyle(
                   fontSize: T.s13,
@@ -63,7 +61,7 @@ void showChoiceMenu({
                   decoration: TextDecoration.none,
                 ),
                 child: Column(
-                mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     for (var i = 0; i < labels.length; i++)
                       _MenuRow(
@@ -112,8 +110,8 @@ class _MenuRowState extends State<_MenuRow> {
     final color = widget.selected
         ? T.accent
         : _hover
-            ? T.text
-            : T.dim;
+        ? T.text
+        : T.dim;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),

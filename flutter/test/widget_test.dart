@@ -1,50 +1,41 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:pipefader_gui/layout/app_shell.dart';
+import 'package:pipefader_gui/layout/full_layout.dart';
+import 'package:pipefader_gui/layout/landscape_layout.dart';
+import 'package:pipefader_gui/layout/stacked_layout.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/theme.dart';
 
-import 'package:pipefader_gui/main.dart';
+import 'support.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUpAll(loadTestFonts);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('auto layout follows the viewport', (tester) async {
+    Future<void> pump(Size size) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Material(
+            type: MaterialType.transparency,
+            child: AppShell(model: AppModel(forcedLayout: null)),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 32));
+    }
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await pump(const Size(1024, 768));
+    expect(find.byType(FullLayout), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
-  });
+    await pump(const Size(844, 390));
+    expect(find.byType(LandscapeLayout), findsOneWidget);
 
-  testWidgets('Meets accessibility guidelines', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Checks that tappable nodes have a minimum size of 48 by 48 pixels
-    // for Android.
-    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-
-    // Checks that tappable nodes have a minimum size of 44 by 44 pixels
-    // for iOS.
-    await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
-
-    // Checks that touch targets with a tap or long press action are labeled.
-    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-
-    // Checks that text meets the minimum contrast ratio: 4.5:1 for normal
-    // text and 3:1 for large text.
-    await expectLater(tester, meetsGuideline(textContrastGuideline));
+    await pump(const Size(390, 844));
+    expect(find.byType(StackedLayout), findsOneWidget);
   });
 }

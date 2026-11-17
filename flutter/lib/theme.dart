@@ -18,13 +18,24 @@ abstract final class T {
   /// The browser sits between the two.
   static const browser = Color(0xFF131313);
   static const surface = Color(0xFF242424);
+  static const surfaceLo = Color(0xFF1E1E1E);
   static const surfaceHi = Color(0xFF2E2E2E);
   static const surfaceMid = Color(0xFF202020);
   static const handle = Color(0xFF565656);
   static const handleHi = Color(0xFF6E6E6E);
   static const line = Color(0xFF333333);
-  static const track = Color(0xFF3A3A3A);
+  static const track = Color(0xFF151515);
   static const hair = Color(0x1AFFFFFF);
+
+  // Light and shade. Hardware reads as a solid object because its top edge
+  // catches the light and its body casts a little shadow; both are tokens so a
+  // skin can flatten them in one place.
+  static const highlight = Color(0x1CFFFFFF);
+  static const shadow = Color(0x8C000000);
+  static const shadowSoft = Color(0x4D000000);
+  static const glowAccent = Color(0x553B82F6);
+  static const scrim = Color(0xB3000000);
+  static const glass = Color(0xC4141414);
 
   // Type.
   static const text = Color(0xFFEDEDED);
@@ -62,6 +73,7 @@ abstract final class T {
   static const s13 = 13.0;
   static const s14 = 14.0;
   static const s16 = 16.0;
+  static const s20 = 20.0;
   static const s22 = 22.0;
 
   static const _tabular = <FontFeature>[FontFeature.tabularFigures()];
@@ -145,6 +157,28 @@ abstract final class Ty {
   static const button = TextStyle(
     fontSize: T.s10,
     height: 1.0,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.0,
+  );
+  static const phoneBpm = TextStyle(
+    fontSize: T.s20,
+    height: 1.0,
+    color: T.text,
+    fontWeight: FontWeight.w700,
+    fontFeatures: _tab,
+    letterSpacing: -0.4,
+  );
+  static const phoneMeta = TextStyle(
+    fontSize: T.s9,
+    height: 1.0,
+    color: T.faint,
+    fontWeight: FontWeight.w600,
+    fontFeatures: _tab,
+  );
+  static const menuRow = TextStyle(
+    fontSize: T.s12,
+    height: 1.0,
+    color: T.text,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.0,
   );

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../theme.dart';
+import 'device.dart';
 
 /// A vertical bar fader: a hairline slot that widens to the handle's width
 /// while held, a wide horizontal handle, and the travelled length lit in the
@@ -57,85 +58,96 @@ class _BarFaderState extends State<BarFader> {
       cursor: SystemMouseCursors.resizeUpDown,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final height = constraints.maxHeight;
-        final width = constraints.maxWidth;
-        final travel = height - handle;
-        final half = travel / 2;
-        final centre = height / 2;
-        final handleY = widget.bipolar
-            ? centre - _value * half
-            : height - handle / 2 - _value * travel;
-        final base = widget.bipolar ? centre : height;
-        final fillTop = handleY < base ? handleY : base;
-        final fillHeight = (handleY - base).abs();
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          final width = constraints.maxWidth;
+          final travel = height - handle;
+          final half = travel / 2;
+          final centre = height / 2;
+          final handleY = widget.bipolar
+              ? centre - _value * half
+              : height - handle / 2 - _value * travel;
+          final base = widget.bipolar ? centre : height;
+          final fillTop = handleY < base ? handleY : base;
+          final fillHeight = (handleY - base).abs();
 
-        return Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (event) {
-            setState(() {
-              _active = true;
-              _lastY = event.localPosition.dy;
-            });
-          },
-          onPointerMove: (event) {
-            if (!_active) return;
-            final dy = _lastY - event.localPosition.dy;
-            _lastY = event.localPosition.dy;
-            final span = widget.bipolar ? half : travel;
-            if (span <= 0) return;
-            setState(() => _value = _clamp(_value + dy / span));
-          },
-          onPointerUp: (_) {
-            if (!_active) return;
-            setState(() => _active = false);
-            widget.onChanged(_value);
-          },
-          onPointerCancel: (_) {
-            if (!_active) return;
-            setState(() => _active = false);
-            widget.onChanged(_value);
-          },
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(end: _active ? width : 2),
-            duration: _duration,
-            curve: Curves.easeOut,
-            builder: (context, slotWidth, _) {
-              return Stack(
-                children: [
-                  Positioned(
-                    left: (width - slotWidth) / 2,
-                    top: 0,
-                    width: slotWidth,
-                    height: height,
-                    child: ColoredBox(color: T.track),
-                  ),
-                  Positioned(
-                    left: (width - slotWidth) / 2,
-                    top: fillTop,
-                    width: slotWidth,
-                    height: fillHeight,
-                    child: ColoredBox(color: T.accent),
-                  ),
-                  Positioned(
-                    left: 0,
-                    width: width,
-                    top: handleY - handle / 2,
-                    height: handle,
-                    child: ColoredBox(
-                      color: _active
-                          ? T.accentHi
-                          : _hover
-                              ? T.text
-                              : T.handle,
-                    ),
-                  ),
-                ],
-              );
+          return Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (event) {
+              setState(() {
+                _active = true;
+                _lastY = event.localPosition.dy;
+              });
             },
-          ),
-        );
-      }),
+            onPointerMove: (event) {
+              if (!_active) return;
+              final dy = _lastY - event.localPosition.dy;
+              _lastY = event.localPosition.dy;
+              final span = widget.bipolar ? half : travel;
+              if (span <= 0) return;
+              setState(() => _value = _clamp(_value + dy / span));
+            },
+            onPointerUp: (_) {
+              if (!_active) return;
+              setState(() => _active = false);
+              widget.onChanged(_value);
+            },
+            onPointerCancel: (_) {
+              if (!_active) return;
+              setState(() => _active = false);
+              widget.onChanged(_value);
+            },
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: _active ? width : 2),
+              duration: _duration,
+              curve: Curves.easeOut,
+              builder: (context, slotWidth, _) {
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: (width - slotWidth) / 2,
+                      top: 0,
+                      width: slotWidth,
+                      height: height,
+                      child: DecoratedBox(decoration: slotFace()),
+                    ),
+                    Positioned(
+                      left: (width - slotWidth) / 2,
+                      top: fillTop,
+                      width: slotWidth,
+                      height: fillHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [T.accentLo, T.accent],
+                          ),
+                          boxShadow: _active
+                              ? const [
+                                  BoxShadow(color: T.glowAccent, blurRadius: 8),
+                                ]
+                              : null,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      width: width,
+                      top: handleY - handle / 2,
+                      height: handle,
+                      child: DecoratedBox(
+                        decoration: handleFace(active: _active, hover: _hover),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 }

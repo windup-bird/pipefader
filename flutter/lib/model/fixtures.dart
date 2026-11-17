@@ -2,8 +2,8 @@ import 'deck.dart';
 import 'library.dart';
 import 'peaks.dart';
 
-/// The two decks the sketch renders. Names are invented; the tempos and keys
-/// are plausible 4/4 techno so the header reads like a real session.
+/// The decks the sketch renders. The first two are the pair the desk starts
+/// with; the other two are the alternate slots in a four-deck rig.
 List<DeckView> buildDecks() {
   const rate = 44100;
   return [
@@ -31,13 +31,34 @@ List<DeckView> buildDecks() {
       peaks: buildPeaks(seed: 19, seconds: 407, bpm: 132),
       coverSeed: 11,
     ),
+    DeckView(
+      artist: 'Mera Sato',
+      title: 'Hollow Pulse',
+      album: 'Ground',
+      key: '9B',
+      bpm: 130,
+      sampleRate: rate,
+      totalFrames: 388 * rate,
+      firstBeat: (0.44 * rate).round(),
+      peaks: buildPeaks(seed: 31, seconds: 388, bpm: 130),
+      coverSeed: 5,
+    ),
+    DeckView(
+      artist: 'Otto Rell',
+      title: 'Nightshift',
+      album: 'Afterimage',
+      key: '4A',
+      bpm: 126,
+      sampleRate: rate,
+      totalFrames: 341 * rate,
+      firstBeat: (0.18 * rate).round(),
+      peaks: buildPeaks(seed: 43, seconds: 341, bpm: 126),
+      coverSeed: 8,
+    ),
   ];
 }
 
-const libraries = <LibEntry>[
-  LibEntry('USB'),
-  LibEntry('Local'),
-];
+const libraries = <LibEntry>[LibEntry('USB'), LibEntry('Local')];
 
 const playlists = <ListEntry>[
   ListEntry('All Tracks'),

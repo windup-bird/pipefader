@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'layout/app_shell.dart';
+import 'state/app_model.dart';
 import 'theme.dart';
 
 void main() {
@@ -8,7 +9,9 @@ void main() {
 }
 
 class PipefaderApp extends StatelessWidget {
-  const PipefaderApp({super.key});
+  const PipefaderApp({this.model, super.key});
+
+  final AppModel? model;
 
   @override
   Widget build(BuildContext context) {
@@ -20,9 +23,9 @@ class PipefaderApp extends StatelessWidget {
         style: const TextStyle(fontSize: T.s13, height: 1.2, color: T.text),
         child: child!,
       ),
-      home: const Material(
+      home: Material(
         type: MaterialType.transparency,
-        child: AppShell(),
+        child: AppShell(model: model),
       ),
     );
   }

@@ -52,7 +52,10 @@ Peaks buildPeaks({
         ? 0.0
         : (i % bucketsPerBeat) / bucketsPerBeat;
     final beat = bucketsPerBeat <= 0 ? 0 : (i / bucketsPerBeat).floor();
-    final pulse = 0.26 + 0.74 * math.exp(-phase * beatDecay[beat.clamp(0, beatDecay.length - 1)]);
+    final pulse =
+        0.26 +
+        0.74 *
+            math.exp(-phase * beatDecay[beat.clamp(0, beatDecay.length - 1)]);
     final hat = phase > 0.47 && phase < 0.56 ? 0.18 : 0.0;
     final gain = beatGain[beat.clamp(0, beatGain.length - 1)];
     final grain = 0.88 + 0.12 * rnd.nextDouble();

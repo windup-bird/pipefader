@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../layout/layout_mode.dart';
 import '../model/deck.dart';
 import '../model/fixtures.dart';
 import '../model/library.dart';
@@ -25,17 +26,23 @@ class DeckRuntime {
   double nudge = 0;
 
   bool sync = false;
+  bool keylock = true;
 
   PadMode padMode = PadMode.cue;
   final Set<int> hotCues = <int>{};
-  int loopIndex = 4;
-  int jumpIndex = 4;
-  int jumpSizeIndex = 4;
+
+  BeatMode beatMode = BeatMode.beatloop;
+  int loopBeatsIndex = 4;
+  int jumpBeatsIndex = 4;
   bool loopArmed = false;
   bool loopActive = false;
 
-  /// The outer slot is fixed to the pads; only the inner one is switchable.
-  UnitKind unitInner = UnitKind.beatctl;
+  /// The two switchable slots in the full and all-in-one control bands.
+  UnitKind unitA = UnitKind.pads;
+  UnitKind unitB = UnitKind.tempo;
+
+  /// The single slot in the phone control block.
+  UnitKind phoneUnit = UnitKind.pads;
 
   double high = -0.24;
   double mid = 0.14;
@@ -63,38 +70,21 @@ class DeckRuntime {
 
   double get tempoPercent => (tempo - 1.0) * 100.0;
 
-  String get loopLabel => PadMode.loop.pads[loopIndex];
+  String get loopLabel => beatLabels[loopBeatsIndex];
 
-  int get jumpSize => jumpSizes[jumpSizeIndex];
+  int get jumpSize => jumpSizes[jumpBeatsIndex];
 }
 
 /// The session the GUI paints. A sketch only: everything advances locally and
 /// nothing here talks to the engine.
 class AppModel extends ChangeNotifier {
-  AppModel._(this.decks);
+  AppModel({LayoutMode? forcedLayout, int fullDecks = 2, int phoneDecks = 2})
+    : this._(forcedLayout, fullDecks, phoneDecks);
 
-  factory AppModel() {
-    final views = buildDecks();
-    return AppModel._([
-      DeckRuntime(
-        view: views[0],
-        frame: (views[0].totalFrames * 0.372).round(),
-        playing: true,
-        tempo: 1.0,
-      )..hotCues.addAll(const [0, 2, 4]),
-      DeckRuntime(
-        view: views[1],
-        frame: (views[1].totalFrames * 0.518).round(),
-        playing: false,
-        tempo: 1.02,
-      )
-        ..hotCues.addAll(const [1, 3])
-        ..high = 0.16
-        ..mid = -0.22
-        ..low = 0.20
-        ..filter = -0.28,
-    ]);
-  }
+  AppModel._(this._forcedLayout, int fullDecks, int phoneDecks)
+    : _fullDecks = _legalFull(fullDecks),
+      _phoneDecks = _legalPhone(phoneDecks),
+      decks = _buildDecks();
 
   final List<DeckRuntime> decks;
 
@@ -106,11 +96,24 @@ class AppModel extends ChangeNotifier {
   final List<ListEntry> lists = playlists;
   final List<TrackRow> allTracks = tracks;
 
+  LayoutMode? _forcedLayout;
+  int _fullDecks;
+  int _phoneDecks;
+
+  /// Which deck each full control column drives, left then right.
+  final List<int> _fullSlots = <int>[0, 1];
+
+  /// The phone keeps its own pair, because it caps at three decks while the
+  /// full band can show four.
+  final List<int> _phoneSlots = <int>[0, 1];
+
   int selectedLibrary = 0;
   int selectedList = 0;
   int selectedTrack = 0;
   bool libraryOpen = true;
+  bool rightOpen = false;
   bool searchOpen = false;
+  bool browserOverlayOpen = false;
   String searchText = '';
 
   /// The shared waveform zoom, in source frames per pixel.
@@ -123,14 +126,104 @@ class AppModel extends ChangeNotifier {
   static const double minFramesPerPixel = 40;
   static const double maxFramesPerPixel = 45000;
 
+  LayoutMode? get forcedLayout => _forcedLayout;
+
+  int get fullDecks => _fullDecks;
+
+  int get phoneDecks => _phoneDecks;
+
+  /// A two-deck rig has nothing to pick, so the deck keys are hidden.
+  bool get fullHasDeckChoice => _fullDecks > 2;
+
+  /// The phone stops at three decks; its left column then has 1/3.
+  bool get phoneHasDeckChoice => _phoneDecks > 2;
+
+  int deckCountFor(LayoutMode mode) =>
+      deckCountForLayout(mode, fullDecks: _fullDecks, phoneDecks: _phoneDecks);
+
+  /// The deck a full control column currently drives.
+  int fullSlotDeck(int column) =>
+      _fullSlots[column % 2].clamp(0, _fullDecks - 1);
+
+  /// The deck a phone control column currently drives.
+  int phoneSlotDeck(int column) =>
+      _phoneSlots[column % 2].clamp(0, _phoneDecks - 1);
+
+  List<DeckRuntime> activeDecks(int count) =>
+      decks.take(count).toList(growable: false);
+
   List<TrackRow> get visibleTracks {
     final query = searchText.trim().toLowerCase();
     if (query.isEmpty) return allTracks;
     return allTracks
-        .where((track) =>
-            track.title.toLowerCase().contains(query) ||
-            track.artist.toLowerCase().contains(query))
+        .where(
+          (track) =>
+              track.title.toLowerCase().contains(query) ||
+              track.artist.toLowerCase().contains(query),
+        )
         .toList(growable: false);
+  }
+
+  void setLayout(LayoutMode mode) {
+    _forcedLayout = mode;
+    browserOverlayOpen = false;
+    _resetSlots();
+    notifyListeners();
+  }
+
+  void setFullDecks(int count) {
+    _fullDecks = _legalFull(count);
+    _resetSlots();
+    notifyListeners();
+  }
+
+  void setPhoneDecks(int count) {
+    _phoneDecks = _legalPhone(count);
+    _resetSlots();
+    notifyListeners();
+  }
+
+  /// The decks a full control column can drive: 1/3 on the left, 2/4 on the
+  /// right.
+  List<int> fullColumnDecks(int column) => <int>[
+    for (var i = column % 2; i < _fullDecks; i += 2) i,
+  ];
+
+  /// The same list for the phone, which stops at three decks.
+  List<int> phoneColumnDecks(int column) => <int>[
+    for (var i = column % 2; i < _phoneDecks; i += 2) i,
+  ];
+
+  /// Selects the deck under a full control column. The picker only offers decks
+  /// of that column's parity, so a stale index cannot land on the wrong side.
+  void setFullSlot(int column, int deck) {
+    final index = column % 2;
+    if (deck < 0 || deck >= _fullDecks || deck % 2 != index) return;
+    if (_fullSlots[index] == deck) return;
+    _fullSlots[index] = deck;
+    notifyListeners();
+  }
+
+  /// Selects the deck under a phone control column.
+  void setPhoneSlot(int column, int deck) {
+    final index = column % 2;
+    if (deck < 0 || deck >= _phoneDecks || deck % 2 != index) return;
+    if (_phoneSlots[index] == deck) return;
+    _phoneSlots[index] = deck;
+    notifyListeners();
+  }
+
+  static int _legalFull(int value) => value >= 4 ? 4 : 2;
+
+  static int _legalPhone(int value) => value >= 3 ? 3 : 2;
+
+  /// A layout or deck-count change must not leave a column on a deck that is
+  /// no longer in the rig.
+  void _resetSlots() {
+    _fullSlots[0] = 0;
+    _fullSlots[1] = 1;
+    _phoneSlots[0] = 0;
+    _phoneSlots[1] = 1;
   }
 
   void advance(double dt) {
@@ -138,8 +231,7 @@ class AppModel extends ChangeNotifier {
     _time += step;
     for (final deck in decks) {
       if (deck.playing && !deck.atEnd) {
-        deck.frame +=
-            (step * deck.view.sampleRate * deck.playingRate).round();
+        deck.frame += (step * deck.view.sampleRate * deck.playingRate).round();
         if (deck.frame >= deck.view.totalFrames) {
           deck.frame = deck.view.totalFrames;
           deck.playing = false;
@@ -156,7 +248,8 @@ class AppModel extends ChangeNotifier {
         .round()
         .clamp(0, peaks.length - 1);
     final amplitude = peaks.leftLow[index];
-    final wobble = 0.68 +
+    final wobble =
+        0.68 +
         0.32 *
             math.sin(_time * 5.1 + deck.view.coverSeed) *
             math.sin(_time * 2.3 + 1.1);
@@ -184,9 +277,23 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void adjustTempo(DeckRuntime deck, double delta) {
+  void toggleKeylock(DeckRuntime deck) {
+    deck.keylock = !deck.keylock;
+    notifyListeners();
+  }
+
+  void setTempo(DeckRuntime deck, double tempo) {
     final range = deck.view.tempoRange;
-    deck.tempo = (deck.tempo + delta).clamp(1.0 - range, 1.0 + range);
+    deck.tempo = tempo.clamp(1.0 - range, 1.0 + range);
+    notifyListeners();
+  }
+
+  void adjustTempo(DeckRuntime deck, double delta) =>
+      setTempo(deck, deck.tempo + delta);
+
+  /// A relative bend used by the phone's horizontal drag.
+  void setNudge(DeckRuntime deck, double value) {
+    deck.nudge = value.clamp(-0.08, 0.08);
     notifyListeners();
   }
 
@@ -217,28 +324,35 @@ class AppModel extends ChangeNotifier {
       case PadMode.cue:
         if (!deck.hotCues.remove(index)) deck.hotCues.add(index);
       case PadMode.loop:
-        deck.loopIndex = index;
+        deck.loopBeatsIndex = index.clamp(0, beatLabels.length - 1);
+        deck.loopActive = true;
       case PadMode.jump:
-        deck.jumpIndex = index;
+        deck.jumpBeatsIndex = index.clamp(0, jumpSizes.length - 1);
     }
     notifyListeners();
   }
 
+  // ---- beat bar ------------------------------------------------------------
+
+  void setBeatMode(DeckRuntime deck, BeatMode mode) {
+    deck.beatMode = mode;
+    notifyListeners();
+  }
+
   void stepLoop(DeckRuntime deck, bool halve) {
-    final next = halve ? deck.loopIndex - 1 : deck.loopIndex + 1;
-    deck.loopIndex = next.clamp(0, PadMode.loop.pads.length - 1);
+    final next = halve ? deck.loopBeatsIndex - 1 : deck.loopBeatsIndex + 1;
+    deck.loopBeatsIndex = next.clamp(0, beatLabels.length - 1);
     notifyListeners();
   }
 
-  void setJumpSize(DeckRuntime deck, int index) {
-    deck.jumpSizeIndex = index.clamp(0, jumpSizes.length - 1);
+  void setLoopBeats(DeckRuntime deck, int index) {
+    deck.loopBeatsIndex = index.clamp(0, beatLabels.length - 1);
     notifyListeners();
   }
 
-  void jumpBy(DeckRuntime deck, int direction) {
-    final frames =
-        (deck.jumpSize * direction * deck.view.beatFrames).round();
-    deck.frame = (deck.frame + frames).clamp(0, deck.view.totalFrames);
+  void toggleLoopActive(DeckRuntime deck) {
+    deck.loopActive = !deck.loopActive;
+    if (deck.loopActive) deck.loopArmed = false;
     notifyListeners();
   }
 
@@ -256,13 +370,35 @@ class AppModel extends ChangeNotifier {
 
   void toggleLoopCall(DeckRuntime deck) {
     deck.loopActive = !deck.loopActive;
+    if (deck.loopActive) deck.loopArmed = false;
+    notifyListeners();
+  }
+
+  void setJumpBeats(DeckRuntime deck, int index) {
+    deck.jumpBeatsIndex = index.clamp(0, jumpSizes.length - 1);
+    notifyListeners();
+  }
+
+  void jumpBy(DeckRuntime deck, int direction) {
+    final frames = (deck.jumpSize * direction * deck.view.beatFrames).round();
+    deck.frame = (deck.frame + frames).clamp(0, deck.view.totalFrames);
     notifyListeners();
   }
 
   // ---- control slots -------------------------------------------------------
 
-  void setUnit(DeckRuntime deck, UnitKind kind) {
-    deck.unitInner = kind;
+  void setUnitA(DeckRuntime deck, UnitKind kind) {
+    deck.unitA = kind;
+    notifyListeners();
+  }
+
+  void setUnitB(DeckRuntime deck, UnitKind kind) {
+    deck.unitB = kind;
+    notifyListeners();
+  }
+
+  void setPhoneUnit(DeckRuntime deck, UnitKind kind) {
+    deck.phoneUnit = kind;
     notifyListeners();
   }
 
@@ -305,7 +441,7 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleFxOn(DeckRuntime deck) {
+  void toggleFx(DeckRuntime deck) {
     deck.fxOn = !deck.fxOn;
     notifyListeners();
   }
@@ -320,8 +456,10 @@ class AppModel extends ChangeNotifier {
 
   void zoom({required bool inward}) {
     final factor = inward ? 0.625 : 1.6;
-    framesPerPixel =
-        (framesPerPixel * factor).clamp(minFramesPerPixel, maxFramesPerPixel);
+    framesPerPixel = (framesPerPixel * factor).clamp(
+      minFramesPerPixel,
+      maxFramesPerPixel,
+    );
     notifyListeners();
   }
 
@@ -329,6 +467,11 @@ class AppModel extends ChangeNotifier {
 
   void toggleLibrary() {
     libraryOpen = !libraryOpen;
+    notifyListeners();
+  }
+
+  void toggleRight() {
+    rightOpen = !rightOpen;
     notifyListeners();
   }
 
@@ -362,14 +505,62 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void openBrowserOverlay() {
+    browserOverlayOpen = true;
+    notifyListeners();
+  }
+
+  void closeBrowserOverlay() {
+    browserOverlayOpen = false;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     clock.dispose();
     super.dispose();
   }
+
+  static List<DeckRuntime> _buildDecks() {
+    final views = buildDecks();
+    return [
+      DeckRuntime(
+        view: views[0],
+        frame: (views[0].totalFrames * 0.372).round(),
+        playing: true,
+        tempo: 1.0,
+      )..hotCues.addAll(const [0, 2, 4]),
+      DeckRuntime(
+          view: views[1],
+          frame: (views[1].totalFrames * 0.518).round(),
+          playing: false,
+          tempo: 1.02,
+        )
+        ..hotCues.addAll(const [1, 3])
+        ..high = 0.16
+        ..mid = -0.22
+        ..low = 0.20
+        ..filter = -0.28,
+      DeckRuntime(
+        view: views[2],
+        frame: (views[2].totalFrames * 0.214).round(),
+        playing: false,
+        tempo: 0.99,
+      )..hotCues.add(6),
+      DeckRuntime(
+          view: views[3],
+          frame: (views[3].totalFrames * 0.633).round(),
+          playing: false,
+          tempo: 1.0,
+        )
+        ..high = -0.08
+        ..low = 0.44
+        ..filter = 0.12,
+    ];
+  }
 }
 
-const fxBeats = <String>['1/8', '1/4', '1/2', '1', '2', '4'];
+const beatLabels = <String>['1/4', '1/2', '1', '2', '4', '8', '16', '32'];
 const jumpSizes = <int>[1, 2, 4, 8, 16, 32];
-
+const fxBeats = <String>['1/8', '1/4', '1/2', '1', '2', '4'];
 const fxSlots = <String>['echo', 'delay', 'reverb'];

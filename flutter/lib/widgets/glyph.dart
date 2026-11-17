@@ -1,18 +1,30 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 import '../theme.dart';
 
 /// The few glyphs the sketch needs. Drawn rather than font icons so the weight
 /// matches the hairlines and no icon font has to be shipped.
-enum GlyphKind { panel, panelRight, search, plus, minus, close, dropdown }
+enum GlyphKind {
+  panel,
+  panelRight,
+  search,
+  plus,
+  minus,
+  close,
+  dropdown,
+  loop,
+  jump,
+  manualLoop,
+  keylock,
+  chevronRight,
+  chevronUp,
+  chevronDown,
+}
 
 class Glyph extends StatelessWidget {
-  const Glyph(
-    this.kind, {
-    this.size = 16,
-    this.color = T.dim,
-    super.key,
-  });
+  const Glyph(this.kind, {this.size = 16, this.color = T.dim, super.key});
 
   final GlyphKind kind;
   final double size;
@@ -102,7 +114,110 @@ class _GlyphPainter extends CustomPainter {
           ..lineTo(center.dx, center.dy + half * 0.5)
           ..close();
         canvas.drawPath(path, Paint()..color = color);
+      case GlyphKind.loop:
+        final r = half * 0.62;
+        final rect = Rect.fromCircle(center: center, radius: r);
+        canvas.drawArc(rect, math.pi * 0.18, math.pi * 1.58, false, paint);
+        final tip = center.translate(r * 0.86, -r * 0.50);
+        canvas.drawLine(tip, tip.translate(-r * 0.30, -r * 0.08), paint);
+        canvas.drawLine(tip, tip.translate(r * 0.08, -r * 0.30), paint);
+      case GlyphKind.jump:
+        for (var side = -1; side <= 1; side += 2) {
+          final x = center.dx + side * half * 0.30;
+          canvas.drawLine(
+            Offset(x - half * 0.18, center.dy - half * 0.42),
+            Offset(x + half * 0.18, center.dy),
+            paint,
+          );
+          canvas.drawLine(
+            Offset(x + half * 0.18, center.dy),
+            Offset(x - half * 0.18, center.dy + half * 0.42),
+            paint,
+          );
+        }
+      case GlyphKind.manualLoop:
+        final r = half * 0.42;
+        final left = center.dx - r * 1.55;
+        final right = center.dx + r * 1.55;
+        canvas.drawLine(
+          Offset(left, center.dy - r),
+          Offset(left, center.dy + r),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(left, center.dy - r),
+          Offset(left + r * 0.7, center.dy - r),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(left, center.dy + r),
+          Offset(left + r * 0.7, center.dy + r),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(right, center.dy - r),
+          Offset(right, center.dy + r),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(right, center.dy - r),
+          Offset(right - r * 0.7, center.dy - r),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(right, center.dy + r),
+          Offset(right - r * 0.7, center.dy + r),
+          paint,
+        );
+      case GlyphKind.keylock:
+        final body = Rect.fromLTRB(
+          center.dx - half * 0.42,
+          center.dy - half * 0.10,
+          center.dx + half * 0.42,
+          center.dy + half * 0.62,
+        );
+        canvas.drawRect(body, paint);
+        canvas.drawArc(
+          Rect.fromLTRB(
+            center.dx - half * 0.30,
+            center.dy - half * 0.62,
+            center.dx + half * 0.30,
+            center.dy + half * 0.06,
+          ),
+          math.pi,
+          math.pi,
+          false,
+          paint,
+        );
+        canvas.drawLine(
+          Offset(center.dx, body.top),
+          Offset(center.dx, body.top + body.height * 0.5),
+          paint,
+        );
+      case GlyphKind.chevronRight:
+        _chevron(canvas, paint, center, half, 1, 0);
+      case GlyphKind.chevronUp:
+        _chevron(canvas, paint, center, half, 0, -1);
+      case GlyphKind.chevronDown:
+        _chevron(canvas, paint, center, half, 0, 1);
     }
+  }
+
+  void _chevron(
+    Canvas canvas,
+    Paint paint,
+    Offset center,
+    double half,
+    int dx,
+    int dy,
+  ) {
+    final dir = Offset(dx.toDouble(), dy.toDouble());
+    final perp = Offset(-dir.dy, dir.dx);
+    final tip = center + dir * (half * 0.34);
+    final back = center - dir * (half * 0.26);
+    final wing = perp * (half * 0.40);
+    canvas.drawLine(back + wing, tip, paint);
+    canvas.drawLine(back - wing, tip, paint);
   }
 
   @override

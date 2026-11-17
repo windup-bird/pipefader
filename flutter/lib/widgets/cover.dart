@@ -17,10 +17,7 @@ class CoverArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(T.radiusCover),
-      child: CustomPaint(
-        size: Size.square(size),
-        painter: _CoverPainter(seed),
-      ),
+      child: CustomPaint(size: Size.square(size), painter: _CoverPainter(seed)),
     );
   }
 }
@@ -65,8 +62,12 @@ class _CoverPainter extends CustomPainter {
           ..close();
         canvas.drawPath(band, Paint()..color = mid.withValues(alpha: 0.75));
         canvas.drawRect(
-          Rect.fromLTWH(size.width * 0.10, size.height * 0.12,
-              size.width * 0.16, size.width * 0.16),
+          Rect.fromLTWH(
+            size.width * 0.10,
+            size.height * 0.12,
+            size.width * 0.16,
+            size.width * 0.16,
+          ),
           Paint()..color = T.accent.withValues(alpha: 0.8),
         );
       default:

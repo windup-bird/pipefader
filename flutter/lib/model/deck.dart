@@ -1,16 +1,28 @@
 import 'peaks.dart';
 
-/// Which panel a control column shows. The name under the panel picks it.
-enum UnitKind { pads, tempo, beatctl, mixer, fx }
+/// What a control slot can become. [mixerMax] only appears on the phone, where
+/// the EQ and FX share one column.
+enum UnitKind { pads, tempo, mixer, fx, mixerMax }
 
 extension UnitKindLabel on UnitKind {
   String get label => switch (this) {
-        UnitKind.pads => 'pads',
-        UnitKind.tempo => 'tempo',
-        UnitKind.beatctl => 'beatctl',
-        UnitKind.mixer => 'mixer',
-        UnitKind.fx => 'fx',
-      };
+    UnitKind.pads => 'pads',
+    UnitKind.tempo => 'tempo',
+    UnitKind.mixer => 'mixer',
+    UnitKind.fx => 'fx',
+    UnitKind.mixerMax => 'mixer max',
+  };
+}
+
+/// What the beat bar over a waveform is showing.
+enum BeatMode { beatloop, beatjump, manualloop }
+
+extension BeatModeLabel on BeatMode {
+  String get label => switch (this) {
+    BeatMode.beatloop => 'beatloop',
+    BeatMode.beatjump => 'beatjump',
+    BeatMode.manualloop => 'manualloop',
+  };
 }
 
 /// What the eight pads fire.
@@ -18,16 +30,16 @@ enum PadMode { cue, loop, jump }
 
 extension PadModeLabel on PadMode {
   String get label => switch (this) {
-        PadMode.cue => 'cue',
-        PadMode.loop => 'loop',
-        PadMode.jump => 'jump',
-      };
+    PadMode.cue => 'cue',
+    PadMode.loop => 'loop',
+    PadMode.jump => 'jump',
+  };
 
   List<String> get pads => switch (this) {
-        PadMode.cue => const ['1', '2', '3', '4', '5', '6', '7', '8'],
-        PadMode.loop => const ['1/4', '1/2', '1', '2', '4', '8', '16', '32'],
-        PadMode.jump => const ['-16', '-8', '-4', '-2', '+2', '+4', '+8', '+16'],
-      };
+    PadMode.cue => const ['1', '2', '3', '4', '5', '6', '7', '8'],
+    PadMode.loop => const ['1/4', '1/2', '1', '2', '4', '8', '16', '32'],
+    PadMode.jump => const ['-16', '-8', '-4', '-2', '+2', '+4', '+8', '+16'],
+  };
 }
 
 /// Everything about a deck that does not change while the sketch runs. Runtime

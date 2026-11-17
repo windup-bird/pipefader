@@ -3,15 +3,12 @@ import 'package:material_ui/material_ui.dart';
 import '../model/deck.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
+import 'device.dart';
 
 /// Eight pads in two rows of four. The pad-mode switches live above the slot,
 /// not in here.
 class PadGrid extends StatelessWidget {
-  const PadGrid({
-    required this.model,
-    required this.deck,
-    super.key,
-  });
+  const PadGrid({required this.model, required this.deck, super.key});
 
   final AppModel model;
   final DeckRuntime deck;
@@ -21,15 +18,24 @@ class PadGrid extends StatelessWidget {
       case PadMode.cue:
         return deck.hotCues.contains(index);
       case PadMode.loop:
-        return deck.loopIndex == index;
+        return deck.loopActive && deck.loopBeatsIndex == index;
       case PadMode.jump:
-        return deck.jumpIndex == index;
+        return deck.jumpBeatsIndex == index;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final labels = deck.padMode.pads;
+
+    Widget padCell(int index) => Expanded(
+      child: Pad(
+        label: labels[index],
+        lit: _isLit(index),
+        onTap: () => model.tapPad(deck, index),
+      ),
+    );
+
     return Column(
       children: [
         for (var row = 0; row < 2; row++) ...[
@@ -39,13 +45,7 @@ class PadGrid extends StatelessWidget {
               children: [
                 for (var column = 0; column < 4; column++) ...[
                   if (column > 0) const SizedBox(width: 4),
-                  Expanded(
-                    child: Pad(
-                      label: labels[row * 4 + column],
-                      lit: _isLit(row * 4 + column),
-                      onTap: () => model.tapPad(deck, row * 4 + column),
-                    ),
-                  ),
+                  padCell(row * 4 + column),
                 ],
               ],
             ),
@@ -79,13 +79,6 @@ class _PadState extends State<Pad> {
   @override
   Widget build(BuildContext context) {
     final lit = widget.lit;
-    final background = lit
-        ? T.accent
-        : _pressed
-            ? T.surfaceHi
-            : _hover
-                ? T.surfaceHi
-                : T.surface;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -98,12 +91,18 @@ class _PadState extends State<Pad> {
           widget.onTap();
         },
         onTapCancel: () => setState(() => _pressed = false),
-        child: Container(
-          color: background,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOut,
+          decoration: keyFace(active: lit, pressed: _pressed, hover: _hover),
           alignment: Alignment.center,
           child: Text(
             widget.label,
-            style: Ty.pad.copyWith(color: lit ? T.bg : T.dim),
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: Ty.pad.copyWith(
+              color: lit ? T.bg : (_hover ? T.text : T.dim),
+            ),
           ),
         ),
       ),
