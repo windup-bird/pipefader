@@ -5,6 +5,7 @@ import '../state/app_model.dart';
 import '../theme.dart';
 import '../widgets/bar_fader.dart';
 import '../widgets/buttons.dart';
+import '../widgets/glyph.dart';
 import '../widgets/unit_menu.dart';
 
 /// Tempo: sync state, the BPM with its two step keys, the fader range and the
@@ -397,8 +398,8 @@ class MixerPanel extends StatelessWidget {
   }
 }
 
-/// One FX slot: beat division, two parameters, hold/instant, and the slot name
-/// which opens the picker.
+/// One FX slot: beat division, two parameters, and the slot name (an on/off
+/// toggle with a small select arrow) which opens the picker.
 class FxPanel extends StatelessWidget {
   const FxPanel({required this.model, required this.deck, super.key});
 
@@ -409,72 +410,62 @@ class FxPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 150;
+          final beatGap = narrow ? 4.0 : 8.0;
+          final beatWidth = narrow ? 58.0 : 76.0;
+          return Column(
             children: [
-              PanelButton(
-                label: '-',
-                width: 20,
-                height: 20,
-                onTap: () => model.stepBeats(deck, true),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  PanelButton(
+                    label: '-',
+                    width: 20,
+                    height: 20,
+                    onTap: () => model.stepBeats(deck, true),
+                  ),
+                  SizedBox(width: beatGap),
+                  SizedBox(
+                    width: beatWidth,
+                    child: Center(
+                      child: _ValueLabel(
+                        value: fxBeats[deck.beatsIndex],
+                        label: 'beats',
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: beatGap),
+                  PanelButton(
+                    label: '+',
+                    width: 20,
+                    height: 20,
+                    onTap: () => model.stepBeats(deck, false),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  fxBeats[deck.beatsIndex],
-                  textAlign: TextAlign.center,
-                  style: Ty.num.copyWith(fontSize: T.s14),
-                ),
-              ),
-              const SizedBox(width: 8),
-              PanelButton(
-                label: '+',
-                width: 20,
-                height: 20,
-                onTap: () => model.stepBeats(deck, false),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          _ParamSlider(
-            label: 'FB',
-            value: deck.fx1,
-            onChanged: (value) => model.setFxParam(deck, 0, value),
-          ),
-          const SizedBox(height: 4),
-          _ParamSlider(
-            label: 'MIX',
-            value: deck.fx2,
-            onChanged: (value) => model.setFxParam(deck, 1, value),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
+              const SizedBox(height: 6),
               Expanded(
-                child: PanelButton(
-                  label: 'hold',
-                  active: deck.fxHold,
-                  height: 24,
-                  onTap: () => model.setFxHold(deck, true),
+                child: _ParamSlider(
+                  label: 'FB',
+                  value: deck.fx1,
+                  onChanged: (value) => model.setFxParam(deck, 0, value),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(height: 6),
               Expanded(
-                child: PanelButton(
-                  label: 'instant',
-                  active: !deck.fxHold,
-                  height: 24,
-                  onTap: () => model.setFxHold(deck, false),
+                child: _ParamSlider(
+                  label: 'MIX',
+                  value: deck.fx2,
+                  onChanged: (value) => model.setFxParam(deck, 1, value),
                 ),
               ),
+              const SizedBox(height: 6),
+              _FxName(model: model, deck: deck),
             ],
-          ),
-          const Spacer(),
-          _FxName(model: model, deck: deck),
-        ],
+          );
+        },
       ),
     );
   }
@@ -496,7 +487,12 @@ class _ParamSlider extends StatefulWidget {
 }
 
 class _ParamSliderState extends State<_ParamSlider> {
+  static const _handleW = 10.0;
+  static const _trackIdle = 2.0;
+  static const _barHeight = 18.0;
+
   bool _active = false;
+  bool _hover = false;
   double _value = 0;
 
   @override
@@ -512,7 +508,9 @@ class _ParamSliderState extends State<_ParamSlider> {
   }
 
   void _setFromLocal(Offset local, double width) {
-    setState(() => _value = (local.dx / width).clamp(0.0, 1.0));
+    final travel = width - _handleW;
+    if (travel <= 0) return;
+    setState(() => _value = ((local.dx - _handleW / 2) / travel).clamp(0.0, 1.0));
   }
 
   @override
@@ -522,38 +520,79 @@ class _ParamSliderState extends State<_ParamSlider> {
         SizedBox(width: 26, child: Text(widget.label, style: Ty.labelSmall)),
         const SizedBox(width: 6),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              return Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (event) {
-                  setState(() => _active = true);
-                  _setFromLocal(event.localPosition, width);
-                },
-                onPointerMove: (event) {
-                  if (!_active) return;
-                  _setFromLocal(event.localPosition, width);
-                },
-                onPointerUp: (_) {
-                  setState(() => _active = false);
-                  widget.onChanged(_value);
-                },
-                onPointerCancel: (_) {
-                  setState(() => _active = false);
-                  widget.onChanged(_value);
-                },
-                child: Container(
-                  height: 8,
-                  color: T.surface,
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: _value,
-                    child: Container(color: T.accent),
+          child: SizedBox(
+            height: _barHeight,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final handleX = _handleW / 2 + _value * (width - _handleW);
+                return MouseRegion(
+                  cursor: SystemMouseCursors.resizeLeftRight,
+                  onEnter: (_) => setState(() => _hover = true),
+                  onExit: (_) => setState(() => _hover = false),
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (event) {
+                      setState(() => _active = true);
+                      _setFromLocal(event.localPosition, width);
+                    },
+                    onPointerMove: (event) {
+                      if (!_active) return;
+                      _setFromLocal(event.localPosition, width);
+                    },
+                    onPointerUp: (_) {
+                      setState(() => _active = false);
+                      widget.onChanged(_value);
+                    },
+                    onPointerCancel: (_) {
+                      setState(() => _active = false);
+                      widget.onChanged(_value);
+                    },
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                        end: _active ? _barHeight : _trackIdle,
+                      ),
+                      duration: const Duration(milliseconds: 110),
+                      curve: Curves.easeOut,
+                      builder: (context, trackH, _) {
+                        final top = (_barHeight - trackH) / 2;
+                        return Stack(
+                          children: [
+                            Positioned(
+                              left: 0,
+                              top: top,
+                              width: width,
+                              height: trackH,
+                              child: ColoredBox(color: T.track),
+                            ),
+                            Positioned(
+                              left: 0,
+                              top: top,
+                              width: handleX,
+                              height: trackH,
+                              child: ColoredBox(color: T.accent),
+                            ),
+                            Positioned(
+                              left: handleX - _handleW / 2,
+                              top: 0,
+                              width: _handleW,
+                              height: _barHeight,
+                              child: ColoredBox(
+                                color: _active
+                                    ? T.accentHi
+                                    : _hover
+                                        ? T.text
+                                        : T.handle,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -573,33 +612,74 @@ class _FxName extends StatefulWidget {
 
 class _FxNameState extends State<_FxName> {
   final _anchor = GlobalKey();
-  bool _hover = false;
+  bool _nameHover = false;
+  bool _selectHover = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => showChoiceMenu(
-          context: context,
-          anchorKey: _anchor,
-          labels: fxSlots,
-          current: widget.deck.fxSlot,
-          onSelect: (index) => widget.model.setFxSlot(widget.deck, index),
-        ),
-        child: Container(
-          key: _anchor,
-          height: 20,
-          alignment: Alignment.center,
-          child: Text(
-            fxSlots[widget.deck.fxSlot].toUpperCase(),
-            style: Ty.label.copyWith(color: _hover ? T.text : T.dim),
+    final on = widget.deck.fxOn;
+    final background = on
+        ? T.accent
+        : _nameHover
+            ? T.surfaceHi
+            : T.surface;
+    final foreground = on
+        ? T.bg
+        : _nameHover
+            ? T.text
+            : T.dim;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _nameHover = true),
+          onExit: (_) => setState(() => _nameHover = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => widget.model.toggleFxOn(widget.deck),
+            child: Container(
+              height: 24,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              color: background,
+              alignment: Alignment.center,
+              child: Text(
+                fxSlots[widget.deck.fxSlot].toUpperCase(),
+                style: Ty.label.copyWith(color: foreground),
+              ),
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 4),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _selectHover = true),
+          onExit: (_) => setState(() => _selectHover = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showChoiceMenu(
+              context: context,
+              anchorKey: _anchor,
+              labels: fxSlots,
+              current: widget.deck.fxSlot,
+              onSelect: (index) => widget.model.setFxSlot(widget.deck, index),
+            ),
+            child: Container(
+              key: _anchor,
+              width: 20,
+              height: 24,
+              color: T.surface,
+              child: Center(
+                child: Glyph(
+                  GlyphKind.dropdown,
+                  size: 10,
+                  color: _selectHover ? T.text : T.faint,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

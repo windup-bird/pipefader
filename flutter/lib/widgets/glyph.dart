@@ -4,7 +4,7 @@ import '../theme.dart';
 
 /// The few glyphs the sketch needs. Drawn rather than font icons so the weight
 /// matches the hairlines and no icon font has to be shipped.
-enum GlyphKind { panel, panelRight, search, plus, minus, close }
+enum GlyphKind { panel, panelRight, search, plus, minus, close, dropdown }
 
 class Glyph extends StatelessWidget {
   const Glyph(
@@ -95,6 +95,13 @@ class _GlyphPainter extends CustomPainter {
           center.translate(-half * 0.5, half * 0.5),
           paint,
         );
+      case GlyphKind.dropdown:
+        final path = Path()
+          ..moveTo(center.dx - half * 0.72, center.dy - half * 0.36)
+          ..lineTo(center.dx + half * 0.72, center.dy - half * 0.36)
+          ..lineTo(center.dx, center.dy + half * 0.5)
+          ..close();
+        canvas.drawPath(path, Paint()..color = color);
     }
   }
 

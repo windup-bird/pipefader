@@ -47,7 +47,7 @@ class DeckRuntime {
   int fxSlot = 0;
   double fx1 = 0.36;
   double fx2 = 0.58;
-  bool fxHold = false;
+  bool fxOn = false;
   int beatsIndex = 3;
 
   double meter = 0.4;
@@ -305,14 +305,8 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleFxHold(DeckRuntime deck) {
-    deck.fxHold = !deck.fxHold;
-    notifyListeners();
-  }
-
-  void setFxHold(DeckRuntime deck, bool hold) {
-    if (deck.fxHold == hold) return;
-    deck.fxHold = hold;
+  void toggleFxOn(DeckRuntime deck) {
+    deck.fxOn = !deck.fxOn;
     notifyListeners();
   }
 
