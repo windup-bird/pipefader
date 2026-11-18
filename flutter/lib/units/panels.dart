@@ -11,31 +11,44 @@ import '../widgets/glyph.dart';
 import '../widgets/pad_grid.dart';
 import '../widgets/unit_menu.dart';
 
-/// The pads slot: the pad modes above the grid, like a hardware pad section.
+/// The pads slot. The desk picks the pad mode through the slot's unit tabs, so
+/// the mode row only appears where there is no unit header (all-in-one).
 class PadsPanel extends StatelessWidget {
-  const PadsPanel({required this.model, required this.deck, super.key});
+  const PadsPanel({
+    required this.model,
+    required this.deck,
+    this.showModeTabs = false,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final bool showModeTabs;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.fallback;
     return Column(
       children: [
-        SizedBox(
-          height: 18,
-          child: Center(
-            child: ModeTabs(
-              labels: PadMode.values.map((mode) => mode.label).toList(),
-              selected: PadMode.values.indexOf(deck.padMode),
-              onSelect: (index) =>
-                  model.setPadMode(deck, PadMode.values[index]),
+        if (showModeTabs) ...[
+          SizedBox(
+            height: s.size(18),
+            child: Center(
+              child: ModeTabs(
+                labels: PadMode.values.map((mode) => mode.label).toList(),
+                selected: PadMode.values.indexOf(deck.padMode),
+                scale: s,
+                onSelect: (index) =>
+                    model.setPadMode(deck, PadMode.values[index]),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
+          SizedBox(height: s.size(4)),
+        ],
         Expanded(
-          child: PadGrid(model: model, deck: deck),
+          child: PadGrid(model: model, deck: deck, scale: s),
         ),
       ],
     );
@@ -45,13 +58,20 @@ class PadsPanel extends StatelessWidget {
 /// Tempo: sync state, the BPM with its two step keys, the fader range and the
 /// bend pair. Four rows, centred, nothing else.
 class TempoPanel extends StatelessWidget {
-  const TempoPanel({required this.model, required this.deck, super.key});
+  const TempoPanel({
+    required this.model,
+    required this.deck,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.fallback;
     final synced = deck.sync;
     final syncLabel = !synced
         ? 'sync off'
@@ -63,9 +83,12 @@ class TempoPanel extends StatelessWidget {
       children: [
         Text(
           syncLabel,
-          style: Ty.label.copyWith(color: synced ? T.accent : T.faint),
+          style: Ty.label.copyWith(
+            fontSize: s.font(T.s10),
+            color: synced ? T.accent : T.faint,
+          ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: s.size(4)),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -73,43 +96,50 @@ class TempoPanel extends StatelessWidget {
               label: '-',
               width: 24,
               height: 24,
+              scale: s,
               onTap: () => model.adjustTempo(deck, -0.001),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: s.size(8)),
             SizedBox(
-              width: 66,
+              width: s.size(66),
               child: Text(
                 bpmText(deck.bpm),
                 textAlign: TextAlign.center,
-                style: Ty.bpm,
+                style: Ty.bpm.copyWith(fontSize: s.font(T.s22)),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: s.size(8)),
             PanelButton(
               label: '+',
               width: 24,
               height: 24,
+              scale: s,
               onTap: () => model.adjustTempo(deck, 0.001),
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: s.size(4)),
         Text(
           'range ±${(deck.view.tempoRange * 100).round()}% · ${tempoText(deck.tempo)}',
-          style: Ty.labelSmall,
+          style: Ty.labelSmall.copyWith(fontSize: s.font(T.s9)),
         ),
-        const SizedBox(height: 6),
-        _BendRow(model: model, deck: deck),
+        SizedBox(height: s.size(6)),
+        _BendRow(model: model, deck: deck, scale: s),
       ],
     );
   }
 }
 
 class _ValueLabel extends StatelessWidget {
-  const _ValueLabel({required this.value, required this.label});
+  const _ValueLabel({
+    required this.value,
+    required this.label,
+    required this.scale,
+  });
 
   final String value;
   final String label;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
@@ -119,13 +149,13 @@ class _ValueLabel extends StatelessWidget {
           TextSpan(
             text: value,
             style: Ty.num.copyWith(
-              fontSize: T.s16,
+              fontSize: scale.font(T.s16),
               fontWeight: FontWeight.w700,
             ),
           ),
           TextSpan(
             text: ' $label',
-            style: const TextStyle(fontSize: T.s9, color: T.faint),
+            style: TextStyle(fontSize: scale.font(T.s9), color: T.faint),
           ),
         ],
       ),
@@ -136,10 +166,15 @@ class _ValueLabel extends StatelessWidget {
 }
 
 class _BendRow extends StatelessWidget {
-  const _BendRow({required this.model, required this.deck});
+  const _BendRow({
+    required this.model,
+    required this.deck,
+    required this.scale,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
@@ -148,25 +183,30 @@ class _BendRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         SizedBox(
-          width: 24,
-          height: 24,
+          width: scale.size(24),
+          height: scale.size(24),
           child: HoldKey(
             label: '<',
+            scale: scale,
             onDown: () => model.bend(deck, -1),
             onUp: () => model.releaseBend(deck),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: scale.size(8)),
         Text(
           bending ? 'BEND ${tempoText(1 + deck.nudge)}' : 'BEND',
-          style: Ty.label.copyWith(color: bending ? T.accent : T.faint),
+          style: Ty.label.copyWith(
+            fontSize: scale.font(T.s10),
+            color: bending ? T.accent : T.faint,
+          ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: scale.size(8)),
         SizedBox(
-          width: 24,
-          height: 24,
+          width: scale.size(24),
+          height: scale.size(24),
           child: HoldKey(
             label: '>',
+            scale: scale,
             onDown: () => model.bend(deck, 1),
             onUp: () => model.releaseBend(deck),
           ),
@@ -178,13 +218,20 @@ class _BendRow extends StatelessWidget {
 
 /// The channel strip: high / mid / low / filter as vertical bars.
 class MixerPanel extends StatelessWidget {
-  const MixerPanel({required this.model, required this.deck, super.key});
+  const MixerPanel({
+    required this.model,
+    required this.deck,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.fallback;
     final values = [deck.high, deck.mid, deck.low, deck.filter];
     const labels = ['HIGH', 'MID', 'LOW', 'FILT'];
 
@@ -196,21 +243,25 @@ class MixerPanel extends StatelessWidget {
               value: values[index],
               bipolar: true,
               handleHeight: 5,
+              scale: s,
               onChanged: (value) => model.setEq(deck, index, value),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(labels[index], style: Ty.labelSmall),
+          SizedBox(height: s.size(6)),
+          Text(
+            labels[index],
+            style: Ty.labelSmall.copyWith(fontSize: s.font(T.s9)),
+          ),
         ],
       ),
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
+      padding: EdgeInsets.fromLTRB(s.size(6), s.size(6), s.size(6), s.size(2)),
       child: Row(
         children: [
           for (var i = 0; i < 4; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
+            if (i > 0) SizedBox(width: s.size(8)),
             eqFader(i),
           ],
         ],
@@ -222,19 +273,26 @@ class MixerPanel extends StatelessWidget {
 /// One FX slot: beat division, two parameters and the slot name. The name
 /// toggles the slot; the small arrow opens the picker.
 class FxPanel extends StatelessWidget {
-  const FxPanel({required this.model, required this.deck, super.key});
+  const FxPanel({
+    required this.model,
+    required this.deck,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.fallback;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+      padding: EdgeInsets.fromLTRB(s.size(6), s.size(2), s.size(6), 0),
       child: Column(
         children: [
           SizedBox(
-            height: 20,
+            height: s.size(20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -242,48 +300,53 @@ class FxPanel extends StatelessWidget {
                   label: '-',
                   width: 20,
                   height: 20,
+                  scale: s,
                   onTap: () => model.stepBeats(deck, true),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: s.size(6)),
                 Expanded(
                   child: Center(
                     child: _ValueLabel(
                       value: fxBeats[deck.beatsIndex],
                       label: 'beats',
+                      scale: s,
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: s.size(6)),
                 PanelButton(
                   label: '+',
                   width: 20,
                   height: 20,
+                  scale: s,
                   onTap: () => model.stepBeats(deck, false),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: s.size(4)),
           Expanded(
             child: ParamBar(
               label: 'FB',
               value: deck.fx1,
+              scale: s,
               onChanged: (value) => model.setFxParam(deck, 0, value),
             ),
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: s.size(3)),
           Expanded(
             child: ParamBar(
               label: 'MIX',
               value: deck.fx2,
+              scale: s,
               onChanged: (value) => model.setFxParam(deck, 1, value),
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: s.size(4)),
           SizedBox(
-            height: 24,
+            height: s.size(24),
             child: Center(
-              child: _FxName(model: model, deck: deck),
+              child: _FxName(model: model, deck: deck, scale: s),
             ),
           ),
         ],
@@ -292,18 +355,23 @@ class FxPanel extends StatelessWidget {
   }
 }
 
-const double _mixerMaxLabelH = 18;
-
 /// The phone's combined strip: four tone/filter faders and the FX param1
 /// fader, all vertical and on the same baseline.
 class MixerMaxPanel extends StatelessWidget {
-  const MixerMaxPanel({required this.model, required this.deck, super.key});
+  const MixerMaxPanel({
+    required this.model,
+    required this.deck,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.fallback;
     final values = [deck.high, deck.mid, deck.low, deck.filter];
     const labels = ['HI', 'MID', 'LO', 'FIL'];
 
@@ -311,30 +379,37 @@ class MixerMaxPanel extends StatelessWidget {
       child: _MixerMaxFader(
         value: values[index],
         bipolar: true,
+        scale: s,
         onChanged: (value) => model.setEq(deck, index, value),
         label: Text(
           labels[index],
-          style: Ty.labelSmall.copyWith(fontSize: T.s8),
+          style: Ty.labelSmall.copyWith(fontSize: s.font(T.s8)),
         ),
       ),
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
+      padding: EdgeInsets.fromLTRB(s.size(6), s.size(4), s.size(6), s.size(2)),
       child: Row(
         children: [
           for (var i = 0; i < 4; i++) ...[
-            if (i > 0) const SizedBox(width: 6),
+            if (i > 0) SizedBox(width: s.size(6)),
             eqFader(i),
           ],
-          const SizedBox(width: 8),
+          SizedBox(width: s.size(8)),
           Expanded(
             child: _MixerMaxFader(
               value: deck.fx1,
+              scale: s,
               onChanged: (value) => model.setFxParam(deck, 0, value),
               label: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: _FxName(model: model, deck: deck, compact: true),
+                child: _FxName(
+                  model: model,
+                  deck: deck,
+                  compact: true,
+                  scale: s,
+                ),
               ),
             ),
           ),
@@ -349,6 +424,7 @@ class _MixerMaxFader extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.label,
+    required this.scale,
     this.bipolar = false,
   });
 
@@ -356,6 +432,7 @@ class _MixerMaxFader extends StatelessWidget {
   final ValueChanged<double> onChanged;
   final Widget label;
   final bool bipolar;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
@@ -366,11 +443,12 @@ class _MixerMaxFader extends StatelessWidget {
             value: value,
             bipolar: bipolar,
             handleHeight: 4,
+            scale: scale,
             onChanged: onChanged,
           ),
         ),
         SizedBox(
-          height: _mixerMaxLabelH,
+          height: scale.size(18),
           child: Center(child: label),
         ),
       ],
@@ -385,12 +463,14 @@ class ParamBar extends StatefulWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.scale,
     super.key,
   });
 
   final String label;
   final double value;
   final ValueChanged<double> onChanged;
+  final ControlScale? scale;
 
   @override
   State<ParamBar> createState() => _ParamBarState();
@@ -416,8 +496,8 @@ class _ParamBarState extends State<ParamBar> {
     if (!_active) _value = widget.value.clamp(0.0, 1.0);
   }
 
-  void _setFromDrag(double x, double width) {
-    final travel = width - _handleW;
+  void _setFromDrag(double x, double width, double handleW) {
+    final travel = width - handleW;
     if (travel <= 0) return;
     final dx = x - _lastX;
     _lastX = x;
@@ -426,16 +506,24 @@ class _ParamBarState extends State<ParamBar> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = widget.scale ?? ControlScale.fallback;
+    final handleW = scale.size(_handleW);
     return Row(
       children: [
-        SizedBox(width: 22, child: Text(widget.label, style: Ty.labelSmall)),
-        const SizedBox(width: 5),
+        SizedBox(
+          width: scale.size(22),
+          child: Text(
+            widget.label,
+            style: Ty.labelSmall.copyWith(fontSize: scale.font(T.s9)),
+          ),
+        ),
+        SizedBox(width: scale.size(5)),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final height = constraints.maxHeight;
-              final handleX = _handleW / 2 + _value * (width - _handleW);
+              final handleX = handleW / 2 + _value * (width - handleW);
               return MouseRegion(
                 cursor: SystemMouseCursors.resizeLeftRight,
                 onEnter: (_) => setState(() => _hover = true),
@@ -450,7 +538,7 @@ class _ParamBarState extends State<ParamBar> {
                   },
                   onPointerMove: (event) {
                     if (!_active) return;
-                    _setFromDrag(event.localPosition.dx, width);
+                    _setFromDrag(event.localPosition.dx, width, handleW);
                   },
                   onPointerUp: (_) {
                     if (!_active) return;
@@ -463,7 +551,9 @@ class _ParamBarState extends State<ParamBar> {
                     widget.onChanged(_value);
                   },
                   child: TweenAnimationBuilder<double>(
-                    tween: Tween<double>(end: _active ? height - 2 : 3),
+                    tween: Tween<double>(
+                      end: _active ? height - scale.size(2) : scale.size(3),
+                    ),
                     duration: const Duration(milliseconds: 110),
                     curve: Curves.easeOut,
                     builder: (context, slot, _) {
@@ -500,9 +590,9 @@ class _ParamBarState extends State<ParamBar> {
                             ),
                           ),
                           Positioned(
-                            left: handleX - _handleW / 2,
+                            left: handleX - handleW / 2,
                             top: 0,
-                            width: _handleW,
+                            width: handleW,
                             height: height,
                             child: DecoratedBox(
                               decoration: handleFace(
@@ -529,12 +619,14 @@ class _FxName extends StatefulWidget {
   const _FxName({
     required this.model,
     required this.deck,
+    required this.scale,
     this.compact = false,
   });
 
   final AppModel model;
   final DeckRuntime deck;
   final bool compact;
+  final ControlScale scale;
 
   @override
   State<_FxName> createState() => _FxNameState();
@@ -549,6 +641,8 @@ class _FxNameState extends State<_FxName> {
   Widget build(BuildContext context) {
     final on = widget.deck.fxOn;
     final compact = widget.compact;
+    final s = widget.scale;
+    final rowH = s.size(compact ? 18 : 24);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -560,8 +654,10 @@ class _FxNameState extends State<_FxName> {
             behavior: HitTestBehavior.opaque,
             onTap: () => widget.model.toggleFx(widget.deck),
             child: Container(
-              height: compact ? 18 : 24,
-              padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
+              height: rowH,
+              padding: EdgeInsets.symmetric(
+                horizontal: s.size(compact ? 5 : 8),
+              ),
               decoration: keyFace(active: on, hover: _nameHover),
               alignment: Alignment.center,
               child: Text(
@@ -569,7 +665,7 @@ class _FxNameState extends State<_FxName> {
                 maxLines: 1,
                 overflow: TextOverflow.clip,
                 style: Ty.label.copyWith(
-                  fontSize: compact ? T.s8 : T.s10,
+                  fontSize: s.font(compact ? T.s8 : T.s10),
                   color: on
                       ? T.bg
                       : _nameHover
@@ -580,10 +676,10 @@ class _FxNameState extends State<_FxName> {
             ),
           ),
         ),
-        SizedBox(width: compact ? 2 : 4),
+        SizedBox(width: s.size(compact ? 2 : 4)),
         SizedBox(
-          width: compact ? 16 : 20,
-          height: compact ? 18 : 24,
+          width: s.size(compact ? 16 : 20),
+          height: rowH,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             onEnter: (_) => setState(() => _selectHover = true),
@@ -603,7 +699,7 @@ class _FxNameState extends State<_FxName> {
                 child: Center(
                   child: Glyph(
                     GlyphKind.dropdown,
-                    size: compact ? 7 : 8,
+                    size: s.size(compact ? 7 : 8),
                     color: _selectHover ? T.text : T.faint,
                   ),
                 ),

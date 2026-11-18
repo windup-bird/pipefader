@@ -15,6 +15,7 @@ class PanelButton extends StatefulWidget {
     this.width,
     this.height,
     this.style,
+    this.scale,
     super.key,
   });
 
@@ -24,6 +25,7 @@ class PanelButton extends StatefulWidget {
   final double? width;
   final double? height;
   final TextStyle? style;
+  final ControlScale? scale;
 
   @override
   State<PanelButton> createState() => _PanelButtonState();
@@ -37,6 +39,9 @@ class _PanelButtonState extends State<PanelButton> {
   Widget build(BuildContext context) {
     final active = widget.active;
     final enabled = widget.onTap != null;
+    final scale = widget.scale ?? ControlScale.fallback;
+    final style =
+        widget.style ?? Ty.button.copyWith(fontSize: scale.font(T.s10));
     final foreground = active
         ? T.bg
         : !enabled
@@ -59,8 +64,8 @@ class _PanelButtonState extends State<PanelButton> {
             : null,
         onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
         child: Container(
-          width: widget.width,
-          height: widget.height,
+          width: widget.width == null ? null : scale.size(widget.width!),
+          height: widget.height == null ? null : scale.size(widget.height!),
           decoration: keyFace(
             active: active,
             pressed: _pressed,
@@ -72,7 +77,7 @@ class _PanelButtonState extends State<PanelButton> {
             widget.label.toUpperCase(),
             maxLines: 1,
             overflow: TextOverflow.clip,
-            style: (widget.style ?? Ty.button).copyWith(color: foreground),
+            style: style.copyWith(color: foreground),
           ),
         ),
       ),
@@ -89,6 +94,8 @@ class GlassKey extends StatefulWidget {
     required this.onTap,
     this.active = false,
     this.height = 24,
+    this.fill = false,
+    this.scale,
     super.key,
   });
 
@@ -97,6 +104,8 @@ class GlassKey extends StatefulWidget {
   final VoidCallback? onTap;
   final bool active;
   final double height;
+  final bool fill;
+  final ControlScale? scale;
 
   @override
   State<GlassKey> createState() => _GlassKeyState();
@@ -116,6 +125,7 @@ class _GlassKeyState extends State<GlassKey> {
         : _hover
         ? Colors.white
         : T.text;
+    final scale = widget.scale ?? ControlScale.fallback;
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hover = true),
@@ -131,8 +141,8 @@ class _GlassKeyState extends State<GlassKey> {
             : null,
         onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
         child: Container(
-          height: widget.height,
-          padding: const EdgeInsets.symmetric(horizontal: 5),
+          height: widget.fill ? double.infinity : scale.size(widget.height),
+          padding: EdgeInsets.symmetric(horizontal: scale.size(3)),
           decoration: keyFace(
             active: widget.active,
             pressed: _pressed,
@@ -147,7 +157,7 @@ class _GlassKeyState extends State<GlassKey> {
                 TextSpan(
                   text: widget.label,
                   style: TextStyle(
-                    fontSize: T.s10,
+                    fontSize: scale.font(T.s9),
                     height: 1.0,
                     color: foreground,
                     fontWeight: FontWeight.w700,
@@ -159,9 +169,9 @@ class _GlassKeyState extends State<GlassKey> {
                 ),
                 if (widget.suffix != null)
                   TextSpan(
-                    text: ' ${widget.suffix}',
+                    text: '\u2009${widget.suffix}',
                     style: TextStyle(
-                      fontSize: T.s8,
+                      fontSize: scale.font(T.s8),
                       height: 1.0,
                       color: widget.active
                           ? T.bg.withValues(alpha: 0.72)
@@ -189,6 +199,7 @@ class GlyphButton extends StatefulWidget {
     this.size = 26,
     this.active = false,
     this.glass = false,
+    this.scale,
     super.key,
   });
 
@@ -197,6 +208,7 @@ class GlyphButton extends StatefulWidget {
   final double size;
   final bool active;
   final bool glass;
+  final ControlScale? scale;
 
   @override
   State<GlyphButton> createState() => _GlyphButtonState();
@@ -216,6 +228,8 @@ class _GlyphButtonState extends State<GlyphButton> {
         : _hover
         ? T.text
         : T.dim;
+    final scale = widget.scale ?? ControlScale.fallback;
+    final size = scale.size(widget.size);
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hover = true),
@@ -231,8 +245,8 @@ class _GlyphButtonState extends State<GlyphButton> {
             : null,
         onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
         child: Container(
-          width: widget.size,
-          height: widget.size,
+          width: size,
+          height: size,
           decoration: keyFace(
             active: widget.active,
             pressed: _pressed,
@@ -241,11 +255,7 @@ class _GlyphButtonState extends State<GlyphButton> {
             glass: widget.glass,
           ),
           alignment: Alignment.center,
-          child: Glyph(
-            widget.glyph,
-            size: widget.size * 0.55,
-            color: foreground,
-          ),
+          child: Glyph(widget.glyph, size: size * 0.55, color: foreground),
         ),
       ),
     );
@@ -259,12 +269,14 @@ class HoldKey extends StatefulWidget {
     required this.label,
     required this.onDown,
     required this.onUp,
+    this.scale,
     super.key,
   });
 
   final String label;
   final VoidCallback onDown;
   final VoidCallback onUp;
+  final ControlScale? scale;
 
   @override
   State<HoldKey> createState() => _HoldKeyState();
@@ -300,7 +312,10 @@ class _HoldKeyState extends State<HoldKey> {
           alignment: Alignment.center,
           child: Text(
             widget.label.toUpperCase(),
-            style: Ty.button.copyWith(color: active ? T.bg : T.dim),
+            style: Ty.button.copyWith(
+              fontSize: (widget.scale ?? ControlScale.fallback).font(T.s10),
+              color: active ? T.bg : T.dim,
+            ),
           ),
         ),
       ),
@@ -308,32 +323,53 @@ class _HoldKeyState extends State<HoldKey> {
   }
 }
 
-/// A row of small switch labels (pad modes) with the selected one in the
-/// accent colour and no other chrome.
+/// A row of small switch labels with the selected one in the accent colour and
+/// no other chrome. Set [scrollable] when a slot has more tabs than fit.
 class ModeTabs extends StatelessWidget {
   const ModeTabs({
     required this.labels,
     required this.selected,
     required this.onSelect,
+    this.scrollable = false,
+    this.fontSize = T.s9,
+    this.scale,
     super.key,
   });
 
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
+  final bool scrollable;
+  final double fontSize;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final s = scale ?? ControlScale.fallback;
+    final scaledFont = s.font(fontSize);
+    final tabs = Row(
+      mainAxisSize: scrollable ? MainAxisSize.min : MainAxisSize.max,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (var i = 0; i < labels.length; i++)
           _ModeTab(
             label: labels[i],
             selected: i == selected,
+            fontSize: scaledFont,
+            scale: s,
             onTap: () => onSelect(i),
           ),
       ],
+    );
+    if (!scrollable) return tabs;
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: tabs,
+        ),
+      ),
     );
   }
 }
@@ -342,11 +378,15 @@ class _ModeTab extends StatefulWidget {
   const _ModeTab({
     required this.label,
     required this.selected,
+    required this.fontSize,
+    required this.scale,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
+  final double fontSize;
+  final ControlScale scale;
   final VoidCallback onTap;
 
   @override
@@ -371,10 +411,16 @@ class _ModeTabState extends State<_ModeTab> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.scale.size(widget.fontSize >= T.s12 ? 4 : 7),
+            vertical: widget.scale.size(3),
+          ),
           child: Text(
             widget.label.toUpperCase(),
-            style: Ty.labelSmall.copyWith(color: color),
+            style: Ty.labelSmall.copyWith(
+              fontSize: widget.fontSize,
+              color: color,
+            ),
           ),
         ),
       ),

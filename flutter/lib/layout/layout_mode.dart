@@ -27,6 +27,11 @@ const double fullDeckH = 64;
 const double fullControlH = 128;
 const double fullGap = 8;
 
+/// The shared key height in a control band: unit name, sync and deck picker
+/// all use it, so they stay aligned as the band grows or shrinks.
+double controlKeyHeight(double height) =>
+    (height * 0.23).clamp(22.0, 34.0).toDouble();
+
 double fullWaveH(int decks) => decks > 2 ? 50 : 58;
 
 double fullWaveBandH(int decks) => fullWaveH(decks) * decks + 6.0 * (decks - 1);

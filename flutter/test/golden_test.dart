@@ -5,6 +5,7 @@ import 'package:pipefader_gui/model/deck.dart';
 import 'package:pipefader_gui/state/app_model.dart';
 import 'package:pipefader_gui/widgets/cover.dart';
 import 'package:pipefader_gui/widgets/logo.dart';
+import 'package:pipefader_gui/widgets/tempo_control.dart';
 
 import 'support.dart';
 
@@ -55,6 +56,38 @@ void main() {
     await expectLater(
       find.byKey(boundary),
       matchesGoldenFile('goldens/fx.png'),
+    );
+  });
+
+  testWidgets('paints the tempo ruler', (tester) async {
+    final boundary = GlobalKey();
+    await pumpAppAt(
+      tester,
+      const Size(1440, 900),
+      boundaryKey: boundary,
+      model: AppModel(forcedLayout: LayoutMode.full),
+    );
+    await tester.tap(find.byType(TempoControl).first);
+    await tester.pump(const Duration(milliseconds: 120));
+    await expectLater(
+      find.byKey(boundary),
+      matchesGoldenFile('goldens/tempo-ruler.png'),
+    );
+  });
+
+  testWidgets('paints the unit picker', (tester) async {
+    final boundary = GlobalKey();
+    await pumpAppAt(
+      tester,
+      const Size(1440, 900),
+      boundaryKey: boundary,
+      model: AppModel(forcedLayout: LayoutMode.full),
+    );
+    await tester.tap(find.byKey(const ValueKey('unit-settings')).first);
+    await tester.pump(const Duration(milliseconds: 120));
+    await expectLater(
+      find.byKey(boundary),
+      matchesGoldenFile('goldens/unit-picker.png'),
     );
   });
 

@@ -209,3 +209,25 @@ ThemeData buildTheme() {
     visualDensity: VisualDensity.standard,
   );
 }
+
+/// One scale shared by every control in a band. [base] is the height the
+/// design was drawn at; sizes and fonts follow the real height but are clamped
+/// so a short band stays readable and a tall one stays compact.
+class ControlScale {
+  const ControlScale(this.height, {this.base = 128});
+
+  final double height;
+  final double base;
+
+  static const fallback = ControlScale(128);
+
+  double get factor => (height / base).clamp(0.72, 1.3).toDouble();
+
+  double size(double value, {double min = 3, double max = 400}) =>
+      (value * factor).clamp(min, max).toDouble();
+
+  double font(double value) => (value * factor).clamp(T.s8, 30.0).toDouble();
+
+  /// The waveform overlay was drawn for a 30px row.
+  factory ControlScale.wave(double height) => ControlScale(height, base: 30);
+}

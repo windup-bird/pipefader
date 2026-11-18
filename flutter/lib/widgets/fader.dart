@@ -11,6 +11,7 @@ class Crossfader extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.height = 28,
+    this.scale,
     super.key,
   });
 
@@ -18,6 +19,7 @@ class Crossfader extends StatefulWidget {
   final double value;
   final ValueChanged<double> onChanged;
   final double height;
+  final ControlScale? scale;
 
   @override
   State<Crossfader> createState() => _CrossfaderState();
@@ -48,18 +50,21 @@ class _CrossfaderState extends State<Crossfader> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = widget.scale ?? ControlScale.fallback;
+    final handleW = scale.size(_handleW);
+    final height = scale.size(widget.height);
     return MouseRegion(
       cursor: SystemMouseCursors.resizeLeftRight,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: SizedBox(
-        height: widget.height,
+        height: height,
         width: double.infinity,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final centre = width / 2;
-            final half = (width - _handleW) / 2;
+            final half = (width - handleW) / 2;
             final handleX = centre + _value * half;
             final base = centre;
             final fillLeft = handleX < base ? handleX : base;
@@ -90,7 +95,9 @@ class _CrossfaderState extends State<Crossfader> {
                 widget.onChanged(_value);
               },
               child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: _active ? widget.height - 4 : 2),
+                tween: Tween<double>(
+                  end: _active ? height - scale.size(4) : scale.size(2),
+                ),
                 duration: _duration,
                 curve: Curves.easeOut,
                 builder: (context, slotHeight, _) {
@@ -99,13 +106,13 @@ class _CrossfaderState extends State<Crossfader> {
                       Positioned(
                         left: 0,
                         right: 0,
-                        top: (widget.height - slotHeight) / 2,
+                        top: (height - slotHeight) / 2,
                         height: slotHeight,
                         child: DecoratedBox(decoration: slotFace()),
                       ),
                       Positioned(
                         left: fillLeft,
-                        top: (widget.height - slotHeight) / 2,
+                        top: (height - slotHeight) / 2,
                         width: fillWidth,
                         height: slotHeight,
                         child: DecoratedBox(
@@ -127,10 +134,10 @@ class _CrossfaderState extends State<Crossfader> {
                         ),
                       ),
                       Positioned(
-                        left: handleX - _handleW / 2,
+                        left: handleX - handleW / 2,
                         top: 2,
                         bottom: 2,
-                        width: _handleW,
+                        width: handleW,
                         child: DecoratedBox(
                           decoration: handleFace(
                             active: _active,

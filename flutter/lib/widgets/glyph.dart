@@ -21,6 +21,8 @@ enum GlyphKind {
   chevronRight,
   chevronUp,
   chevronDown,
+  settings,
+  check,
 }
 
 class Glyph extends StatelessWidget {
@@ -200,6 +202,19 @@ class _GlyphPainter extends CustomPainter {
         _chevron(canvas, paint, center, half, 0, -1);
       case GlyphKind.chevronDown:
         _chevron(canvas, paint, center, half, 0, 1);
+      case GlyphKind.settings:
+        for (var i = 0; i < 3; i++) {
+          final y = size.height * (0.28 + 0.22 * i);
+          canvas.drawLine(Offset(2, y), Offset(size.width - 2, y), paint);
+          final x = size.width * (i == 1 ? 0.64 : 0.38);
+          canvas.drawLine(Offset(x, y - 2.5), Offset(x, y + 2.5), paint);
+        }
+      case GlyphKind.check:
+        final check = Path()
+          ..moveTo(size.width * 0.22, size.height * 0.52)
+          ..lineTo(size.width * 0.42, size.height * 0.72)
+          ..lineTo(size.width * 0.78, size.height * 0.30);
+        canvas.drawPath(check, paint);
     }
   }
 

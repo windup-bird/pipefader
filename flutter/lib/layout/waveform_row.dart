@@ -30,6 +30,7 @@ class WaveformRow extends StatelessWidget {
               showBeatBar &&
               constraints.maxWidth >= 240 &&
               constraints.maxHeight >= 34;
+          final scale = ControlScale.wave(constraints.maxHeight);
           return Stack(
             children: [
               Positioned.fill(
@@ -44,11 +45,8 @@ class WaveformRow extends StatelessWidget {
               if (beatBar)
                 Positioned(
                   left: 8,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: BeatBar(model: model, deck: deck),
-                  ),
+                  top: 8,
+                  child: BeatBar(model: model, deck: deck, scale: scale),
                 ),
             ],
           );
@@ -60,25 +58,29 @@ class WaveformRow extends StatelessWidget {
 
 /// The one zoom pair, stacked and laid over the right edge of the waveforms.
 class ZoomKeys extends StatelessWidget {
-  const ZoomKeys({required this.model, super.key});
+  const ZoomKeys({required this.model, this.scale, super.key});
 
   final AppModel model;
+  final ControlScale? scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale ?? ControlScale.wave(30);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GlyphButton(
           glyph: GlyphKind.plus,
           size: 24,
+          scale: s,
           glass: true,
           onTap: () => model.zoom(inward: true),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: s.size(4)),
         GlyphButton(
           glyph: GlyphKind.minus,
           size: 24,
+          scale: s,
           glass: true,
           onTap: () => model.zoom(inward: false),
         ),
@@ -107,37 +109,47 @@ class WaveformBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: T.wave,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: hpad),
-              child: Column(
-                children: [
-                  for (var i = 0; i < decks.length; i++) ...[
-                    if (i > 0) SizedBox(height: rowGap),
-                    Expanded(
-                      child: WaveformRow(
-                        model: model,
-                        deck: decks[i],
-                        showBeatBar: showBeatBars,
-                      ),
-                    ),
-                  ],
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rowH =
+            (constraints.maxHeight - rowGap * (decks.length - 1)) /
+            decks.length;
+        final scale = ControlScale.wave(rowH);
+        return ColoredBox(
+          color: T.wave,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: hpad),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < decks.length; i++) ...[
+                        if (i > 0) SizedBox(height: rowGap),
+                        Expanded(
+                          child: WaveformRow(
+                            model: model,
+                            deck: decks[i],
+                            showBeatBar: showBeatBars,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: ZoomKeys(model: model, scale: scale),
+                ),
+              ),
+            ],
           ),
-          Positioned(
-            right: 8,
-            top: 0,
-            bottom: 0,
-            child: Center(child: ZoomKeys(model: model)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

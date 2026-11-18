@@ -4,6 +4,7 @@ import '../state/app_model.dart';
 import '../model/deck.dart';
 import '../theme.dart';
 import '../widgets/buttons.dart';
+import '../widgets/device.dart';
 import '../widgets/glyph.dart';
 import '../widgets/unit_menu.dart';
 
@@ -11,10 +12,16 @@ import '../widgets/unit_menu.dart';
 /// loop / jump / manual, and the three keys beside it change with the mode.
 /// Everything is translucent so the wave stays visible behind it.
 class BeatBar extends StatefulWidget {
-  const BeatBar({required this.model, required this.deck, super.key});
+  const BeatBar({
+    required this.model,
+    required this.deck,
+    this.scale,
+    super.key,
+  });
 
   final AppModel model;
   final DeckRuntime deck;
+  final ControlScale? scale;
 
   @override
   State<BeatBar> createState() => _BeatBarState();
@@ -36,95 +43,122 @@ class _BeatBarState extends State<BeatBar> {
   Widget build(BuildContext context) {
     final model = widget.model;
     final deck = widget.deck;
+    final s = widget.scale ?? ControlScale.fallback;
+    final mode = _mode;
+    final manual = mode == BeatMode.manualloop && !deck.loopActive;
+
+    Widget key({
+      required String label,
+      required VoidCallback onTap,
+      String? suffix,
+      bool active = false,
+      bool expand = false,
+      GlobalKey? anchor,
+      double width = 34,
+    }) {
+      final child = GlassKey(
+        key: anchor,
+        label: label,
+        suffix: suffix,
+        active: active,
+        height: 24,
+        fill: true,
+        scale: s,
+        onTap: onTap,
+      );
+      return expand
+          ? Expanded(child: child)
+          : SizedBox(width: s.size(width), child: child);
+    }
+
     return Container(
-      width: 160,
-      height: 30,
-      padding: const EdgeInsets.all(3),
+      width: s.size(132),
+      height: s.size(42),
+      padding: EdgeInsets.all(s.size(2)),
       color: T.glass,
-      child: Row(
+      child: Column(
         children: [
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: GlyphButton(
+          Expanded(
+            flex: 2,
+            child: GestureDetector(
               key: _modeAnchor,
-              glyph: _modeGlyph,
-              size: 24,
+              behavior: HitTestBehavior.opaque,
               onTap: _pickMode,
+              child: Container(
+                decoration: keyFace(glass: true),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Glyph(_modeGlyph, size: s.size(12), color: T.dim),
+                    SizedBox(width: s.size(3)),
+                    Text(
+                      mode.label.toUpperCase(),
+                      style: Ty.labelSmall.copyWith(
+                        fontSize: s.font(T.s8),
+                        color: T.text,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          if (_mode == BeatMode.manualloop && !deck.loopActive) ...[
-            Expanded(
-              child: GlassKey(
-                label: 'in',
-                active: deck.loopArmed,
-                height: 24,
-                onTap: () => model.loopIn(deck),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: GlassKey(
-                label: 'call',
-                active: deck.loopActive,
-                height: 24,
-                onTap: () => model.toggleLoopCall(deck),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: GlassKey(
-                label: 'out',
-                height: 24,
-                onTap: () => model.loopOut(deck),
-              ),
-            ),
-          ] else ...[
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: GlassKey(
-                label: '-',
-                height: 24,
-                onTap:
-                    _mode == BeatMode.beatloop || _mode == BeatMode.manualloop
-                    ? () => model.stepLoop(deck, true)
-                    : () => model.jumpBy(deck, -1),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _mode == BeatMode.beatjump
-                  ? GlassKey(
-                      key: _jumpAnchor,
+          SizedBox(height: s.size(2)),
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                if (manual) ...[
+                  key(
+                    label: 'in',
+                    active: deck.loopArmed,
+                    onTap: () => model.loopIn(deck),
+                  ),
+                  SizedBox(width: s.size(2)),
+                  key(
+                    label: 'call',
+                    active: deck.loopActive,
+                    expand: true,
+                    onTap: () => model.toggleLoopCall(deck),
+                  ),
+                  SizedBox(width: s.size(2)),
+                  key(label: 'out', onTap: () => model.loopOut(deck)),
+                ] else ...[
+                  key(
+                    label: '-',
+                    onTap: () => mode == BeatMode.beatjump
+                        ? model.jumpBy(deck, -1)
+                        : model.stepLoop(deck, true),
+                  ),
+                  SizedBox(width: s.size(2)),
+                  if (mode == BeatMode.beatjump)
+                    key(
                       label: '${deck.jumpSize}',
                       suffix: 'jump',
-                      height: 24,
+                      expand: true,
+                      anchor: _jumpAnchor,
                       onTap: _pickJump,
                     )
-                  : GlassKey(
+                  else
+                    key(
                       label: deck.loopLabel,
                       suffix: 'beats',
                       active: deck.loopActive,
-                      height: 24,
+                      expand: true,
                       onTap: () => model.toggleLoopActive(deck),
                     ),
+                  SizedBox(width: s.size(2)),
+                  key(
+                    label: '+',
+                    onTap: () => mode == BeatMode.beatjump
+                        ? model.jumpBy(deck, 1)
+                        : model.stepLoop(deck, false),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 4),
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: GlassKey(
-                label: '+',
-                height: 24,
-                onTap:
-                    _mode == BeatMode.beatloop || _mode == BeatMode.manualloop
-                    ? () => model.stepLoop(deck, false)
-                    : () => model.jumpBy(deck, 1),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );

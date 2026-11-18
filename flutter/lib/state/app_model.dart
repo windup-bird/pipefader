@@ -37,12 +37,15 @@ class DeckRuntime {
   bool loopArmed = false;
   bool loopActive = false;
 
-  /// The two switchable slots in the full and all-in-one control bands.
-  UnitKind unitA = UnitKind.pads;
-  UnitKind unitB = UnitKind.tempo;
+  /// The two switchable slots in the full control band and the phone's single
+  /// slot. The option lists are the tabs offered for each slot.
+  UnitKind unitA = UnitKind.padsCue;
+  UnitKind unitB = UnitKind.mixer;
+  UnitKind phoneUnit = UnitKind.padsCue;
 
-  /// The single slot in the phone control block.
-  UnitKind phoneUnit = UnitKind.pads;
+  final List<UnitKind> unitAOptions = List<UnitKind>.of(deskUnitKinds);
+  final List<UnitKind> unitBOptions = List<UnitKind>.of(deskUnitKinds);
+  final List<UnitKind> phoneUnitOptions = List<UnitKind>.of(phoneUnitKinds);
 
   double high = -0.24;
   double mid = 0.14;
@@ -310,12 +313,26 @@ class AppModel extends ChangeNotifier {
 
   void cyclePadMode(DeckRuntime deck) {
     final modes = PadMode.values;
-    deck.padMode = modes[(modes.indexOf(deck.padMode) + 1) % modes.length];
-    notifyListeners();
+    setPadMode(deck, modes[(modes.indexOf(deck.padMode) + 1) % modes.length]);
   }
 
+  /// All-in-one still changes pad modes from inside the pads panel. Any slot
+  /// currently showing a pad unit follows, so a later layout switch never shows
+  /// a CUE tab over LOOP pads.
   void setPadMode(DeckRuntime deck, PadMode mode) {
     deck.padMode = mode;
+    final kind = _padUnit(mode);
+    for (final slot in ControlSlot.values) {
+      if (unitOf(deck, slot).padMode == null) continue;
+      final options = unitOptions(deck, slot);
+      final legal = _legalUnits(slot);
+      if (!options.contains(kind)) {
+        options
+          ..add(kind)
+          ..sort((a, b) => legal.indexOf(a).compareTo(legal.indexOf(b)));
+      }
+      _assignUnit(deck, slot, kind);
+    }
     notifyListeners();
   }
 
@@ -387,19 +404,69 @@ class AppModel extends ChangeNotifier {
 
   // ---- control slots -------------------------------------------------------
 
-  void setUnitA(DeckRuntime deck, UnitKind kind) {
-    deck.unitA = kind;
+  List<UnitKind> unitOptions(DeckRuntime deck, ControlSlot slot) =>
+      switch (slot) {
+        ControlSlot.a => deck.unitAOptions,
+        ControlSlot.b => deck.unitBOptions,
+        ControlSlot.phone => deck.phoneUnitOptions,
+      };
+
+  UnitKind unitOf(DeckRuntime deck, ControlSlot slot) => switch (slot) {
+    ControlSlot.a => deck.unitA,
+    ControlSlot.b => deck.unitB,
+    ControlSlot.phone => deck.phoneUnit,
+  };
+
+  /// Switches a slot to [kind]. Only an enabled tab can be selected.
+  void selectUnit(DeckRuntime deck, ControlSlot slot, UnitKind kind) {
+    if (!unitOptions(deck, slot).contains(kind)) return;
+    if (unitOf(deck, slot) == kind) return;
+    _assignUnit(deck, slot, kind);
     notifyListeners();
   }
 
-  void setUnitB(DeckRuntime deck, UnitKind kind) {
-    deck.unitB = kind;
+  /// Adds or removes a unit tab. The last tab cannot be removed; removing the
+  /// active one falls through to the first remaining tab.
+  void toggleUnitOption(DeckRuntime deck, ControlSlot slot, UnitKind kind) {
+    final legal = _legalUnits(slot);
+    if (!legal.contains(kind)) return;
+    final options = unitOptions(deck, slot);
+    if (options.contains(kind)) {
+      if (options.length == 1) return;
+      options.remove(kind);
+      if (unitOf(deck, slot) == kind) {
+        _assignUnit(deck, slot, options.first);
+      }
+    } else {
+      options
+        ..add(kind)
+        ..sort((a, b) => legal.indexOf(a).compareTo(legal.indexOf(b)));
+    }
     notifyListeners();
   }
 
-  void setPhoneUnit(DeckRuntime deck, UnitKind kind) {
-    deck.phoneUnit = kind;
-    notifyListeners();
+  List<UnitKind> _legalUnits(ControlSlot slot) => switch (slot) {
+    ControlSlot.a || ControlSlot.b => deskUnitKinds,
+    ControlSlot.phone => phoneUnitKinds,
+  };
+
+  UnitKind _padUnit(PadMode mode) => switch (mode) {
+    PadMode.cue => UnitKind.padsCue,
+    PadMode.loop => UnitKind.padsLoop,
+    PadMode.jump => UnitKind.padsJump,
+  };
+
+  void _assignUnit(DeckRuntime deck, ControlSlot slot, UnitKind kind) {
+    switch (slot) {
+      case ControlSlot.a:
+        deck.unitA = kind;
+      case ControlSlot.b:
+        deck.unitB = kind;
+      case ControlSlot.phone:
+        deck.phoneUnit = kind;
+    }
+    final mode = kind.padMode;
+    if (mode != null) deck.padMode = mode;
   }
 
   void setFader(DeckRuntime deck, double value) {

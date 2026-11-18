@@ -13,6 +13,7 @@ class BarFader extends StatefulWidget {
     required this.onChanged,
     this.bipolar = false,
     this.handleHeight = 7,
+    this.scale,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class BarFader extends StatefulWidget {
   final ValueChanged<double> onChanged;
   final bool bipolar;
   final double handleHeight;
+  final ControlScale? scale;
 
   @override
   State<BarFader> createState() => _BarFaderState();
@@ -53,7 +55,8 @@ class _BarFaderState extends State<BarFader> {
 
   @override
   Widget build(BuildContext context) {
-    final handle = widget.handleHeight;
+    final scale = widget.scale ?? ControlScale.fallback;
+    final handle = scale.size(widget.handleHeight);
     return MouseRegion(
       cursor: SystemMouseCursors.resizeUpDown,
       onEnter: (_) => setState(() => _hover = true),
@@ -99,7 +102,7 @@ class _BarFaderState extends State<BarFader> {
               widget.onChanged(_value);
             },
             child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(end: _active ? width : 2),
+              tween: Tween<double>(end: _active ? width : scale.size(2)),
               duration: _duration,
               curve: Curves.easeOut,
               builder: (context, slotWidth, _) {

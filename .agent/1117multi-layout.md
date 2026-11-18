@@ -179,9 +179,8 @@ eq纵向bar+filter
 - | {} beats | +
 param 1 (bar)
 param 2
-hold | instant (button)
 ---
-fx name (点击弹出切换菜单)
+fx name | select
 ---
 
 

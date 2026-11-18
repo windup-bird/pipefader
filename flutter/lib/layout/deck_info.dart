@@ -5,6 +5,7 @@ import '../state/app_model.dart';
 import '../theme.dart';
 import '../widgets/cover.dart';
 import '../widgets/glyph.dart';
+import '../widgets/tempo_control.dart';
 import '../widgets/waveform.dart';
 
 const double _keyWidth = 30;
@@ -165,35 +166,39 @@ class DeckInfo extends StatelessWidget {
                           if (showTempo)
                             SizedBox(
                               width: tempoW,
-                              child: Column(
-                                children: [
-                                  cell(
-                                    row1H,
-                                    Alignment.centerRight,
-                                    Text(
-                                      tempoText(deck.tempo),
-                                      maxLines: 1,
-                                      style: Ty.meta.copyWith(
-                                        fontSize: metaSize,
-                                        color: deck.tempo == 1.0
-                                            ? T.dim
-                                            : T.accent,
+                              child: TempoControl(
+                                model: model,
+                                deck: deck,
+                                child: Column(
+                                  children: [
+                                    cell(
+                                      row1H,
+                                      Alignment.centerRight,
+                                      Text(
+                                        tempoText(deck.tempo),
+                                        maxLines: 1,
+                                        style: Ty.meta.copyWith(
+                                          fontSize: metaSize,
+                                          color: deck.tempo == 1.0
+                                              ? T.dim
+                                              : T.accent,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  cell(
-                                    row2H,
-                                    Alignment.centerRight,
-                                    Text(
-                                      bpmText(deck.bpm),
-                                      maxLines: 1,
-                                      style: Ty.num.copyWith(
-                                        fontSize: bpmSize,
-                                        fontWeight: FontWeight.w700,
+                                    cell(
+                                      row2H,
+                                      Alignment.centerRight,
+                                      Text(
+                                        bpmText(deck.bpm),
+                                        maxLines: 1,
+                                        style: Ty.num.copyWith(
+                                          fontSize: bpmSize,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           SizedBox(

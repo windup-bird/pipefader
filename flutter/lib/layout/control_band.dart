@@ -1,30 +1,23 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'layout_mode.dart';
 import '../model/deck.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
 import '../units/panels.dart';
 import '../units/unit_body.dart';
 import '../widgets/bar_fader.dart';
-import '../widgets/buttons.dart';
 import '../widgets/deck_picker.dart';
 import '../widgets/fader.dart';
-import '../widgets/glyph.dart';
 import '../widgets/meter.dart';
-import '../widgets/unit_menu.dart';
+import '../widgets/transport_keys.dart';
+import '../widgets/unit_header.dart';
 
-const double _transportWidth = 54;
 const double _centreWidth = 128;
-const double _unitNameHeight = 16;
 const double _deckKeySize = 30;
-
-/// The units a full control slot can become.
-const List<UnitKind> deskUnits = <UnitKind>[
-  UnitKind.pads,
-  UnitKind.tempo,
-  UnitKind.mixer,
-  UnitKind.fx,
-];
+const double _transportShare = 0.055;
+const double _minTransportWidth = 48;
+const double _maxTransportWidth = 64;
 
 /// The band under the waveforms: transport | unit | unit | fader, mirrored on
 /// the right. Each half drives one deck; the picker above the transport shows
@@ -38,182 +31,121 @@ class ControlBand extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = model.decks[model.fullSlotDeck(0)];
     final second = model.decks[model.fullSlotDeck(1)];
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Transport(model: model, deck: first, column: 0),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _UnitSlot(
-            model: model,
-            deck: first,
-            kind: first.unitA,
-            onSelect: (kind) => model.setUnitA(first, kind),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _UnitSlot(
-            model: model,
-            deck: first,
-            kind: first.unitB,
-            onSelect: (kind) => model.setUnitB(first, kind),
-          ),
-        ),
-        const SizedBox(width: 10),
-        _Centre(model: model),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _UnitSlot(
-            model: model,
-            deck: second,
-            kind: second.unitB,
-            onSelect: (kind) => model.setUnitB(second, kind),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _UnitSlot(
-            model: model,
-            deck: second,
-            kind: second.unitA,
-            onSelect: (kind) => model.setUnitA(second, kind),
-          ),
-        ),
-        const SizedBox(width: 8),
-        _Transport(model: model, deck: second, column: 1),
-      ],
-    );
-  }
-}
-
-class _Transport extends StatelessWidget {
-  const _Transport({
-    required this.model,
-    required this.deck,
-    required this.column,
-  });
-
-  final AppModel model;
-  final DeckRuntime deck;
-  final int column;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _transportWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (model.fullHasDeckChoice) ...[
-            DeckPicker(model: model, column: column, expand: true),
-            const SizedBox(height: 4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final transportW = (constraints.maxWidth * _transportShare)
+            .clamp(_minTransportWidth, _maxTransportWidth)
+            .toDouble();
+        final keyH = controlKeyHeight(constraints.maxHeight);
+        final scale = ControlScale(constraints.maxHeight);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: transportW,
+              child: TransportKeys(
+                model: model,
+                deck: first,
+                column: 0,
+                usePhoneDecks: false,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
+            SizedBox(width: scale.size(8)),
+            Expanded(
+              child: _UnitSlot(
+                model: model,
+                deck: first,
+                slot: ControlSlot.a,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
+            SizedBox(width: scale.size(8)),
+            Expanded(
+              child: _UnitSlot(
+                model: model,
+                deck: first,
+                slot: ControlSlot.b,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _Centre(model: model, scale: scale),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _UnitSlot(
+                model: model,
+                deck: second,
+                slot: ControlSlot.b,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
+            SizedBox(width: scale.size(8)),
+            Expanded(
+              child: _UnitSlot(
+                model: model,
+                deck: second,
+                slot: ControlSlot.a,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
+            SizedBox(width: scale.size(8)),
+            SizedBox(
+              width: transportW,
+              child: TransportKeys(
+                model: model,
+                deck: second,
+                column: 1,
+                usePhoneDecks: false,
+                keyHeight: keyH,
+                scale: scale,
+              ),
+            ),
           ],
-          SizedBox(
-            height: 20,
-            child: PanelButton(
-              label: 'sync',
-              active: deck.sync,
-              style: Ty.button.copyWith(fontSize: T.s9),
-              onTap: () => model.toggleSync(deck),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: PanelButton(
-              label: 'cue',
-              style: Ty.button.copyWith(fontSize: T.s12),
-              onTap: () => model.cue(deck),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: PanelButton(
-              label: deck.playing ? 'pause' : 'play',
-              active: deck.playing,
-              style: Ty.button.copyWith(fontSize: T.s12),
-              onTap: () => model.togglePlay(deck),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-/// One switchable slot: the panel, then its name underneath. The name is the
-/// picker, unlike the TUI where the name sits above.
-class _UnitSlot extends StatefulWidget {
+/// One switchable slot: the tab row above, the panel below.
+class _UnitSlot extends StatelessWidget {
   const _UnitSlot({
     required this.model,
     required this.deck,
-    required this.kind,
-    required this.onSelect,
+    required this.slot,
+    required this.keyHeight,
+    required this.scale,
   });
 
   final AppModel model;
   final DeckRuntime deck;
-  final UnitKind kind;
-  final ValueChanged<UnitKind> onSelect;
-
-  @override
-  State<_UnitSlot> createState() => _UnitSlotState();
-}
-
-class _UnitSlotState extends State<_UnitSlot> {
-  final _anchor = GlobalKey();
-  bool _hover = false;
+  final ControlSlot slot;
+  final double keyHeight;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        UnitHeader(
+          model: model,
+          deck: deck,
+          slot: slot,
+          height: keyHeight,
+          scale: scale,
+        ),
         Expanded(
           child: buildUnit(
-            kind: widget.kind,
-            model: widget.model,
-            deck: widget.deck,
-          ),
-        ),
-        SizedBox(
-          height: _unitNameHeight,
-          child: Center(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onEnter: (_) => setState(() => _hover = true),
-              onExit: (_) => setState(() => _hover = false),
-              child: GestureDetector(
-                key: _anchor,
-                behavior: HitTestBehavior.opaque,
-                onTap: () => showChoiceMenu(
-                  context: context,
-                  anchorKey: _anchor,
-                  labels: deskUnits.map((kind) => kind.label).toList(),
-                  current: deskUnits.indexOf(widget.kind),
-                  onSelect: (index) => widget.onSelect(deskUnits[index]),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.kind.label.toUpperCase(),
-                        style: Ty.labelSmall.copyWith(
-                          color: _hover ? T.accentHi : T.accent,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Glyph(
-                        GlyphKind.dropdown,
-                        size: 7,
-                        color: _hover ? T.accentHi : T.faint,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            kind: model.unitOf(deck, slot),
+            model: model,
+            deck: deck,
+            scale: scale,
           ),
         ),
       ],
@@ -222,9 +154,10 @@ class _UnitSlotState extends State<_UnitSlot> {
 }
 
 class _Centre extends StatelessWidget {
-  const _Centre({required this.model});
+  const _Centre({required this.model, required this.scale});
 
   final AppModel model;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
@@ -241,30 +174,36 @@ class _Centre extends StatelessWidget {
                 Expanded(
                   child: BarFader(
                     value: first.fader,
+                    scale: scale,
                     onChanged: (value) => model.setFader(first, value),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: scale.size(8)),
                 SizedBox(
-                  width: 8,
+                  width: scale.size(8),
                   child: ValueListenableBuilder<int>(
                     valueListenable: model.clock,
                     builder: (context, _, _) =>
                         LevelMeter(level: first.meter, peak: first.meterPeak),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: scale.size(8)),
                 Expanded(
                   child: BarFader(
                     value: second.fader,
+                    scale: scale,
                     onChanged: (value) => model.setFader(second, value),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          Crossfader(value: model.crossfader, onChanged: model.setCrossfader),
+          SizedBox(height: scale.size(10)),
+          Crossfader(
+            value: model.crossfader,
+            scale: scale,
+            onChanged: model.setCrossfader,
+          ),
         ],
       ),
     );
@@ -283,17 +222,32 @@ class AllInOneControlBand extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = model.decks[model.fullSlotDeck(0)];
     final second = model.decks[model.fullSlotDeck(1)];
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: _AllInOneSide(model: model, deck: first, column: 0),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _AllInOneSide(model: model, deck: second, column: 1),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = ControlScale(constraints.maxHeight);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _AllInOneSide(
+                model: model,
+                deck: first,
+                column: 0,
+                scale: scale,
+              ),
+            ),
+            SizedBox(width: scale.size(12)),
+            Expanded(
+              child: _AllInOneSide(
+                model: model,
+                deck: second,
+                column: 1,
+                scale: scale,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -305,24 +259,27 @@ class _AllInOneSide extends StatelessWidget {
     required this.model,
     required this.deck,
     required this.column,
+    required this.scale,
   });
 
   final AppModel model;
   final DeckRuntime deck;
   final int column;
+  final ControlScale scale;
 
   @override
   Widget build(BuildContext context) {
     final pickerLeft = column == 0;
+    final pickerSize = scale.size(_deckKeySize);
     final picker = SizedBox(
-      width: _deckKeySize,
+      width: pickerSize,
       child: Center(
         child: DeckPicker(
           model: model,
           column: column,
           vertical: true,
-          buttonWidth: _deckKeySize,
-          buttonHeight: _deckKeySize,
+          buttonWidth: pickerSize,
+          buttonHeight: pickerSize,
         ),
       ),
     );
@@ -333,23 +290,33 @@ class _AllInOneSide extends StatelessWidget {
             ? [
                 Expanded(
                   flex: 3,
-                  child: PadsPanel(model: model, deck: deck),
+                  child: PadsPanel(
+                    model: model,
+                    deck: deck,
+                    showModeTabs: true,
+                    scale: scale,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: scale.size(8)),
                 Expanded(
                   flex: 2,
-                  child: FxPanel(model: model, deck: deck),
+                  child: FxPanel(model: model, deck: deck, scale: scale),
                 ),
               ]
             : [
                 Expanded(
                   flex: 2,
-                  child: FxPanel(model: model, deck: deck),
+                  child: FxPanel(model: model, deck: deck, scale: scale),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: scale.size(8)),
                 Expanded(
                   flex: 3,
-                  child: PadsPanel(model: model, deck: deck),
+                  child: PadsPanel(
+                    model: model,
+                    deck: deck,
+                    showModeTabs: true,
+                    scale: scale,
+                  ),
                 ),
               ],
       ),
@@ -359,12 +326,12 @@ class _AllInOneSide extends StatelessWidget {
     if (showPicker && pickerLeft) {
       children
         ..add(picker)
-        ..add(const SizedBox(width: 8));
+        ..add(SizedBox(width: scale.size(8)));
     }
     children.add(body);
     if (showPicker && !pickerLeft) {
       children
-        ..add(const SizedBox(width: 8))
+        ..add(SizedBox(width: scale.size(8)))
         ..add(picker);
     }
     return Row(
