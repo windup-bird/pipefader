@@ -4,6 +4,8 @@ import '../state/app_model.dart';
 import '../theme.dart';
 import 'buttons.dart';
 import 'deck_picker.dart';
+import 'device.dart';
+import 'glyph.dart';
 
 /// The transport stack shared by the desk and the phone. Heights come from the
 /// available space, not fixed keys: sync stays the small key and cue / play
@@ -59,7 +61,7 @@ class TransportKeys extends StatelessWidget {
         Expanded(
           flex: 5,
           child: PanelButton(
-            label: 'cue',
+            label: 'CUE',
             style: Ty.button.copyWith(fontSize: s.font(T.s12)),
             onTap: () => model.cue(deck),
           ),
@@ -67,14 +69,63 @@ class TransportKeys extends StatelessWidget {
         const SizedBox(height: 4),
         Expanded(
           flex: 5,
-          child: PanelButton(
-            label: deck.playing ? 'pause' : 'play',
-            active: deck.playing,
-            style: Ty.button.copyWith(fontSize: s.font(T.s12)),
+          child: _PlayButton(
+            key: ValueKey('play-$column'),
+            deck: deck,
+            scale: s,
             onTap: () => model.togglePlay(deck),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PlayButton extends StatefulWidget {
+  const _PlayButton({
+    required this.deck,
+    required this.scale,
+    required this.onTap,
+    super.key,
+  });
+
+  final DeckRuntime deck;
+  final ControlScale scale;
+  final VoidCallback onTap;
+
+  @override
+  State<_PlayButton> createState() => _PlayButtonState();
+}
+
+class _PlayButtonState extends State<_PlayButton> {
+  bool _hover = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.deck.playing;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: Container(
+          decoration: keyFace(active: active, pressed: _pressed, hover: _hover),
+          alignment: Alignment.center,
+          child: Glyph(
+            GlyphKind.play,
+            size: widget.scale.size(20),
+            color: active ? T.text : (_hover ? T.text : T.dim),
+          ),
+        ),
+      ),
     );
   }
 }

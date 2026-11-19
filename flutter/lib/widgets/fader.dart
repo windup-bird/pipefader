@@ -3,13 +3,16 @@ import 'package:material_ui/material_ui.dart';
 import '../theme.dart';
 import 'device.dart';
 
-/// The crossfader: the bar fader turned sideways. Hairline slot, vertical
-/// handle, the travelled half lit from the centre out; the slot thickens to the
-/// handle's height while held.
+/// The crossfader: a flat slot with a solid handle. The left half carries the
+/// left deck's colour and the right half the right deck's, so which way the
+/// blend leans reads at a glance. The slot thickens to the handle's height
+/// while held.
 class Crossfader extends StatefulWidget {
   const Crossfader({
     required this.value,
     required this.onChanged,
+    this.leftColor = T.accent,
+    this.rightColor = T.accent,
     this.height = 28,
     this.scale,
     super.key,
@@ -18,6 +21,11 @@ class Crossfader extends StatefulWidget {
   /// -1 (left) .. +1 (right).
   final double value;
   final ValueChanged<double> onChanged;
+
+  /// The colour each half burns as the blend moves toward it.
+  final Color leftColor;
+  final Color rightColor;
+
   final double height;
   final ControlScale? scale;
 
@@ -27,7 +35,7 @@ class Crossfader extends StatefulWidget {
 
 class _CrossfaderState extends State<Crossfader> {
   static const _duration = Duration(milliseconds: 110);
-  static const _handleW = 8.0;
+  static const _handleW = 7.0;
 
   bool _active = false;
   bool _hover = false;
@@ -53,6 +61,11 @@ class _CrossfaderState extends State<Crossfader> {
     final scale = widget.scale ?? ControlScale.fallback;
     final handleW = scale.size(_handleW);
     final height = scale.size(widget.height);
+    // The slot and the handle share one thickness; the slot only grows to it
+    // when held, the handle always sits at it.
+    final slotOpen = height - scale.size(4);
+    final handleH = slotOpen;
+    final handleTop = (height - handleH) / 2;
     return MouseRegion(
       cursor: SystemMouseCursors.resizeLeftRight,
       onEnter: (_) => setState(() => _hover = true),
@@ -66,9 +79,6 @@ class _CrossfaderState extends State<Crossfader> {
             final centre = width / 2;
             final half = (width - handleW) / 2;
             final handleX = centre + _value * half;
-            final base = centre;
-            final fillLeft = handleX < base ? handleX : base;
-            final fillWidth = (handleX - base).abs();
             return Listener(
               behavior: HitTestBehavior.opaque,
               onPointerDown: (event) {
@@ -95,9 +105,7 @@ class _CrossfaderState extends State<Crossfader> {
                 widget.onChanged(_value);
               },
               child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(
-                  end: _active ? height - scale.size(4) : scale.size(2),
-                ),
+                tween: Tween<double>(end: _active ? slotOpen : scale.size(2)),
                 duration: _duration,
                 curve: Curves.easeOut,
                 builder: (context, slotHeight, _) {
@@ -110,39 +118,33 @@ class _CrossfaderState extends State<Crossfader> {
                         height: slotHeight,
                         child: DecoratedBox(decoration: slotFace()),
                       ),
-                      Positioned(
-                        left: fillLeft,
-                        top: (height - slotHeight) / 2,
-                        width: fillWidth,
-                        height: slotHeight,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [T.accentLo, T.accent],
-                            ),
-                            boxShadow: _active
-                                ? const [
-                                    BoxShadow(
-                                      color: T.glowAccent,
-                                      blurRadius: 8,
-                                    ),
-                                  ]
-                                : null,
-                          ),
+                      // Only the span from the centre to the handle lights, in
+                      // the colour of the side it leans toward.
+                      if (_value <= 0)
+                        Positioned(
+                          left: handleX,
+                          top: (height - slotHeight) / 2,
+                          width: centre - handleX,
+                          height: slotHeight,
+                          child: ColoredBox(color: widget.leftColor),
+                        )
+                      else
+                        Positioned(
+                          left: centre,
+                          top: (height - slotHeight) / 2,
+                          width: handleX - centre,
+                          height: slotHeight,
+                          child: ColoredBox(color: widget.rightColor),
                         ),
-                      ),
                       Positioned(
                         left: handleX - handleW / 2,
-                        top: 2,
-                        bottom: 2,
+                        top: handleTop,
+                        height: handleH,
                         width: handleW,
-                        child: DecoratedBox(
-                          decoration: handleFace(
-                            active: _active,
-                            hover: _hover,
-                          ),
+                        child: FaderHandle(
+                          vertical: true,
+                          active: _active,
+                          hover: _hover,
                         ),
                       ),
                     ],

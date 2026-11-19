@@ -16,9 +16,13 @@ class DeckRuntime {
     required this.frame,
     required this.playing,
     required this.tempo,
+    this.index = 0,
   });
 
   final DeckView view;
+
+  /// The deck's slot, which picks its colour from [deckColors].
+  final int index;
 
   int frame;
   bool playing;
@@ -119,6 +123,11 @@ class AppModel extends ChangeNotifier {
   bool browserOverlayOpen = false;
   String searchText = '';
 
+  /// The phone browser drills down one column at a time: 0 library roots, 1
+  /// lists, 2 tracks. The deck continues to browse from where it left off when
+  /// the overlay closes and reopens.
+  int browseDepth = 0;
+
   /// The shared waveform zoom, in source frames per pixel.
   double framesPerPixel = 340;
 
@@ -166,6 +175,16 @@ class AppModel extends ChangeNotifier {
         )
         .toList(growable: false);
   }
+
+  /// Total playing time of the visible list, in seconds.
+  int get visibleSeconds =>
+      visibleTracks.fold(0, (sum, track) => sum + track.seconds);
+
+  /// How many of the visible tracks have peaks ready. The sketch has no
+  /// analyser yet, so a track counts as analysed once its peaks exist.
+  int get analysedCount => visibleTracks.where((track) => track.bpm > 0).length;
+
+  int get unanalysedCount => visibleTracks.length - analysedCount;
 
   void setLayout(LayoutMode mode) {
     _forcedLayout = mode;
@@ -582,6 +601,30 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Steps the phone browser one column deeper (library → lists → tracks).
+  void browseInto() {
+    if (browseDepth < 2) {
+      browseDepth += 1;
+      notifyListeners();
+    }
+  }
+
+  /// Steps the phone browser back one column.
+  void browseBack() {
+    if (browseDepth > 0) {
+      browseDepth -= 1;
+      notifyListeners();
+    }
+  }
+
+  /// Loads the picked track onto a deck and closes the overlay, keeping the
+  /// browse depth so reopening returns to the same list.
+  void loadTrackOnto(DeckRuntime deck, int index) {
+    selectedTrack = index;
+    browserOverlayOpen = false;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     clock.dispose();
@@ -593,12 +636,14 @@ class AppModel extends ChangeNotifier {
     return [
       DeckRuntime(
         view: views[0],
+        index: 0,
         frame: (views[0].totalFrames * 0.372).round(),
         playing: true,
         tempo: 1.0,
       )..hotCues.addAll(const [0, 2, 4]),
       DeckRuntime(
           view: views[1],
+          index: 1,
           frame: (views[1].totalFrames * 0.518).round(),
           playing: false,
           tempo: 1.02,
@@ -610,12 +655,14 @@ class AppModel extends ChangeNotifier {
         ..filter = -0.28,
       DeckRuntime(
         view: views[2],
+        index: 2,
         frame: (views[2].totalFrames * 0.214).round(),
         playing: false,
         tempo: 0.99,
       )..hotCues.add(6),
       DeckRuntime(
           view: views[3],
+          index: 3,
           frame: (views[3].totalFrames * 0.633).round(),
           playing: false,
           tempo: 1.0,

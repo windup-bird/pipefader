@@ -10,7 +10,7 @@ import 'package:pipefader_gui/theme.dart';
 import 'package:pipefader_gui/widgets/buttons.dart';
 import 'package:pipefader_gui/widgets/cover.dart';
 import 'package:pipefader_gui/widgets/deck_picker.dart';
-import 'package:pipefader_gui/widgets/logo.dart';
+import 'package:pipefader_gui/layout/header.dart';
 import 'package:pipefader_gui/widgets/tempo_control.dart';
 import 'package:pipefader_gui/widgets/unit_header.dart';
 
@@ -31,9 +31,9 @@ void main() {
 
   testWidgets('logo menu switches layout', (tester) async {
     await pumpAppAt(tester, const Size(1440, 900));
-    await tester.tap(find.byType(LogoMark).first);
+    await tester.tap(find.byType(LogoButton).first);
     await tester.pump(const Duration(milliseconds: 80));
-    expect(find.text('DECKS'), findsOneWidget);
+    expect(find.text('Decks'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('layout-stacked')));
     await tester.pump(const Duration(milliseconds: 300));
@@ -45,7 +45,7 @@ void main() {
     await pumpAppAt(tester, const Size(1600, 1000), model: model);
     expect(find.byType(DeckInfo), findsNWidgets(2));
 
-    await tester.tap(find.byType(LogoMark).first);
+    await tester.tap(find.byType(LogoButton).first);
     await tester.pump(const Duration(milliseconds: 80));
     await tester.tap(find.byKey(const ValueKey('decks-4')));
     await tester.pump(const Duration(milliseconds: 300));
@@ -100,7 +100,7 @@ void main() {
         tester.renderObject(find.byType(UnitHeader).first) as RenderBox;
     final sync = tester.renderObject(
       find
-          .ancestor(of: find.text('SYNC'), matching: find.byType(PanelButton))
+          .ancestor(of: find.text('Sync'), matching: find.byType(PanelButton))
           .first,
     ) as RenderBox;
     final picker =
@@ -128,7 +128,7 @@ void main() {
         tester.renderObject(find.byType(UnitHeader).first) as RenderBox;
     final sync = tester.renderObject(
       find
-          .ancestor(of: find.text('SYNC'), matching: find.byType(PanelButton))
+          .ancestor(of: find.text('Sync'), matching: find.byType(PanelButton))
           .first,
     ) as RenderBox;
     final picker =
@@ -196,23 +196,26 @@ void main() {
   testWidgets('cover raises the browser in landscape', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.landscape, phoneDecks: 2);
     await pumpAppAt(tester, const Size(844, 390), model: model);
-    expect(find.text('BROWSER'), findsNothing);
+    expect(find.byKey(const ValueKey('browser-close')), findsNothing);
 
     await tester.tap(find.byType(CoverArt).first);
     await tester.pump(const Duration(milliseconds: 120));
-    expect(find.text('BROWSER'), findsOneWidget);
+    expect(find.byKey(const ValueKey('browser-close')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('browser-close')));
     await tester.pump(const Duration(milliseconds: 120));
-    expect(find.text('BROWSER'), findsNothing);
+    expect(find.byKey(const ValueKey('browser-close')), findsNothing);
   });
 
-  testWidgets('transport toggles between play and pause', (tester) async {
-    await pumpAppAt(tester, const Size(1440, 900));
-    expect(find.text('PAUSE'), findsOneWidget);
-    await tester.tap(find.text('PAUSE'));
+  testWidgets('transport toggles play state', (tester) async {
+    final model = AppModel();
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    expect(model.decks[0].playing, isTrue);
+    // The two transport halves share deck state, so tapping the left play key
+    // pauses deck one.
+    await tester.tap(find.byKey(const ValueKey('play-0')));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(find.text('PLAY'), findsNWidgets(2));
+    expect(model.decks[0].playing, isFalse);
   });
 
   testWidgets('deck info tempo drag raises the bpm', (tester) async {
@@ -255,7 +258,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(UnitHeader).first,
-        matching: find.text('MAX'),
+        matching: find.text('MIXER'),
       ),
     );
     await tester.pump(const Duration(milliseconds: 120));
@@ -276,11 +279,11 @@ void main() {
 
   testWidgets('settings row opens a panel', (tester) async {
     await pumpAppAt(tester, const Size(1440, 900));
-    await tester.tap(find.byType(LogoMark).first);
+    await tester.tap(find.byType(LogoButton).first);
     await tester.pump(const Duration(milliseconds: 80));
     await tester.tap(find.byKey(const ValueKey('menu-settings')));
     await tester.pump(const Duration(milliseconds: 120));
-    expect(find.text('SETTINGS'), findsOneWidget);
-    expect(find.textContaining('TEMPO RANGE'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.textContaining('Tempo Range'), findsOneWidget);
   });
 }

@@ -19,10 +19,14 @@ enum GlyphKind {
   manualLoop,
   keylock,
   chevronRight,
+  chevronLeft,
   chevronUp,
   chevronDown,
   settings,
   check,
+  play,
+  controller,
+  output,
 }
 
 class Glyph extends StatelessWidget {
@@ -198,6 +202,8 @@ class _GlyphPainter extends CustomPainter {
         );
       case GlyphKind.chevronRight:
         _chevron(canvas, paint, center, half, 1, 0);
+      case GlyphKind.chevronLeft:
+        _chevron(canvas, paint, center, half, -1, 0);
       case GlyphKind.chevronUp:
         _chevron(canvas, paint, center, half, 0, -1);
       case GlyphKind.chevronDown:
@@ -215,6 +221,52 @@ class _GlyphPainter extends CustomPainter {
           ..lineTo(size.width * 0.42, size.height * 0.72)
           ..lineTo(size.width * 0.78, size.height * 0.30);
         canvas.drawPath(check, paint);
+      case GlyphKind.play:
+        final play = Path()
+          ..moveTo(center.dx - half * 0.38, center.dy - half * 0.60)
+          ..lineTo(center.dx + half * 0.56, center.dy)
+          ..lineTo(center.dx - half * 0.38, center.dy + half * 0.60)
+          ..close();
+        canvas.drawPath(play, Paint()..color = color);
+      case GlyphKind.controller:
+        final body = Rect.fromLTRB(
+          center.dx - half * 0.72,
+          center.dy - half * 0.40,
+          center.dx + half * 0.72,
+          center.dy + half * 0.40,
+        );
+        canvas.drawRect(body, paint);
+        canvas.drawCircle(
+          Offset(center.dx - half * 0.30, center.dy),
+          half * 0.18,
+          paint,
+        );
+        canvas.drawCircle(
+          Offset(center.dx + half * 0.30, center.dy),
+          half * 0.18,
+          paint,
+        );
+      case GlyphKind.output:
+        for (var i = 0; i < 3; i++) {
+          final x = center.dx - half * 0.42 + i * half * 0.42;
+          canvas.drawLine(
+            Offset(x, center.dy - half * 0.52),
+            Offset(x, center.dy + half * 0.52),
+            paint,
+          );
+        }
+        canvas.drawArc(
+          Rect.fromLTRB(
+            center.dx + half * 0.12,
+            center.dy - half * 0.60,
+            center.dx + half * 0.72,
+            center.dy + half * 0.60,
+          ),
+          -math.pi / 2,
+          math.pi,
+          false,
+          paint,
+        );
     }
   }
 

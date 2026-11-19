@@ -4,7 +4,7 @@ import 'package:pipefader_gui/layout/layout_mode.dart';
 import 'package:pipefader_gui/model/deck.dart';
 import 'package:pipefader_gui/state/app_model.dart';
 import 'package:pipefader_gui/widgets/cover.dart';
-import 'package:pipefader_gui/widgets/logo.dart';
+import 'package:pipefader_gui/layout/header.dart';
 import 'package:pipefader_gui/widgets/tempo_control.dart';
 
 import 'support.dart';
@@ -116,7 +116,7 @@ void main() {
       boundaryKey: boundary,
       model: AppModel(forcedLayout: LayoutMode.full),
     );
-    await tester.tap(find.byType(LogoMark).first);
+    await tester.tap(find.byType(LogoButton).first);
     await tester.pump(const Duration(milliseconds: 120));
     await expectLater(
       find.byKey(boundary),

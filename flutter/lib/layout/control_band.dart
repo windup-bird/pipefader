@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../units/panels.dart';
 import '../units/unit_body.dart';
 import '../widgets/bar_fader.dart';
+import '../widgets/cover.dart';
 import '../widgets/deck_picker.dart';
 import '../widgets/fader.dart';
 import '../widgets/meter.dart';
@@ -41,69 +42,87 @@ class ControlBand extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: transportW,
-              child: TransportKeys(
-                model: model,
-                deck: first,
-                column: 0,
-                usePhoneDecks: false,
-                keyHeight: keyH,
-                scale: scale,
+            DeckThemeScope(
+              theme: DeckTheme(first.index),
+              child: SizedBox(
+                width: transportW,
+                child: TransportKeys(
+                  model: model,
+                  deck: first,
+                  column: 0,
+                  usePhoneDecks: false,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
-            SizedBox(width: scale.size(8)),
+            SizedBox(width: scale.size(6)),
             Expanded(
-              child: _UnitSlot(
-                model: model,
-                deck: first,
-                slot: ControlSlot.a,
-                keyHeight: keyH,
-                scale: scale,
+              child: DeckThemeScope(
+                theme: DeckTheme(first.index),
+                child: _UnitSlot(
+                  model: model,
+                  deck: first,
+                  slot: ControlSlot.a,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
-            SizedBox(width: scale.size(8)),
+            SizedBox(width: scale.size(6)),
             Expanded(
-              child: _UnitSlot(
-                model: model,
-                deck: first,
-                slot: ControlSlot.b,
-                keyHeight: keyH,
-                scale: scale,
+              child: DeckThemeScope(
+                theme: DeckTheme(first.index),
+                child: _UnitSlot(
+                  model: model,
+                  deck: first,
+                  slot: ControlSlot.b,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: scale.size(6)),
             _Centre(model: model, scale: scale),
-            const SizedBox(width: 10),
+            SizedBox(width: scale.size(6)),
             Expanded(
-              child: _UnitSlot(
-                model: model,
-                deck: second,
-                slot: ControlSlot.b,
-                keyHeight: keyH,
-                scale: scale,
+              child: DeckThemeScope(
+                theme: DeckTheme(second.index),
+                child: _UnitSlot(
+                  model: model,
+                  deck: second,
+                  slot: ControlSlot.b,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
-            SizedBox(width: scale.size(8)),
+            SizedBox(width: scale.size(6)),
             Expanded(
-              child: _UnitSlot(
-                model: model,
-                deck: second,
-                slot: ControlSlot.a,
-                keyHeight: keyH,
-                scale: scale,
+              child: DeckThemeScope(
+                theme: DeckTheme(second.index),
+                child: _UnitSlot(
+                  model: model,
+                  deck: second,
+                  slot: ControlSlot.a,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
-            SizedBox(width: scale.size(8)),
-            SizedBox(
-              width: transportW,
-              child: TransportKeys(
-                model: model,
-                deck: second,
-                column: 1,
-                usePhoneDecks: false,
-                keyHeight: keyH,
-                scale: scale,
+            SizedBox(width: scale.size(6)),
+            DeckThemeScope(
+              theme: DeckTheme(second.index),
+              child: SizedBox(
+                width: transportW,
+                child: TransportKeys(
+                  model: model,
+                  deck: second,
+                  column: 1,
+                  usePhoneDecks: false,
+                  keyHeight: keyH,
+                  scale: scale,
+                ),
               ),
             ),
           ],
@@ -131,24 +150,27 @@ class _UnitSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        UnitHeader(
-          model: model,
-          deck: deck,
-          slot: slot,
-          height: keyHeight,
-          scale: scale,
-        ),
-        Expanded(
-          child: buildUnit(
-            kind: model.unitOf(deck, slot),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: scale.size(4)),
+      child: Column(
+        children: [
+          UnitHeader(
             model: model,
             deck: deck,
+            slot: slot,
+            height: keyHeight,
             scale: scale,
           ),
-        ),
-      ],
+          Expanded(
+            child: buildUnit(
+              kind: model.unitOf(deck, slot),
+              model: model,
+              deck: deck,
+              scale: scale,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -172,10 +194,13 @@ class _Centre extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: BarFader(
-                    value: first.fader,
-                    scale: scale,
-                    onChanged: (value) => model.setFader(first, value),
+                  child: DeckThemeScope(
+                    theme: DeckTheme(first.index),
+                    child: BarFader(
+                      value: first.fader,
+                      scale: scale,
+                      onChanged: (value) => model.setFader(first, value),
+                    ),
                   ),
                 ),
                 SizedBox(width: scale.size(8)),
@@ -189,10 +214,13 @@ class _Centre extends StatelessWidget {
                 ),
                 SizedBox(width: scale.size(8)),
                 Expanded(
-                  child: BarFader(
-                    value: second.fader,
-                    scale: scale,
-                    onChanged: (value) => model.setFader(second, value),
+                  child: DeckThemeScope(
+                    theme: DeckTheme(second.index),
+                    child: BarFader(
+                      value: second.fader,
+                      scale: scale,
+                      onChanged: (value) => model.setFader(second, value),
+                    ),
                   ),
                 ),
               ],
@@ -202,6 +230,8 @@ class _Centre extends StatelessWidget {
           Crossfader(
             value: model.crossfader,
             scale: scale,
+            leftColor: DeckTheme(first.index).accent,
+            rightColor: DeckTheme(second.index).accent,
             onChanged: model.setCrossfader,
           ),
         ],
@@ -334,9 +364,12 @@ class _AllInOneSide extends StatelessWidget {
         ..add(SizedBox(width: scale.size(8)))
         ..add(picker);
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: children,
+    return DeckThemeScope(
+      theme: DeckTheme(deck.index),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
     );
   }
 }

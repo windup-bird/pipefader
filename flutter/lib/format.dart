@@ -1,4 +1,10 @@
 /// Formatting shared by the deck header, the browser and the control band.
+library;
+
+import 'package:material_ui/material_ui.dart';
+
+import 'theme.dart';
+
 String clock(int frames, int sampleRate) {
   final total = frames / sampleRate;
   final minutes = total ~/ 60;
@@ -23,4 +29,29 @@ String tempoText(double tempo) {
   final percent = (tempo - 1.0) * 100.0;
   final sign = percent >= 0 ? '+' : '';
   return '$sign${percent.toStringAsFixed(1)}%';
+}
+
+/// The BPM readout leans green when the deck is sped up, red when slowed, with
+/// the strength of the tint following how far tempo has moved from 1.0.
+Color bpmColor(double tempo) {
+  final delta = tempo - 1.0;
+  if (delta.abs() < 0.0005) return T.text;
+  final strength = (delta.abs() / 0.08).clamp(0.0, 1.0).toDouble();
+  final target = delta > 0 ? T.error : T.padJumpColor;
+  return Color.lerp(T.text, target, 0.4 + 0.6 * strength)!;
+}
+
+/// Capitalize first letter of each word, except for special all-caps words.
+String capitalizeWords(String text) {
+  const allCaps = {'cue', 'bpm', 'pad', 'tab'};
+  return text
+      .split(' ')
+      .map((word) {
+        if (allCaps.contains(word.toLowerCase())) {
+          return word.toUpperCase();
+        }
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      })
+      .join(' ');
 }

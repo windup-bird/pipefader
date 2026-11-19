@@ -46,7 +46,7 @@ class FullLayout extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: fullGap),
+          // No rule between the header and the deck row: they share one face.
           ColoredBox(
             color: T.band,
             child: SizedBox(
@@ -71,12 +71,10 @@ class FullLayout extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: fullGap),
           SizedBox(
             height: waveBandH,
             child: WaveformBand(model: model, decks: decks, hpad: hpad),
           ),
-          const SizedBox(height: fullGap),
           ColoredBox(
             color: T.band,
             child: SizedBox(
@@ -87,6 +85,9 @@ class FullLayout extends StatelessWidget {
               ),
             ),
           ),
+          // The only band rule: two black pixels between the control strip and
+          // the browser.
+          const SizedBox(height: 2, child: ColoredBox(color: T.sep)),
         ];
 
         final browser = ColoredBox(

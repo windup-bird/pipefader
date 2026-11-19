@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
 import 'all_in_one_layout.dart';
-import 'browser_pane.dart';
 import 'full_layout.dart';
 import 'landscape_layout.dart';
 import 'layout_mode.dart';
@@ -78,13 +77,7 @@ class _AppShellState extends State<AppShell>
                   deckCount: count,
                 ),
               };
-              return Stack(
-                children: [
-                  Positioned.fill(child: page),
-                  if (_model.browserOverlayOpen && mode.isPhone)
-                    Positioned.fill(child: BrowserOverlay(model: _model)),
-                ],
-              );
+              return Stack(children: [Positioned.fill(child: page)]);
             },
           ),
         ),

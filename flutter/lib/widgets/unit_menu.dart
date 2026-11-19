@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import '../format.dart';
 import '../model/deck.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
@@ -228,7 +229,7 @@ class _MenuRowState extends State<_MenuRow> {
           color: _hover ? T.surface : Colors.transparent,
           alignment: Alignment.center,
           child: Text(
-            widget.label.toUpperCase(),
+            capitalizeWords(widget.label),
             style: Ty.label.copyWith(color: color),
           ),
         ),

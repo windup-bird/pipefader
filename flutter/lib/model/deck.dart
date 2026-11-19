@@ -18,7 +18,7 @@ extension UnitKindLabel on UnitKind {
 
   /// The short label used in a unit slot's tab row.
   String get tabLabel => switch (this) {
-    UnitKind.mixerMax => 'max',
+    UnitKind.mixerMax => 'Mixer',
     _ => label,
   };
 

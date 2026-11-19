@@ -115,7 +115,7 @@ class _DeckButtonState extends State<DeckButton> {
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
               color: widget.selected
-                  ? T.bg
+                  ? T.text
                   : _hover
                   ? T.text
                   : T.dim,

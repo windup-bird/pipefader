@@ -2,9 +2,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme.dart';
 
-/// The face of a hardware key: a shallow vertical gradient, a cast shadow and,
-/// when active, a blue glow. No radius and no outline, so a row of keys reads as
-/// a machined panel rather than a web card.
+/// The face of a hardware key: a flat fill, a top highlight and a soft cast
+/// shadow. Idle sits a step above the page; active lifts to the bright grey
+/// with the same highlight and shadow, so the two states share an edge.
 BoxDecoration keyFace({
   bool active = false,
   bool pressed = false,
@@ -21,25 +21,19 @@ BoxDecoration keyFace({
     );
   }
   if (active) {
+    // Active reuses the idle face's top highlight and soft cast shadow; only
+    // the fill lifts to the bright grey. No glow, no extra inset.
     return BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF5B9BFB), T.accentLo],
-      ),
+      color: T.lit,
+      border: const Border(top: BorderSide(color: T.highlight, width: 1)),
       boxShadow: const [
-        BoxShadow(color: T.glowAccent, blurRadius: 10, spreadRadius: 1),
         BoxShadow(color: T.shadowSoft, offset: Offset(0, 1), blurRadius: 2),
       ],
     );
   }
   if (pressed) {
     return const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF1B1B1B), Color(0xFF262626)],
-      ),
+      color: Color(0xFF202020),
       boxShadow: [
         BoxShadow(
           color: Color(0xAA000000),
@@ -60,60 +54,63 @@ BoxDecoration keyFace({
     );
   }
   return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: hover
-          ? const [Color(0xFF383838), Color(0xFF262626)]
-          : const [T.surfaceHi, T.surface],
-    ),
+    color: hover ? T.surfaceHi : T.surface,
+    border: const Border(top: BorderSide(color: T.highlight, width: 1)),
     boxShadow: const [
       BoxShadow(color: T.shadowSoft, offset: Offset(0, 1), blurRadius: 2),
     ],
   );
 }
 
-/// The track a fader runs in: dark, inset, no border.
-BoxDecoration slotFace() => const BoxDecoration(
-  gradient: LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [T.track, Color(0xFF232323)],
-  ),
-  boxShadow: [
-    BoxShadow(
-      color: Color(0xCC000000),
-      offset: Offset(0, 1),
-      blurRadius: 2,
-      spreadRadius: 0,
-    ),
-  ],
-);
+/// The track a fader runs in: a flat dark slot, no gradient, no border.
+BoxDecoration slotFace() => const BoxDecoration(color: T.track);
 
-/// A metal handle: lit along its top edge, dark underneath.
-BoxDecoration handleFace({bool active = false, bool hover = false}) {
-  final top = active
-      ? T.accentHi
-      : hover
-      ? T.text
-      : T.handleHi;
-  final bottom = active
-      ? T.accent
-      : hover
-      ? T.handleHi
-      : T.handle;
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [top, bottom],
-    ),
-    boxShadow: active
-        ? const [BoxShadow(color: T.glowAccent, blurRadius: 8)]
-        : const [
-            BoxShadow(color: T.shadow, offset: Offset(0, 2), blurRadius: 3),
-          ],
-  );
+/// A solid fader handle: bright grey face with a short darker grip line down
+/// the middle, lit along its top edge and casting a shadow. [vertical] picks a
+/// tall handle (crossfader, param bar); otherwise a wide channel handle. The
+/// grip runs about a third of the handle's long axis.
+class FaderHandle extends StatelessWidget {
+  const FaderHandle({
+    this.vertical = false,
+    this.active = false,
+    this.hover = false,
+    super.key,
+  });
+
+  final bool vertical;
+  final bool active;
+  final bool hover;
+
+  @override
+  Widget build(BuildContext context) {
+    // The face takes the same grey a lit pad uses, so the handle reads as one
+    // piece with the rest of the panel; hover lifts one step.
+    final face = hover ? T.litHi : T.lit;
+    return Container(
+      decoration: BoxDecoration(
+        color: face,
+        border: const Border(top: BorderSide(color: T.highlight, width: 1)),
+        boxShadow: const [
+          BoxShadow(color: T.shadow, offset: Offset(0, 2), blurRadius: 3),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // Grip line: a third of the long axis, one pixel thick.
+          final w = vertical ? 1.0 : c.maxWidth / 3;
+          final h = vertical ? c.maxHeight / 3 : 1.0;
+          return Center(
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: const ColoredBox(color: T.handleGrip),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// The panel an overlay or a menu sits on: flat, dark, with a cast shadow.

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../theme.dart';
+import 'cover.dart';
 import 'device.dart';
 
 /// A vertical bar fader: a hairline slot that widens to the handle's width
@@ -12,7 +13,7 @@ class BarFader extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.bipolar = false,
-    this.handleHeight = 7,
+    this.handleHeight = 9,
     this.scale,
     super.key,
   });
@@ -74,6 +75,8 @@ class _BarFaderState extends State<BarFader> {
           final base = widget.bipolar ? centre : height;
           final fillTop = handleY < base ? handleY : base;
           final fillHeight = (handleY - base).abs();
+          final deckTheme = DeckThemeScope.of(context);
+          final fillAccent = deckTheme?.accent ?? T.accent;
 
           return Listener(
             behavior: HitTestBehavior.opaque,
@@ -106,43 +109,36 @@ class _BarFaderState extends State<BarFader> {
               duration: _duration,
               curve: Curves.easeOut,
               builder: (context, slotWidth, _) {
+                // A gauge a touch narrower than the column, shared by the slot
+                // and the handle so both read as one instrument.
+                final gaugeW = width - scale.size(4);
+                final gaugeLeft = (width - gaugeW) / 2;
+                final slotW = gaugeW * (slotWidth / width);
+                final slotLeft = (width - slotW) / 2;
                 return Stack(
                   children: [
                     Positioned(
-                      left: (width - slotWidth) / 2,
+                      left: slotLeft,
                       top: 0,
-                      width: slotWidth,
+                      width: slotW,
                       height: height,
                       child: DecoratedBox(decoration: slotFace()),
                     ),
                     Positioned(
-                      left: (width - slotWidth) / 2,
+                      left: slotLeft,
                       top: fillTop,
-                      width: slotWidth,
+                      width: slotW,
                       height: fillHeight,
                       child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [T.accentLo, T.accent],
-                          ),
-                          boxShadow: _active
-                              ? const [
-                                  BoxShadow(color: T.glowAccent, blurRadius: 8),
-                                ]
-                              : null,
-                        ),
+                        decoration: BoxDecoration(color: fillAccent),
                       ),
                     ),
                     Positioned(
-                      left: 0,
-                      width: width,
+                      left: gaugeLeft,
+                      width: gaugeW,
                       top: handleY - handle / 2,
                       height: handle,
-                      child: DecoratedBox(
-                        decoration: handleFace(active: _active, hover: _hover),
-                      ),
+                      child: FaderHandle(active: _active, hover: _hover),
                     ),
                   ],
                 );

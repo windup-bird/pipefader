@@ -17,13 +17,31 @@ abstract final class T {
 
   /// The browser sits between the two.
   static const browser = Color(0xFF131313);
+
+  /// The browser's own header, a shade above its body.
+  static const browserBar = Color(0xFF1E1E1E);
+
+  /// The browser's raised column (the list of playlists), a step between the
+  /// body and the header so columns read as layers.
+  static const browserCol = Color(0xFF171717);
   static const surface = Color(0xFF242424);
   static const surfaceLo = Color(0xFF1E1E1E);
   static const surfaceHi = Color(0xFF2E2E2E);
   static const surfaceMid = Color(0xFF202020);
-  static const handle = Color(0xFF565656);
-  static const handleHi = Color(0xFF6E6E6E);
+
+  /// The bright grey a lit key or pad takes: high contrast against the deep
+  /// idle grey, with no colour cast of its own.
+  static const lit = Color(0xFF4A4A4A);
+  static const litHi = Color(0xFF565656);
+
+  /// The short grip line down the middle of a fader handle: brighter than the
+  /// face, so it reads as a polished ridge rather than a groove.
+  static const handleGrip = Color(0xFFEDEDED);
   static const line = Color(0xFF333333);
+
+  /// The hairline that separates bands and side-by-side units: pure black, one
+  /// pixel, so the shared grey reads as separate faces.
+  static const sep = Color(0xFF000000);
   static const track = Color(0xFF151515);
   static const hair = Color(0x1AFFFFFF);
 
@@ -48,6 +66,20 @@ abstract final class T {
   static const accentHi = Color(0xFFCFE2FF);
   static const error = Color(0xFFE5484D);
   static const warn = Color(0xFFF0A93B);
+
+  // Pad colors: 8 for CUE mode, single color for LOOP/JUMP.
+  static const padCueColors = <Color>[
+    Color(0xFFE5484D), // red
+    Color(0xFFF0A93B), // orange
+    Color(0xFFF7C544), // yellow
+    Color(0xFF6EE7B7), // mint
+    Color(0xFF3B82F6), // blue
+    Color(0xFF9B7EDE), // purple
+    Color(0xFFEC4899), // pink
+    Color(0xFFFF6B9D), // rose
+  ];
+  static const padLoopColor = Color(0xFF3B82F6); // blue
+  static const padJumpColor = Color(0xFF6EE7B7); // green
 
   // Waveform.
   static const waveLo = Color(0xFF24579F);

@@ -6,6 +6,7 @@ import '../state/app_model.dart';
 import '../theme.dart';
 import '../units/unit_body.dart';
 import '../widgets/bar_fader.dart';
+import '../widgets/cover.dart';
 import '../widgets/glyph.dart';
 import '../widgets/transport_keys.dart';
 import '../widgets/unit_header.dart';
@@ -29,56 +30,59 @@ class PhoneDeck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final keyH = controlKeyHeight(constraints.maxHeight);
-        final scale = ControlScale(constraints.maxHeight);
-        final leftW = (width * 0.23).clamp(64.0, 94.0);
-        final faderW = (width * 0.15).clamp(44.0, 62.0);
-        final left = SizedBox(
-          width: leftW,
-          child: TransportKeys(
-            model: model,
-            deck: deck,
-            column: column,
-            usePhoneDecks: true,
-            keyHeight: keyH,
-            scale: scale,
-          ),
-        );
-        final unit = Expanded(
-          child: _PhoneUnit(
-            model: model,
-            deck: deck,
-            keyHeight: keyH,
-            scale: scale,
-          ),
-        );
-        final fader = SizedBox(
-          width: faderW,
-          child: _Fader(model: model, deck: deck, scale: scale),
-        );
-        final children = mirrored
-            ? <Widget>[
-                fader,
-                const SizedBox(width: 6),
-                unit,
-                const SizedBox(width: 6),
-                left,
-              ]
-            : <Widget>[
-                left,
-                const SizedBox(width: 6),
-                unit,
-                const SizedBox(width: 6),
-                fader,
-              ];
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        );
-      },
+    return DeckThemeScope(
+      theme: DeckTheme(deck.index),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final keyH = controlKeyHeight(constraints.maxHeight);
+          final scale = ControlScale(constraints.maxHeight);
+          final leftW = (width * 0.23).clamp(64.0, 94.0);
+          final faderW = (width * 0.15).clamp(44.0, 62.0);
+          final left = SizedBox(
+            width: leftW,
+            child: TransportKeys(
+              model: model,
+              deck: deck,
+              column: column,
+              usePhoneDecks: true,
+              keyHeight: keyH,
+              scale: scale,
+            ),
+          );
+          final unit = Expanded(
+            child: _PhoneUnit(
+              model: model,
+              deck: deck,
+              keyHeight: keyH,
+              scale: scale,
+            ),
+          );
+          final fader = SizedBox(
+            width: faderW,
+            child: _Fader(model: model, deck: deck, scale: scale),
+          );
+          final children = mirrored
+              ? <Widget>[
+                  fader,
+                  const SizedBox(width: 6),
+                  unit,
+                  const SizedBox(width: 6),
+                  left,
+                ]
+              : <Widget>[
+                  left,
+                  const SizedBox(width: 6),
+                  unit,
+                  const SizedBox(width: 6),
+                  fader,
+                ];
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          );
+        },
+      ),
     );
   }
 }

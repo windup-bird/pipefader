@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../state/app_model.dart';
 import '../theme.dart';
+import '../format.dart';
 import '../widgets/buttons.dart';
 import '../widgets/device.dart';
 import '../widgets/glyph.dart';
@@ -82,96 +83,106 @@ class _AppMenu extends StatelessWidget {
               final selected = model.forcedLayout ?? current;
               final options = deckOptionsFor(selected);
               final count = model.deckCountFor(selected);
-              return DecoratedBox(
-                decoration: panelFace(),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const LogoMark(size: 46),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          for (
-                            var i = 0;
-                            i < LayoutMode.values.length;
-                            i++
-                          ) ...[
-                            if (i > 0) const SizedBox(width: 4),
-                            Expanded(
-                              child: _Chip(
-                                key: ValueKey(
-                                  'layout-${LayoutMode.values[i].name}',
+              return DefaultTextStyle.merge(
+                style: const TextStyle(
+                  fontSize: T.s13,
+                  color: T.text,
+                  decoration: TextDecoration.none,
+                ),
+                child: DecoratedBox(
+                  decoration: panelFace(),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const LogoMark(size: 46),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            for (
+                              var i = 0;
+                              i < LayoutMode.values.length;
+                              i++
+                            ) ...[
+                              if (i > 0) const SizedBox(width: 4),
+                              Expanded(
+                                child: _Chip(
+                                  key: ValueKey(
+                                    'layout-${LayoutMode.values[i].name}',
+                                  ),
+                                  label: LayoutMode.values[i].label,
+                                  selected: LayoutMode.values[i] == selected,
+                                  small: true,
+                                  onTap: () {
+                                    model.setLayout(LayoutMode.values[i]);
+                                    onDismiss();
+                                  },
                                 ),
-                                label: LayoutMode.values[i].label,
-                                selected: LayoutMode.values[i] == selected,
-                                small: true,
-                                onTap: () {
-                                  model.setLayout(LayoutMode.values[i]);
-                                  onDismiss();
-                                },
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const SizedBox(
-                            width: 52,
-                            child: Text('DECKS', style: Ty.labelSmall),
-                          ),
-                          for (var i = 0; i < options.length; i++) ...[
-                            if (i > 0) const SizedBox(width: 4),
-                            SizedBox(
-                              width: 34,
-                              child: _Chip(
-                                key: ValueKey('decks-${options[i]}'),
-                                label: '${options[i]}',
-                                selected: options[i] == count,
-                                onTap: () {
-                                  if (selected.usesFullDecks) {
-                                    model.setFullDecks(options[i]);
-                                  } else {
-                                    model.setPhoneDecks(options[i]);
-                                  }
-                                },
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 52,
+                              child: Text('Decks', style: Ty.labelSmall),
+                            ),
+                            for (var i = 0; i < options.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 4),
+                              SizedBox(
+                                width: 34,
+                                child: _Chip(
+                                  key: ValueKey('decks-${options[i]}'),
+                                  label: '${options[i]}',
+                                  selected: options[i] == count,
+                                  onTap: () {
+                                    if (selected.usesFullDecks) {
+                                      model.setFullDecks(options[i]);
+                                    } else {
+                                      model.setPhoneDecks(options[i]);
+                                    }
+                                  },
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _ActionRow(
-                        key: const ValueKey('menu-controller'),
-                        label: 'controller',
-                        onTap: () => onInfo('CONTROLLER', const [
-                          'NO CONTROLLER CONNECTED',
-                          'MIDI IN  —',
-                          'MAP  —',
-                        ]),
-                      ),
-                      _ActionRow(
-                        key: const ValueKey('menu-output'),
-                        label: 'output',
-                        onTap: () => onInfo('OUTPUT', const [
-                          'MAIN  44.1 kHz',
-                          'BOOTH  OFF',
-                          'HEADPHONES  OFF',
-                        ]),
-                      ),
-                      _ActionRow(
-                        key: const ValueKey('menu-settings'),
-                        label: 'settings',
-                        onTap: () => onInfo('SETTINGS', const [
-                          'TEMPO RANGE  ±8%',
-                          'KEYLOCK  ON',
-                          'WAVEFORM  3-BAND',
-                        ]),
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 14),
+                        _ActionRow(
+                          key: const ValueKey('menu-controller'),
+                          label: 'controller',
+                          glyph: GlyphKind.controller,
+                          onTap: () => onInfo('CONTROLLER', const [
+                            'NO CONTROLLER CONNECTED',
+                            'MIDI IN  —',
+                            'MAP  —',
+                          ]),
+                        ),
+                        _ActionRow(
+                          key: const ValueKey('menu-output'),
+                          label: 'output',
+                          glyph: GlyphKind.output,
+                          onTap: () => onInfo('OUTPUT', const [
+                            'MAIN  44.1 kHz',
+                            'BOOTH  OFF',
+                            'HEADPHONES  OFF',
+                          ]),
+                        ),
+                        _ActionRow(
+                          key: const ValueKey('menu-settings'),
+                          label: 'settings',
+                          glyph: GlyphKind.settings,
+                          onTap: () => onInfo('SETTINGS', const [
+                            'TEMPO RANGE  ±8%',
+                            'KEYLOCK  ON',
+                            'WAVEFORM  3-BAND',
+                          ]),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -212,55 +223,62 @@ void _showInfoPanel(
         Center(
           child: SizedBox(
             width: width,
-            child: DecoratedBox(
-              decoration: panelFace(color: T.surfaceHi),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 14, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: Ty.label.copyWith(
-                              color: T.text,
-                              fontSize: T.s11,
-                            ),
-                          ),
-                        ),
-                        GlyphButton(
-                          glyph: GlyphKind.close,
-                          size: 22,
-                          onTap: dismiss,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    for (final row in rows)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            Container(width: 4, height: 4, color: T.accent),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                row,
-                                style: const TextStyle(
-                                  fontSize: T.s11,
-                                  color: T.dim,
-                                  height: 1.2,
-                                  letterSpacing: 0.6,
-                                ),
+            child: DefaultTextStyle.merge(
+              style: const TextStyle(
+                fontSize: T.s13,
+                color: T.text,
+                decoration: TextDecoration.none,
+              ),
+              child: DecoratedBox(
+                decoration: panelFace(color: T.surfaceHi),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 14, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              capitalizeWords(title),
+                              style: Ty.label.copyWith(
+                                color: T.text,
+                                fontSize: T.s11,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          GlyphButton(
+                            glyph: GlyphKind.close,
+                            size: 22,
+                            onTap: dismiss,
+                          ),
+                        ],
                       ),
-                  ],
+                      const SizedBox(height: 16),
+                      for (final row in rows)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            children: [
+                              Container(width: 4, height: 4, color: T.accent),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  capitalizeWords(row),
+                                  style: const TextStyle(
+                                    fontSize: T.s11,
+                                    color: T.dim,
+                                    height: 1.2,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -307,14 +325,14 @@ class _ChipState extends State<_Chip> {
           decoration: keyFace(active: widget.selected, hover: _hover),
           alignment: Alignment.center,
           child: Text(
-            widget.label.toUpperCase(),
+            capitalizeWords(widget.label),
             maxLines: 1,
             overflow: TextOverflow.clip,
             style: Ty.labelSmall.copyWith(
               fontSize: T.s9,
               letterSpacing: widget.small ? 0.4 : 0.8,
               color: widget.selected
-                  ? T.bg
+                  ? T.text
                   : _hover
                   ? T.text
                   : T.dim,
@@ -327,9 +345,15 @@ class _ChipState extends State<_Chip> {
 }
 
 class _ActionRow extends StatefulWidget {
-  const _ActionRow({required this.label, required this.onTap, super.key});
+  const _ActionRow({
+    required this.label,
+    required this.glyph,
+    required this.onTap,
+    super.key,
+  });
 
   final String label;
+  final GlyphKind glyph;
   final VoidCallback onTap;
 
   @override
@@ -354,9 +378,11 @@ class _ActionRowState extends State<_ActionRow> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Row(
             children: [
+              Glyph(widget.glyph, size: 15, color: _hover ? T.accent : T.dim),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  widget.label.toUpperCase(),
+                  capitalizeWords(widget.label),
                   style: Ty.menuRow.copyWith(color: _hover ? T.text : T.dim),
                 ),
               ),

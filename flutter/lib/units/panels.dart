@@ -6,6 +6,7 @@ import '../state/app_model.dart';
 import '../theme.dart';
 import '../widgets/bar_fader.dart';
 import '../widgets/buttons.dart';
+import '../widgets/cover.dart';
 import '../widgets/device.dart';
 import '../widgets/glyph.dart';
 import '../widgets/pad_grid.dart';
@@ -85,7 +86,7 @@ class TempoPanel extends StatelessWidget {
           syncLabel,
           style: Ty.label.copyWith(
             fontSize: s.font(T.s10),
-            color: synced ? T.accent : T.faint,
+            color: synced ? DeckThemeScope.accentOf(context) : T.faint,
           ),
         ),
         SizedBox(height: s.size(4)),
@@ -197,7 +198,7 @@ class _BendRow extends StatelessWidget {
           bending ? 'BEND ${tempoText(1 + deck.nudge)}' : 'BEND',
           style: Ty.label.copyWith(
             fontSize: scale.font(T.s10),
-            color: bending ? T.accent : T.faint,
+            color: bending ? DeckThemeScope.accentOf(context) : T.faint,
           ),
         ),
         SizedBox(width: scale.size(8)),
@@ -345,9 +346,7 @@ class FxPanel extends StatelessWidget {
           SizedBox(height: s.size(4)),
           SizedBox(
             height: s.size(24),
-            child: Center(
-              child: _FxName(model: model, deck: deck, scale: s),
-            ),
+            child: _FxName(model: model, deck: deck, scale: s, fill: true),
           ),
         ],
       ),
@@ -442,7 +441,6 @@ class _MixerMaxFader extends StatelessWidget {
           child: BarFader(
             value: value,
             bipolar: bipolar,
-            handleHeight: 4,
             scale: scale,
             onChanged: onChanged,
           ),
@@ -477,7 +475,7 @@ class ParamBar extends StatefulWidget {
 }
 
 class _ParamBarState extends State<ParamBar> {
-  static const _handleW = 8.0;
+  static const _handleW = 9.0;
 
   bool _active = false;
   bool _hover = false;
@@ -508,6 +506,7 @@ class _ParamBarState extends State<ParamBar> {
   Widget build(BuildContext context) {
     final scale = widget.scale ?? ControlScale.fallback;
     final handleW = scale.size(_handleW);
+    final handleMargin = scale.size(2);
     return Row(
       children: [
         SizedBox(
@@ -524,6 +523,8 @@ class _ParamBarState extends State<ParamBar> {
               final width = constraints.maxWidth;
               final height = constraints.maxHeight;
               final handleX = handleW / 2 + _value * (width - handleW);
+              final deckTheme = DeckThemeScope.of(context);
+              final fillAccent = deckTheme?.accent ?? T.accent;
               return MouseRegion(
                 cursor: SystemMouseCursors.resizeLeftRight,
                 onEnter: (_) => setState(() => _hover = true),
@@ -572,33 +573,18 @@ class _ParamBarState extends State<ParamBar> {
                             width: handleX,
                             height: slot,
                             child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [T.accentLo, T.accent],
-                                ),
-                                boxShadow: _active
-                                    ? const [
-                                        BoxShadow(
-                                          color: T.glowAccent,
-                                          blurRadius: 8,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
+                              decoration: BoxDecoration(color: fillAccent),
                             ),
                           ),
                           Positioned(
                             left: handleX - handleW / 2,
-                            top: 0,
+                            top: handleMargin,
                             width: handleW,
-                            height: height,
-                            child: DecoratedBox(
-                              decoration: handleFace(
-                                active: _active,
-                                hover: _hover,
-                              ),
+                            height: height - handleMargin * 2,
+                            child: FaderHandle(
+                              vertical: true,
+                              active: _active,
+                              hover: _hover,
                             ),
                           ),
                         ],
@@ -621,11 +607,16 @@ class _FxName extends StatefulWidget {
     required this.deck,
     required this.scale,
     this.compact = false,
+    this.fill = false,
   });
 
   final AppModel model;
   final DeckRuntime deck;
   final bool compact;
+
+  /// When true the name key stretches to fill the row, so it lines up with the
+  /// beats strip above it.
+  final bool fill;
   final ControlScale scale;
 
   @override
@@ -643,70 +634,79 @@ class _FxNameState extends State<_FxName> {
     final compact = widget.compact;
     final s = widget.scale;
     final rowH = s.size(compact ? 18 : 24);
+    final nameKey = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _nameHover = true),
+      onExit: (_) => setState(() => _nameHover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.model.toggleFx(widget.deck),
+        child: Container(
+          height: rowH,
+          padding: EdgeInsets.symmetric(horizontal: s.size(compact ? 5 : 8)),
+          decoration: keyFace(active: on, hover: _nameHover),
+          alignment: Alignment.center,
+          child: Text(
+            fxSlots[widget.deck.fxSlot],
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: Ty.label.copyWith(
+              fontSize: s.font(compact ? T.s8 : T.s10),
+              color: on
+                  ? T.text
+                  : _nameHover
+                  ? T.text
+                  : T.dim,
+            ),
+          ),
+        ),
+      ),
+    );
+    final selectKey = SizedBox(
+      width: s.size(compact ? 16 : 20),
+      height: rowH,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _selectHover = true),
+        onExit: (_) => setState(() => _selectHover = false),
+        child: GestureDetector(
+          key: _anchor,
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showChoiceMenu(
+            context: context,
+            anchorKey: _anchor,
+            labels: fxSlots,
+            current: widget.deck.fxSlot,
+            onSelect: (index) => widget.model.setFxSlot(widget.deck, index),
+          ),
+          child: Container(
+            decoration: keyFace(hover: _selectHover),
+            child: Center(
+              child: Glyph(
+                GlyphKind.dropdown,
+                size: s.size(compact ? 7 : 8),
+                color: _selectHover ? T.text : T.faint,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (widget.fill) {
+      return Row(
+        children: [
+          Expanded(child: nameKey),
+          SizedBox(width: s.size(4)),
+          selectKey,
+        ],
+      );
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _nameHover = true),
-          onExit: (_) => setState(() => _nameHover = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => widget.model.toggleFx(widget.deck),
-            child: Container(
-              height: rowH,
-              padding: EdgeInsets.symmetric(
-                horizontal: s.size(compact ? 5 : 8),
-              ),
-              decoration: keyFace(active: on, hover: _nameHover),
-              alignment: Alignment.center,
-              child: Text(
-                fxSlots[widget.deck.fxSlot].toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: Ty.label.copyWith(
-                  fontSize: s.font(compact ? T.s8 : T.s10),
-                  color: on
-                      ? T.bg
-                      : _nameHover
-                      ? T.text
-                      : T.dim,
-                ),
-              ),
-            ),
-          ),
-        ),
+        nameKey,
         SizedBox(width: s.size(compact ? 2 : 4)),
-        SizedBox(
-          width: s.size(compact ? 16 : 20),
-          height: rowH,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            onEnter: (_) => setState(() => _selectHover = true),
-            onExit: (_) => setState(() => _selectHover = false),
-            child: GestureDetector(
-              key: _anchor,
-              behavior: HitTestBehavior.opaque,
-              onTap: () => showChoiceMenu(
-                context: context,
-                anchorKey: _anchor,
-                labels: fxSlots,
-                current: widget.deck.fxSlot,
-                onSelect: (index) => widget.model.setFxSlot(widget.deck, index),
-              ),
-              child: Container(
-                decoration: keyFace(hover: _selectHover),
-                child: Center(
-                  child: Glyph(
-                    GlyphKind.dropdown,
-                    size: s.size(compact ? 7 : 8),
-                    color: _selectHover ? T.text : T.faint,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        selectKey,
       ],
     );
   }

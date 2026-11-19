@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../format.dart';
 import '../theme.dart';
+import 'cover.dart';
 import 'device.dart';
 import 'glyph.dart';
 
@@ -43,7 +45,7 @@ class _PanelButtonState extends State<PanelButton> {
     final style =
         widget.style ?? Ty.button.copyWith(fontSize: scale.font(T.s10));
     final foreground = active
-        ? T.bg
+        ? T.text
         : !enabled
         ? T.faint
         : _hover
@@ -74,7 +76,7 @@ class _PanelButtonState extends State<PanelButton> {
           ),
           alignment: Alignment.center,
           child: Text(
-            widget.label.toUpperCase(),
+            capitalizeWords(widget.label),
             maxLines: 1,
             overflow: TextOverflow.clip,
             style: style.copyWith(color: foreground),
@@ -121,7 +123,7 @@ class _GlassKeyState extends State<GlassKey> {
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     final foreground = widget.active
-        ? T.bg
+        ? T.text
         : !enabled
         ? T.faint
         : _hover
@@ -177,7 +179,7 @@ class _GlassKeyState extends State<GlassKey> {
                             fontSize: scale.font(T.s8) * 0.9,
                             height: 1.0,
                             color: widget.active
-                                ? T.bg.withValues(alpha: 0.72)
+                                ? T.text.withValues(alpha: 0.72)
                                 : T.dim,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.6,
@@ -254,7 +256,7 @@ class _GlyphButtonState extends State<GlyphButton> {
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     final foreground = widget.active
-        ? T.bg
+        ? T.text
         : !enabled
         ? T.faint
         : _hover
@@ -343,10 +345,10 @@ class _HoldKeyState extends State<HoldKey> {
           decoration: keyFace(active: active),
           alignment: Alignment.center,
           child: Text(
-            widget.label.toUpperCase(),
+            capitalizeWords(widget.label),
             style: Ty.button.copyWith(
               fontSize: (widget.scale ?? ControlScale.fallback).font(T.s10),
-              color: active ? T.bg : T.dim,
+              color: active ? T.text : T.dim,
             ),
           ),
         ),
@@ -431,7 +433,7 @@ class _ModeTabState extends State<_ModeTab> {
   @override
   Widget build(BuildContext context) {
     final color = widget.selected
-        ? T.accent
+        ? DeckThemeScope.accentOf(context)
         : _hover
         ? T.text
         : T.faint;

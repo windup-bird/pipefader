@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
 import 'control_phone.dart';
+import 'browser_pane.dart';
 import 'deck_info.dart';
 import 'header.dart';
 import 'layout_mode.dart';
@@ -50,16 +51,57 @@ class StackedLayout extends StatelessWidget {
             ),
           ),
         );
-        final control = ColoredBox(
-          color: T.band,
-          child: SizedBox(
-            height: controlH,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(hpad, 2, hpad, 2),
-              child: PhoneControlColumn(model: model),
+        final control = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2, child: ColoredBox(color: T.sep)),
+            SizedBox(
+              height: controlH,
+              child: ColoredBox(
+                color: T.band,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(hpad, 2, hpad, 2),
+                  child: PhoneControlColumn(model: model),
+                ),
+              ),
             ),
-          ),
+          ],
         );
+
+        // Browsing keeps the deck identities stacked at the top and gives the
+        // rest to the single-column browser; waveforms and controls hide.
+        if (model.browserOverlayOpen) {
+          return ColoredBox(
+            color: T.band,
+            child: Column(
+              children: [
+                header,
+                for (final deck in decks)
+                  SizedBox(
+                    height: _maxInfoH + _infoPadY * 2,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        hpad,
+                        _infoPadY,
+                        hpad,
+                        _infoPadY,
+                      ),
+                      child: DeckInfo(
+                        model: model,
+                        deck: deck,
+                        height: _maxInfoH,
+                        secondsOnly: deckCount > 2,
+                        onCoverTap: model.closeBrowserOverlay,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: PhoneBrowserPane(model: model, deck: decks.first),
+                ),
+              ],
+            ),
+          );
+        }
 
         if (fits) {
           return Column(

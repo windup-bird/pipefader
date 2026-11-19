@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../state/app_model.dart';
 import '../model/deck.dart';
+import '../format.dart';
 import '../theme.dart';
 import '../widgets/buttons.dart';
 import '../widgets/device.dart';
@@ -77,7 +78,7 @@ class _BeatBarState extends State<BeatBar> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              mode.label.toUpperCase(),
+              capitalizeWords(mode.label),
               style: Ty.labelSmall.copyWith(
                 fontSize: s.font(T.s8) * 0.9,
                 color: T.text,

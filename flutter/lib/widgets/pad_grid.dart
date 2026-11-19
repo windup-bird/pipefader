@@ -3,7 +3,6 @@ import 'package:material_ui/material_ui.dart';
 import '../model/deck.dart';
 import '../state/app_model.dart';
 import '../theme.dart';
-import 'device.dart';
 
 /// Eight pads in two rows of four. The pad-mode switches live above the slot,
 /// not in here.
@@ -30,6 +29,17 @@ class PadGrid extends StatelessWidget {
     }
   }
 
+  Color _colorOf(int index) {
+    switch (deck.padMode) {
+      case PadMode.cue:
+        return T.padCueColors[index % T.padCueColors.length];
+      case PadMode.loop:
+        return T.padLoopColor;
+      case PadMode.jump:
+        return T.padJumpColor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final labels = deck.padMode.pads;
@@ -39,6 +49,7 @@ class PadGrid extends StatelessWidget {
       child: Pad(
         label: labels[index],
         lit: _isLit(index),
+        color: _colorOf(index),
         scale: s,
         onTap: () => model.tapPad(deck, index),
       ),
@@ -68,6 +79,7 @@ class Pad extends StatefulWidget {
   const Pad({
     required this.label,
     required this.lit,
+    required this.color,
     required this.scale,
     required this.onTap,
     super.key,
@@ -75,6 +87,7 @@ class Pad extends StatefulWidget {
 
   final String label;
   final bool lit;
+  final Color color;
   final ControlScale scale;
   final VoidCallback onTap;
 
@@ -89,6 +102,17 @@ class _PadState extends State<Pad> {
   @override
   Widget build(BuildContext context) {
     final lit = widget.lit;
+    final color = widget.color;
+    // Idle is neutral deep grey with a dim strip; a hit lifts the face to the
+    // bright grey and lights the colour strip. No glow, no gradient.
+    final face = lit
+        ? T.lit
+        : _pressed
+        ? const Color(0xFF202020)
+        : _hover
+        ? T.surfaceHi
+        : T.surface;
+    final stripColor = lit ? color : T.line;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -104,16 +128,41 @@ class _PadState extends State<Pad> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 90),
           curve: Curves.easeOut,
-          decoration: keyFace(active: lit, pressed: _pressed, hover: _hover),
-          alignment: Alignment.center,
-          child: Text(
-            widget.label,
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: Ty.pad.copyWith(
-              fontSize: widget.scale.font(T.s12),
-              color: lit ? T.bg : (_hover ? T.text : T.dim),
-            ),
+          decoration: BoxDecoration(
+            color: face,
+            border: const Border(top: BorderSide(color: T.highlight, width: 1)),
+            boxShadow: const [
+              BoxShadow(
+                color: T.shadowSoft,
+                offset: Offset(0, 1),
+                blurRadius: 2,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: Ty.pad.copyWith(
+                    fontSize: widget.scale.font(T.s12),
+                    color: lit ? T.text : (_hover ? T.text : T.dim),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Container(
+                    width: constraints.maxWidth * 0.5,
+                    height: widget.scale.size(3, min: 2, max: 5),
+                    color: stripColor,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

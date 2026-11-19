@@ -43,226 +43,249 @@ class DeckInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final row1H = height / 5;
-          final row2H = height * 2 / 5;
-          final topH = row1H + row2H;
-          final overviewH = height - topH;
-          final showTempo = width >= _minTempoWidth;
-          final showKey = width >= _minKeyWidth;
-          final showKeylock = showKey && width >= _minKeylockWidth;
-          final tempoW = secondsOnly
-              ? _tempoSecondsWidth
-              : (width < 360 ? _tempoNarrowWidth : _tempoWidth);
-          final timeW = secondsOnly ? _timeSecondsWidth : _timeFullWidth;
+    final deckTheme = DeckTheme(deck.index);
+    final accent = deckTheme.accent;
+    return ColoredBox(
+      color: T.band,
+      child: DeckThemeScope(
+        theme: deckTheme,
+        child: SizedBox(
+          height: height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final row1H = height / 5;
+              final row2H = height * 2 / 5;
+              final topH = row1H + row2H;
+              final overviewH = height - topH;
+              final showTempo = width >= _minTempoWidth;
+              final showKey = width >= _minKeyWidth;
+              final showKeylock = showKey && width >= _minKeylockWidth;
+              final tempoW = secondsOnly
+                  ? _tempoSecondsWidth
+                  : (width < 360 ? _tempoNarrowWidth : _tempoWidth);
+              final timeW = secondsOnly ? _timeSecondsWidth : _timeFullWidth;
 
-          double typeSize(double row, double share, double min, double max) =>
-              (row * share).clamp(min, max).toDouble();
+              double typeSize(
+                double row,
+                double share,
+                double min,
+                double max,
+              ) => (row * share).clamp(min, max).toDouble();
 
-          final titleSize = typeSize(row2H, 0.80, 8, 15);
-          final artistSize = typeSize(row1H, 0.86, 6, 8);
-          final keySize = typeSize(row2H, 0.78, 9, 15);
-          final bpmSize = typeSize(row2H, 0.76, 9, 15);
-          final timeSize = typeSize(row2H, 0.76, 8, 15);
-          final metaSize = typeSize(row1H, 0.88, 6, 9);
-          final lockSize = (row1H - 2).clamp(6.0, 11.0).toDouble();
+              final titleSize = typeSize(row2H, 0.80, 8, 15);
+              final artistSize = typeSize(row1H, 0.86, 6, 8);
+              final keySize = typeSize(row2H, 0.78, 9, 15);
+              final bpmSize = typeSize(row2H, 0.76, 9, 15);
+              final timeSize = typeSize(row2H, 0.76, 8, 15);
+              final metaSize = typeSize(row1H, 0.88, 6, 9);
+              final lockSize = (row1H - 2).clamp(6.0, 11.0).toDouble();
 
-          Widget cell(double h, Alignment alignment, Widget? child) => SizedBox(
-            height: h,
-            child: Align(alignment: alignment, child: child),
-          );
+              Widget cell(double h, Alignment alignment, Widget? child) =>
+                  SizedBox(
+                    height: h,
+                    child: Align(alignment: alignment, child: child),
+                  );
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: topH,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onCoverTap,
-                      child: MouseRegion(
-                        cursor: onCoverTap == null
-                            ? MouseCursor.defer
-                            : SystemMouseCursors.click,
-                        child: CoverArt(size: topH, seed: deck.view.coverSeed),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              children: [
-                                cell(
-                                  row1H,
-                                  Alignment.centerLeft,
-                                  Text(
-                                    deck.view.artist.toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Ty.artist.copyWith(
-                                      fontSize: artistSize,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                                cell(
-                                  row2H,
-                                  Alignment.centerLeft,
-                                  Text(
-                                    deck.view.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Ty.title.copyWith(
-                                      fontSize: titleSize,
-                                    ),
-                                  ),
-                                ),
-                              ],
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: topH,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onCoverTap,
+                          child: MouseRegion(
+                            cursor: onCoverTap == null
+                                ? MouseCursor.defer
+                                : SystemMouseCursors.click,
+                            child: CoverArt(
+                              size: topH,
+                              seed: deck.view.coverSeed,
+                              color: accent,
                             ),
                           ),
-                          if (showKey) ...[
-                            const SizedBox(width: 4),
-                            SizedBox(
-                              width: _keyWidth,
-                              child: Column(
-                                children: [
-                                  cell(
-                                    row1H,
-                                    Alignment.centerRight,
-                                    showKeylock
-                                        ? _Keylock(
-                                            on: deck.keylock,
-                                            size: lockSize,
-                                            onTap: () =>
-                                                model.toggleKeylock(deck),
-                                          )
-                                        : null,
-                                  ),
-                                  cell(
-                                    row2H,
-                                    Alignment.centerRight,
-                                    Text(
-                                      deck.view.key,
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.clip,
-                                      style: Ty.key.copyWith(fontSize: keySize),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (showTempo)
-                            SizedBox(
-                              width: tempoW,
-                              child: TempoControl(
-                                model: model,
-                                deck: deck,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
                                 child: Column(
                                   children: [
                                     cell(
                                       row1H,
-                                      Alignment.centerRight,
+                                      Alignment.centerLeft,
                                       Text(
-                                        tempoText(deck.tempo),
+                                        deck.view.artist.toUpperCase(),
                                         maxLines: 1,
-                                        style: Ty.meta.copyWith(
-                                          fontSize: metaSize,
-                                          color: deck.tempo == 1.0
-                                              ? T.dim
-                                              : T.accent,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Ty.artist.copyWith(
+                                          fontSize: artistSize,
+                                          letterSpacing: 0.8,
                                         ),
                                       ),
                                     ),
                                     cell(
                                       row2H,
-                                      Alignment.centerRight,
+                                      Alignment.centerLeft,
                                       Text(
-                                        bpmText(deck.bpm),
+                                        deck.view.title,
                                         maxLines: 1,
-                                        style: Ty.num.copyWith(
-                                          fontSize: bpmSize,
-                                          fontWeight: FontWeight.w700,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Ty.title.copyWith(
+                                          fontSize: titleSize,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          SizedBox(
-                            width: timeW,
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: model.clock,
-                              builder: (context, _, _) {
-                                final rate = deck.view.sampleRate;
-                                // Floor the elapsed seconds but round the
-                                // remainder up, so the countdown does not show
-                                // 0:00 before the track actually ends.
-                                final elapsed = secondsOnly
-                                    ? shortClock(deck.frame ~/ rate)
-                                    : clock(deck.frame, rate);
-                                final remaining = secondsOnly
-                                    ? '-${shortClock(((deck.view.totalFrames - deck.frame) / rate).ceil())}'
-                                    : '-${clock(deck.view.totalFrames - deck.frame, rate)}';
-                                return Column(
-                                  children: [
-                                    cell(
-                                      row1H,
-                                      Alignment.centerRight,
-                                      Text(
-                                        elapsed,
-                                        maxLines: 1,
-                                        style: Ty.meta.copyWith(
-                                          fontSize: metaSize,
+                              if (showKey) ...[
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: _keyWidth,
+                                  child: Column(
+                                    children: [
+                                      cell(
+                                        row1H,
+                                        Alignment.centerRight,
+                                        showKeylock
+                                            ? _Keylock(
+                                                on: deck.keylock,
+                                                size: lockSize,
+                                                onTap: () =>
+                                                    model.toggleKeylock(deck),
+                                              )
+                                            : null,
+                                      ),
+                                      cell(
+                                        row2H,
+                                        Alignment.centerRight,
+                                        Text(
+                                          deck.view.key,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          overflow: TextOverflow.clip,
+                                          style: Ty.key.copyWith(
+                                            fontSize: keySize,
+                                            color: accent,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    cell(
-                                      row2H,
-                                      Alignment.centerRight,
-                                      Text(
-                                        remaining,
-                                        maxLines: 1,
-                                        style: Ty.num.copyWith(
-                                          fontSize: timeSize,
-                                          fontWeight: FontWeight.w600,
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (showTempo)
+                                SizedBox(
+                                  width: tempoW,
+                                  child: TempoControl(
+                                    model: model,
+                                    deck: deck,
+                                    child: Column(
+                                      children: [
+                                        cell(
+                                          row1H,
+                                          Alignment.centerRight,
+                                          Text(
+                                            tempoText(deck.tempo),
+                                            maxLines: 1,
+                                            style: Ty.meta.copyWith(
+                                              fontSize: metaSize,
+                                              color: deck.tempo == 1.0
+                                                  ? T.dim
+                                                  : accent,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        cell(
+                                          row2H,
+                                          Alignment.centerRight,
+                                          Text(
+                                            bpmText(deck.bpm),
+                                            maxLines: 1,
+                                            style: Ty.num.copyWith(
+                                              fontSize: bpmSize,
+                                              fontWeight: FontWeight.w700,
+                                              color: bpmColor(deck.tempo),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                );
-                              },
-                            ),
+                                  ),
+                                ),
+                              SizedBox(
+                                width: timeW,
+                                child: ValueListenableBuilder<int>(
+                                  valueListenable: model.clock,
+                                  builder: (context, _, _) {
+                                    final rate = deck.view.sampleRate;
+                                    // Floor the elapsed seconds but round the
+                                    // remainder up, so the countdown does not show
+                                    // 0:00 before the track actually ends.
+                                    final elapsed = secondsOnly
+                                        ? shortClock(deck.frame ~/ rate)
+                                        : clock(deck.frame, rate);
+                                    final remaining = secondsOnly
+                                        ? '-${shortClock(((deck.view.totalFrames - deck.frame) / rate).ceil())}'
+                                        : '-${clock(deck.view.totalFrames - deck.frame, rate)}';
+                                    return Column(
+                                      children: [
+                                        cell(
+                                          row1H,
+                                          Alignment.centerRight,
+                                          Text(
+                                            elapsed,
+                                            maxLines: 1,
+                                            style: Ty.meta.copyWith(
+                                              fontSize: metaSize,
+                                            ),
+                                          ),
+                                        ),
+                                        cell(
+                                          row2H,
+                                          Alignment.centerRight,
+                                          Text(
+                                            remaining,
+                                            maxLines: 1,
+                                            style: Ty.num.copyWith(
+                                              fontSize: timeSize,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: overviewH,
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: model.clock,
+                      builder: (context, _, _) => Overview(
+                        deck: deck.view,
+                        frame: deck.frame.toDouble(),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                height: overviewH,
-                child: ValueListenableBuilder<int>(
-                  valueListenable: model.clock,
-                  builder: (context, _, _) =>
-                      Overview(deck: deck.view, frame: deck.frame.toDouble()),
-                ),
-              ),
-            ],
-          );
-        },
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -287,7 +310,7 @@ class _Keylock extends StatelessWidget {
           child: Glyph(
             GlyphKind.keylock,
             size: size,
-            color: on ? T.accent : T.faint,
+            color: on ? DeckThemeScope.accentOf(context) : T.faint,
           ),
         ),
       ),
