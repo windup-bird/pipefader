@@ -36,7 +36,6 @@ class _UnitHeaderState extends State<UnitHeader> {
   Widget build(BuildContext context) {
     final options = widget.model.unitOptions(widget.deck, widget.slot);
     final s = widget.scale ?? ControlScale.fallback;
-    final tabSize = s.font(T.s12);
     final gearSize = s.size(18);
     return SizedBox(
       height: widget.height,
@@ -49,7 +48,8 @@ class _UnitHeaderState extends State<UnitHeader> {
                 widget.model.unitOf(widget.deck, widget.slot),
               ),
               scrollable: true,
-              fontSize: tabSize,
+              fontSize: T.s11,
+              scale: s,
               onSelect: (index) => widget.model.selectUnit(
                 widget.deck,
                 widget.slot,

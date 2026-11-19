@@ -14,12 +14,14 @@ class WaveformRow extends StatelessWidget {
     required this.model,
     required this.deck,
     this.showBeatBar = true,
+    this.stacked = false,
     super.key,
   });
 
   final AppModel model;
   final DeckRuntime deck;
   final bool showBeatBar;
+  final bool stacked;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +32,6 @@ class WaveformRow extends StatelessWidget {
               showBeatBar &&
               constraints.maxWidth >= 240 &&
               constraints.maxHeight >= 34;
-          final scale = ControlScale.wave(constraints.maxHeight);
           return Stack(
             children: [
               Positioned.fill(
@@ -45,8 +46,17 @@ class WaveformRow extends StatelessWidget {
               if (beatBar)
                 Positioned(
                   left: 8,
-                  top: 8,
-                  child: BeatBar(model: model, deck: deck, scale: scale),
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: BeatBar(
+                      model: model,
+                      deck: deck,
+                      rowHeight: constraints.maxHeight,
+                      rowWidth: constraints.maxWidth,
+                      stacked: stacked,
+                    ),
+                  ),
                 ),
             ],
           );

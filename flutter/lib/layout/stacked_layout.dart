@@ -166,7 +166,11 @@ class _DeckSection extends StatelessWidget {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: WaveformRow(model: model, deck: deck),
+                        child: WaveformRow(
+                          model: model,
+                          deck: deck,
+                          stacked: true,
+                        ),
                       ),
                       Positioned(
                         right: 0,

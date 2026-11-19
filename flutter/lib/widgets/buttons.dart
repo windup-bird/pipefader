@@ -95,12 +95,14 @@ class GlassKey extends StatefulWidget {
     this.active = false,
     this.height = 24,
     this.fill = false,
+    this.glyph,
     this.scale,
     super.key,
   });
 
   final String label;
   final String? suffix;
+  final GlyphKind? glyph;
   final VoidCallback? onTap;
   final bool active;
   final double height;
@@ -151,40 +153,70 @@ class _GlassKeyState extends State<GlassKey> {
             glass: true,
           ),
           alignment: Alignment.center,
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: widget.label,
-                  style: TextStyle(
-                    fontSize: scale.font(T.s9),
-                    height: 1.0,
-                    color: foreground,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
+          child: widget.glyph == null
+              ? Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: widget.label,
+                        style: TextStyle(
+                          fontSize: scale.font(T.s9) * 0.9,
+                          height: 1.0,
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                      ),
+                      if (widget.suffix != null)
+                        TextSpan(
+                          text: '\u2009${widget.suffix}',
+                          style: TextStyle(
+                            fontSize: scale.font(T.s8) * 0.9,
+                            height: 1.0,
+                            color: widget.active
+                                ? T.bg.withValues(alpha: 0.72)
+                                : T.dim,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                )
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Glyph(
+                        widget.glyph!,
+                        size: scale.size(12),
+                        color: foreground,
+                      ),
+                      SizedBox(width: scale.size(3)),
+                      Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.clip,
+                        style: TextStyle(
+                          fontSize: scale.font(T.s9) * 0.9,
+                          height: 1.0,
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                if (widget.suffix != null)
-                  TextSpan(
-                    text: '\u2009${widget.suffix}',
-                    style: TextStyle(
-                      fontSize: scale.font(T.s8),
-                      height: 1.0,
-                      color: widget.active
-                          ? T.bg.withValues(alpha: 0.72)
-                          : T.dim,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-              ],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-          ),
         ),
       ),
     );
@@ -412,7 +444,7 @@ class _ModeTabState extends State<_ModeTab> {
         onTap: widget.onTap,
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: widget.scale.size(widget.fontSize >= T.s12 ? 4 : 7),
+            horizontal: widget.scale.size(widget.fontSize >= T.s11 ? 4 : 7),
             vertical: widget.scale.size(3),
           ),
           child: Text(

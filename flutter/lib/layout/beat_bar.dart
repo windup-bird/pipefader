@@ -8,6 +8,10 @@ import '../widgets/device.dart';
 import '../widgets/glyph.dart';
 import '../widgets/unit_menu.dart';
 
+// Bottom row flex: 2 : 3 : 2, i.e. left : centre : right = 1 : 1.5 : 1.
+const int _sideFlex = 2;
+const int _centreFlex = 3;
+
 /// The beat controls laid over the left edge of a waveform. A mode key picks
 /// loop / jump / manual, and the three keys beside it change with the mode.
 /// Everything is translucent so the wave stays visible behind it.
@@ -15,13 +19,17 @@ class BeatBar extends StatefulWidget {
   const BeatBar({
     required this.model,
     required this.deck,
-    this.scale,
+    required this.rowHeight,
+    required this.rowWidth,
+    this.stacked = false,
     super.key,
   });
 
   final AppModel model;
   final DeckRuntime deck;
-  final ControlScale? scale;
+  final double rowHeight;
+  final double rowWidth;
+  final bool stacked;
 
   @override
   State<BeatBar> createState() => _BeatBarState();
@@ -43,122 +51,130 @@ class _BeatBarState extends State<BeatBar> {
   Widget build(BuildContext context) {
     final model = widget.model;
     final deck = widget.deck;
-    final s = widget.scale ?? ControlScale.fallback;
+    final stacked = widget.stacked;
+    var barH = (widget.rowHeight * 0.72)
+        .clamp(stacked ? 48.0 : 42.0, stacked ? 110.0 : 76.0)
+        .toDouble();
+    final rowMaxH = widget.rowHeight - 8;
+    if (barH > rowMaxH) barH = rowMaxH;
+    var barW = (barH * (stacked ? 1.0 : 1.3))
+        .clamp(stacked ? 96.0 : 112.0, stacked ? 112.0 : 150.0)
+        .toDouble();
+    final rowMaxW = widget.rowWidth - 16;
+    if (barW > rowMaxW) barW = rowMaxW;
+    final s = ControlScale(barH, base: stacked ? 56 : 42);
     final mode = _mode;
     final manual = mode == BeatMode.manualloop && !deck.loopActive;
 
-    Widget key({
+    Widget modeButton() => GestureDetector(
+      key: _modeAnchor,
+      behavior: HitTestBehavior.opaque,
+      onTap: _pickMode,
+      child: Container(
+        decoration: keyFace(glass: true),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              mode.label.toUpperCase(),
+              style: Ty.labelSmall.copyWith(
+                fontSize: s.font(T.s8) * 0.9,
+                color: T.text,
+              ),
+            ),
+            SizedBox(width: s.size(4)),
+            Glyph(GlyphKind.dropdown, size: s.size(8), color: T.text),
+          ],
+        ),
+      ),
+    );
+
+    Widget centreKey() {
+      final label = manual
+          ? 'Call'
+          : mode == BeatMode.beatjump
+          ? '${deck.jumpSize}'
+          : deck.loopLabel;
+      return GlassKey(
+        key: mode == BeatMode.beatjump && !manual ? _jumpAnchor : null,
+        label: label,
+        glyph: _modeGlyph,
+        active: deck.loopActive,
+        height: 24,
+        fill: true,
+        scale: s,
+        onTap: manual
+            ? () => model.toggleLoopCall(deck)
+            : mode == BeatMode.beatjump
+            ? _pickJump
+            : () => model.toggleLoopActive(deck),
+      );
+    }
+
+    Widget sideKey({
       required String label,
       required VoidCallback onTap,
-      String? suffix,
       bool active = false,
-      bool expand = false,
-      GlobalKey? anchor,
-      double width = 34,
     }) {
       final child = GlassKey(
-        key: anchor,
         label: label,
-        suffix: suffix,
         active: active,
         height: 24,
         fill: true,
         scale: s,
         onTap: onTap,
       );
-      return expand
-          ? Expanded(child: child)
-          : SizedBox(width: s.size(width), child: child);
+      return Expanded(flex: _sideFlex, child: child);
     }
 
+    final gap = SizedBox(width: s.size(2));
+    final bottom = Row(
+      children: manual
+          ? [
+              sideKey(
+                label: 'In',
+                active: deck.loopArmed,
+                onTap: () => model.loopIn(deck),
+              ),
+              if (!stacked) gap,
+              if (!stacked) Expanded(flex: _centreFlex, child: centreKey()),
+              if (!stacked) gap,
+              sideKey(label: 'Out', onTap: () => model.loopOut(deck)),
+            ]
+          : [
+              sideKey(
+                label: '-',
+                onTap: () => mode == BeatMode.beatjump
+                    ? model.jumpBy(deck, -1)
+                    : model.stepLoop(deck, true),
+              ),
+              if (!stacked) gap,
+              if (!stacked) Expanded(flex: _centreFlex, child: centreKey()),
+              if (!stacked) gap,
+              sideKey(
+                label: '+',
+                onTap: () => mode == BeatMode.beatjump
+                    ? model.jumpBy(deck, 1)
+                    : model.stepLoop(deck, false),
+              ),
+            ],
+    );
+
     return Container(
-      width: s.size(132),
-      height: s.size(42),
+      width: barW,
+      height: barH,
       padding: EdgeInsets.all(s.size(2)),
       color: T.glass,
       child: Column(
         children: [
-          Expanded(
-            flex: 2,
-            child: GestureDetector(
-              key: _modeAnchor,
-              behavior: HitTestBehavior.opaque,
-              onTap: _pickMode,
-              child: Container(
-                decoration: keyFace(glass: true),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Glyph(_modeGlyph, size: s.size(12), color: T.dim),
-                    SizedBox(width: s.size(3)),
-                    Text(
-                      mode.label.toUpperCase(),
-                      style: Ty.labelSmall.copyWith(
-                        fontSize: s.font(T.s8),
-                        color: T.text,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: modeButton()),
           SizedBox(height: s.size(2)),
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                if (manual) ...[
-                  key(
-                    label: 'in',
-                    active: deck.loopArmed,
-                    onTap: () => model.loopIn(deck),
-                  ),
-                  SizedBox(width: s.size(2)),
-                  key(
-                    label: 'call',
-                    active: deck.loopActive,
-                    expand: true,
-                    onTap: () => model.toggleLoopCall(deck),
-                  ),
-                  SizedBox(width: s.size(2)),
-                  key(label: 'out', onTap: () => model.loopOut(deck)),
-                ] else ...[
-                  key(
-                    label: '-',
-                    onTap: () => mode == BeatMode.beatjump
-                        ? model.jumpBy(deck, -1)
-                        : model.stepLoop(deck, true),
-                  ),
-                  SizedBox(width: s.size(2)),
-                  if (mode == BeatMode.beatjump)
-                    key(
-                      label: '${deck.jumpSize}',
-                      suffix: 'jump',
-                      expand: true,
-                      anchor: _jumpAnchor,
-                      onTap: _pickJump,
-                    )
-                  else
-                    key(
-                      label: deck.loopLabel,
-                      suffix: 'beats',
-                      active: deck.loopActive,
-                      expand: true,
-                      onTap: () => model.toggleLoopActive(deck),
-                    ),
-                  SizedBox(width: s.size(2)),
-                  key(
-                    label: '+',
-                    onTap: () => mode == BeatMode.beatjump
-                        ? model.jumpBy(deck, 1)
-                        : model.stepLoop(deck, false),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          if (stacked) ...[
+            Expanded(child: centreKey()),
+            SizedBox(height: s.size(2)),
+          ],
+          Expanded(child: bottom),
         ],
       ),
     );
