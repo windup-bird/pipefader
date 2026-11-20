@@ -1,8 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
-import 'cover.dart';
-import 'device.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/theme_scope.dart';
 
 /// A vertical bar fader: a hairline slot that widens to the handle's width
 /// while held, a wide horizontal handle, and the travelled length lit in the

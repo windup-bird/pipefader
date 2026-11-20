@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'package:pipefader_gui/core/layout_metrics.dart';
+
 /// The four faces of the front-end. [allInOne] is only ever chosen from the
 /// header menu; the other three can also be derived from the viewport.
 enum LayoutMode { full, landscape, stacked, allInOne }
@@ -18,33 +20,6 @@ extension LayoutModeLabel on LayoutMode {
   bool get usesFullDecks =>
       this == LayoutMode.full || this == LayoutMode.allInOne;
 }
-
-// Full keeps its panels on fixed heights and lets the browser eat the rest, so
-// the desk does not jump around when the window grows. Every other layout has
-// no browser and is laid out with flex instead.
-const double fullHeaderH = 44;
-const double fullDeckH = 64;
-const double fullControlH = 128;
-const double fullGap = 8;
-
-/// The shared key height in a control band: unit name, sync and deck picker
-/// all use it, so they stay aligned as the band grows or shrinks.
-double controlKeyHeight(double height) =>
-    (height * 0.23).clamp(22.0, 34.0).toDouble();
-
-double fullWaveH(int decks) => decks > 2 ? 50 : 58;
-
-double fullWaveBandH(int decks) => fullWaveH(decks) * decks + 6.0 * (decks - 1);
-
-/// Everything in a full page except the browser.
-double fullChromeH(int decks) =>
-    fullHeaderH +
-    fullGap +
-    fullDeckH +
-    fullGap +
-    fullWaveBandH(decks) +
-    fullGap +
-    fullControlH;
 
 int deckCountForLayout(
   LayoutMode mode, {

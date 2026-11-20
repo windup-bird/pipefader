@@ -1,10 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../format.dart';
-import '../theme.dart';
-import 'cover.dart';
-import 'device.dart';
-import 'glyph.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/theme_scope.dart';
 
 /// The one button shape: a flat key, no radius, no border. Idle sits a shade
 /// above the page the way a hardware button sits above a faceplate; active

@@ -1,18 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pipefader_gui/layout/deck_info.dart';
-import 'package:pipefader_gui/layout/layout_mode.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
 import 'package:pipefader_gui/model/deck.dart';
-import 'package:pipefader_gui/units/panels.dart';
+import 'package:pipefader_gui/controls/param_bar.dart';
 import 'package:pipefader_gui/layout/stacked_layout.dart';
 import 'package:pipefader_gui/state/app_model.dart';
-import 'package:pipefader_gui/theme.dart';
-import 'package:pipefader_gui/widgets/buttons.dart';
-import 'package:pipefader_gui/widgets/cover.dart';
-import 'package:pipefader_gui/widgets/deck_picker.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/controls/cover.dart';
+import 'package:pipefader_gui/units/deck_picker.dart';
 import 'package:pipefader_gui/layout/header.dart';
-import 'package:pipefader_gui/widgets/tempo_control.dart';
-import 'package:pipefader_gui/widgets/unit_header.dart';
+import 'package:pipefader_gui/units/tempo_control.dart';
+import 'package:pipefader_gui/units/unit_header.dart';
 
 import 'support.dart';
 
@@ -196,6 +196,20 @@ void main() {
   testWidgets('cover raises the browser in landscape', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.landscape, phoneDecks: 2);
     await pumpAppAt(tester, const Size(844, 390), model: model);
+    expect(find.byKey(const ValueKey('browser-close')), findsNothing);
+
+    await tester.tap(find.byType(CoverArt).first);
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(const ValueKey('browser-close')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('browser-close')));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(const ValueKey('browser-close')), findsNothing);
+  });
+
+  testWidgets('cover raises the browser in all-in-one', (tester) async {
+    final model = AppModel(forcedLayout: LayoutMode.allInOne);
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
     expect(find.byKey(const ValueKey('browser-close')), findsNothing);
 
     await tester.tap(find.byType(CoverArt).first);

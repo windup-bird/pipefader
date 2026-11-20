@@ -1,11 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'buttons.dart';
-import 'glyph.dart';
-import 'unit_menu.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/units/unit_menu.dart';
 
 /// The row above a unit panel: one tab per enabled unit, with the gear that
 /// edits that tab set pinned to the right edge.

@@ -1,12 +1,13 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../format.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../widgets/cover.dart';
-import '../widgets/glyph.dart';
-import '../widgets/tempo_control.dart';
-import '../widgets/waveform.dart';
+import 'package:pipefader_gui/controls/cover.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/theme_scope.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/units/tempo_control.dart';
+import 'package:pipefader_gui/units/waveform.dart';
 
 const double _keyWidth = 30;
 const double _timeSecondsWidth = 48;

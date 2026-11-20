@@ -2,12 +2,12 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-import '../format.dart';
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'device.dart';
-import 'glyph.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/glyph.dart';
 
 class _MenuPlacement {
   const _MenuPlacement(this.left, this.top, this.width);

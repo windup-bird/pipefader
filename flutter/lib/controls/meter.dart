@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// One deck's post-fader level. Linear input, a -48 dB scale on the way out,
 /// with a short peak line above the bar.

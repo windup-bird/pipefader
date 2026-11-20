@@ -1,9 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'panels.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+
+import 'panels/fx.dart';
+import 'panels/mixer.dart';
+import 'panels/mixer_max.dart';
+import 'panels/pads.dart';
+import 'panels/tempo.dart';
 
 /// One place that maps a unit kind to its panel, shared by the desk and the
 /// phone so a new panel only has to be wired once.

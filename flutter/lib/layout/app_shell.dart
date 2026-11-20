@@ -1,13 +1,13 @@
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'all_in_one_layout.dart';
-import 'full_layout.dart';
-import 'landscape_layout.dart';
-import 'layout_mode.dart';
-import 'stacked_layout.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/layout/all_in_one_layout.dart';
+import 'package:pipefader_gui/layout/full_layout.dart';
+import 'package:pipefader_gui/layout/landscape_layout.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/layout/stacked_layout.dart';
 
 /// The page: owns the clock, picks one of the four layouts and hosts the phone
 /// browser overlay. Every section below is full-bleed; the layouts decide how

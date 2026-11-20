@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
-import 'device.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/device.dart';
 
 /// The crossfader: a flat slot with a solid handle. The left half carries the
 /// left deck's colour and the right half the right deck's, so which way the

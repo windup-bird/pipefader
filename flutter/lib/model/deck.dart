@@ -1,4 +1,4 @@
-import 'peaks.dart';
+import 'package:pipefader_gui/model/peaks.dart';
 
 /// What a control slot can become. The three pad modes are separate units, so
 /// a slot's tabs are the units themselves rather than a second mode row.

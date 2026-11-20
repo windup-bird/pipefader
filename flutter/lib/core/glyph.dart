@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// The few glyphs the sketch needs. Drawn rather than font icons so the weight
 /// matches the hairlines and no icon font has to be shipped.

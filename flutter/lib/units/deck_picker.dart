@@ -1,8 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'device.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/device.dart';
 
 /// The per-deck buttons above a transport. One key per deck, never a cycle:
 /// the left column shows 1/3, the right 2/4. [expand] makes the row fill the

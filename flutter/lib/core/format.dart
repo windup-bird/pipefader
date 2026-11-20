@@ -3,7 +3,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 
-import 'theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 String clock(int frames, int sampleRate) {
   final total = frames / sampleRate;

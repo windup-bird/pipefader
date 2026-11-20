@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// The mark: two faders read as a TT, no inner lines, even spacing.
 class LogoMark extends StatelessWidget {

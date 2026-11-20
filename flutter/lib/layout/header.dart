@@ -1,9 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../layout/layout_mode.dart';
-import '../state/app_model.dart';
-import '../widgets/logo.dart';
-import 'app_menu.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/logo.dart';
+import 'package:pipefader_gui/layout/app_menu.dart';
 
 /// The header is the mark and nothing else: no name, no toolbar. Tapping the
 /// mark opens the layout / controller / output / settings menu.

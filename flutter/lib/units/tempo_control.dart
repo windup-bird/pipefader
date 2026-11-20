@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 const double _rulerWidth = 92;
 const double _rulerHeight = 160;

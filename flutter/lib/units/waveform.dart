@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
 
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// The scrolling waveform: two channels around a centre line, three bands
 /// layered from the centre out, the beat grid over the top, playhead pinned to

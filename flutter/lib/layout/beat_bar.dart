@@ -1,13 +1,13 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../model/deck.dart';
-import '../format.dart';
-import '../theme.dart';
-import '../widgets/buttons.dart';
-import '../widgets/device.dart';
-import '../widgets/glyph.dart';
-import '../widgets/unit_menu.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/units/unit_menu.dart';
 
 // Bottom row flex: 2 : 3 : 2, i.e. left : centre : right = 1 : 1.5 : 1.
 const int _sideFlex = 2;

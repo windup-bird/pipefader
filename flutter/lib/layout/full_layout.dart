@@ -1,16 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'browser_pane.dart';
-import 'control_band.dart';
-import 'deck_info.dart';
-import 'header.dart';
-import 'layout_mode.dart';
-import 'waveform_row.dart';
-
-const double _minBrowserH = 160;
-const double _fallbackBrowserH = 260;
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/layout/browser_pane.dart';
+import 'package:pipefader_gui/layout/control_band.dart';
+import 'package:pipefader_gui/layout/deck_info.dart';
+import 'package:pipefader_gui/layout/header.dart';
+import 'package:pipefader_gui/core/layout_metrics.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/layout/waveform_row.dart';
 
 /// The desk face: header, one info row for every deck, a stack of waveforms, a
 /// fixed control band and the browser taking the rest. The panels keep their
@@ -31,7 +29,7 @@ class FullLayout extends StatelessWidget {
         final hpad = roomy ? 24.0 : 16.0;
         final waveBandH = fullWaveBandH(deckCount);
         final chrome = fullChromeH(deckCount);
-        final fits = height - chrome >= _minBrowserH;
+        final fits = height - chrome >= fullMinBrowserH;
         final decks = model.activeDecks(deckCount);
 
         final fixed = <Widget>[
@@ -107,7 +105,7 @@ class FullLayout extends StatelessWidget {
           child: Column(
             children: [
               ...fixed,
-              SizedBox(height: _fallbackBrowserH, child: browser),
+              SizedBox(height: fullFallbackBrowserH, child: browser),
             ],
           ),
         );

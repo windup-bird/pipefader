@@ -1,20 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'control_phone.dart';
-import 'browser_pane.dart';
-import 'deck_info.dart';
-import 'header.dart';
-import 'layout_mode.dart';
-import 'waveform_row.dart';
-
-const int _topFlex = 13;
-const int _waveFlex = 43;
-const int _controlFlex = 44;
-const double _minHeight = 320;
-const double _smallHeaderH = 32;
-const double _logoSize = 32;
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/layout/browser_view.dart';
+import 'package:pipefader_gui/layout/control_phone.dart';
+import 'package:pipefader_gui/layout/deck_info.dart';
+import 'package:pipefader_gui/layout/header.dart';
+import 'package:pipefader_gui/core/layout_metrics.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/layout/waveform_row.dart';
 
 /// Short and wide: deck info across the top (the mark sits between a pair),
 /// waveforms across the middle, touch blocks across the bottom. The browser is
@@ -41,11 +35,11 @@ class LandscapeLayout extends StatelessWidget {
 
         final Widget? header = three
             ? SizedBox(
-                height: _smallHeaderH,
+                height: landscapeSmallHeaderH,
                 child: Header(
                   model: model,
                   mode: LayoutMode.landscape,
-                  height: _smallHeaderH,
+                  height: landscapeSmallHeaderH,
                 ),
               )
             : null;
@@ -59,51 +53,46 @@ class LandscapeLayout extends StatelessWidget {
           ),
         );
 
-        // Browsing keeps every deck info on screen and gives the rest to the
-        // browser; the waveforms and control band step out of the way.
-        final content = browsing
-            ? Column(
-                children: [
-                  ?header,
-                  SizedBox(
-                    height: (constraints.maxHeight * _topFlex / 100).clamp(
-                      56.0,
-                      120.0,
-                    ),
-                    child: infoRow,
-                  ),
-                  Expanded(
-                    child: PhoneBrowserPane(model: model, deck: decks.first),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  ?header,
-                  Expanded(flex: _topFlex, child: infoRow),
-                  Expanded(
-                    flex: _waveFlex,
-                    child: WaveformBand(
-                      model: model,
-                      decks: decks,
-                      rowGap: 4,
-                      hpad: hpad,
-                    ),
-                  ),
-                  Expanded(
-                    flex: _controlFlex,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(hpad, 4, hpad, 4),
-                      child: PhoneControlRow(model: model),
-                    ),
-                  ),
-                ],
-              );
+        if (browsing) {
+          return BrowsingView(
+            model: model,
+            deck: decks.first,
+            header: header,
+            infoRow: infoRow,
+            infoHeight: (constraints.maxHeight * landscapeTopFlex / 100)
+                .clamp(browsingInfoMinH, browsingInfoMaxH)
+                .toDouble(),
+          );
+        }
 
-        final page = ColoredBox(color: T.band, child: content);
-        if (constraints.maxHeight >= _minHeight || browsing) return page;
+        final page = ColoredBox(
+          color: T.band,
+          child: Column(
+            children: [
+              ?header,
+              Expanded(flex: landscapeTopFlex, child: infoRow),
+              Expanded(
+                flex: landscapeWaveFlex,
+                child: WaveformBand(
+                  model: model,
+                  decks: decks,
+                  rowGap: 4,
+                  hpad: hpad,
+                ),
+              ),
+              Expanded(
+                flex: landscapeControlFlex,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(hpad, 4, hpad, 4),
+                  child: PhoneControlRow(model: model),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (constraints.maxHeight >= landscapeMinHeight) return page;
         return SingleChildScrollView(
-          child: SizedBox(height: _minHeight, child: page),
+          child: SizedBox(height: landscapeMinHeight, child: page),
         );
       },
     );
@@ -169,7 +158,7 @@ class _DeckInfoRow extends StatelessWidget {
                 return LogoButton(
                   model: model,
                   mode: LayoutMode.landscape,
-                  size: _logoSize,
+                  size: landscapeLogoSize,
                   sounding: state.sounding,
                   leader: state.leader,
                 );

@@ -5,7 +5,7 @@ import 'package:pipefader_gui/layout/full_layout.dart';
 import 'package:pipefader_gui/layout/landscape_layout.dart';
 import 'package:pipefader_gui/layout/stacked_layout.dart';
 import 'package:pipefader_gui/state/app_model.dart';
-import 'package:pipefader_gui/theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 import 'support.dart';
 

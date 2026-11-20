@@ -2,14 +2,14 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../format.dart';
-import '../widgets/buttons.dart';
-import '../widgets/device.dart';
-import '../widgets/glyph.dart';
-import '../widgets/logo.dart';
-import 'layout_mode.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/logo.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
 
 /// The menu behind the logo: a bigger mark, the four layouts, the deck count
 /// for the current family, then controller / output / settings. It hangs from

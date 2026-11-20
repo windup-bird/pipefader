@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// The face of a hardware key: a flat fill, a top highlight and a soft cast
 /// shadow. Idle sits a step above the page; active lifts to the bright grey

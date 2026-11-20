@@ -1,11 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../format.dart';
-import '../model/library.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../widgets/buttons.dart';
-import '../widgets/glyph.dart';
+import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/model/library.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/glyph.dart';
 
 /// The bottom band: a header with the two column switches and the status or
 /// search field, then library | lists | tracks, plus the empty right column.
@@ -832,27 +832,3 @@ class _PhoneTrackRow extends StatelessWidget {
 
 /// The overlay form the shell falls back to (kept for layouts that host the
 /// browser over the page).
-class BrowserOverlay extends StatelessWidget {
-  const BrowserOverlay({required this.model, required this.deck, super.key});
-
-  final AppModel model;
-  final DeckRuntime deck;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: model.closeBrowserOverlay,
-            child: ColoredBox(color: T.scrim),
-          ),
-        ),
-        Positioned.fill(
-          child: PhoneBrowserPane(model: model, deck: deck),
-        ),
-      ],
-    );
-  }
-}

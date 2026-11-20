@@ -1,18 +1,19 @@
 import 'package:material_ui/material_ui.dart';
 
-import 'layout_mode.dart';
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../units/panels.dart';
-import '../units/unit_body.dart';
-import '../widgets/bar_fader.dart';
-import '../widgets/cover.dart';
-import '../widgets/deck_picker.dart';
-import '../widgets/fader.dart';
-import '../widgets/meter.dart';
-import '../widgets/transport_keys.dart';
-import '../widgets/unit_header.dart';
+import 'package:pipefader_gui/controls/bar_fader.dart';
+import 'package:pipefader_gui/controls/fader.dart';
+import 'package:pipefader_gui/controls/meter.dart';
+import 'package:pipefader_gui/core/layout_metrics.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/theme_scope.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/units/deck_picker.dart';
+import 'package:pipefader_gui/units/panels/fx.dart';
+import 'package:pipefader_gui/units/panels/pads.dart';
+import 'package:pipefader_gui/units/transport_keys.dart';
+import 'package:pipefader_gui/units/unit_body.dart';
+import 'package:pipefader_gui/units/unit_header.dart';
 
 const double _centreWidth = 128;
 const double _deckKeySize = 30;

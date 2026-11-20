@@ -1,8 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
-import 'layout/app_shell.dart';
-import 'state/app_model.dart';
-import 'theme.dart';
+import 'package:pipefader_gui/layout/app_shell.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 void main() {
   runApp(const PipefaderApp());

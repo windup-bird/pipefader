@@ -2,11 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import '../layout/layout_mode.dart';
-import '../model/deck.dart';
-import '../model/fixtures.dart';
-import '../model/library.dart';
-import '../model/peaks.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/model/fixtures.dart';
+import 'package:pipefader_gui/model/library.dart';
+import 'package:pipefader_gui/model/peaks.dart';
 
 /// The pieces of a deck that change while the sketch runs: transport, tempo,
 /// pads, units and the meter.

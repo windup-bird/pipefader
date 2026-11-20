@@ -1,11 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'buttons.dart';
-import 'deck_picker.dart';
-import 'device.dart';
-import 'glyph.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/units/deck_picker.dart';
+import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/glyph.dart';
 
 /// The transport stack shared by the desk and the phone. Heights come from the
 /// available space, not fixed keys: sync stays the small key and cue / play

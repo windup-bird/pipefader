@@ -9,35 +9,43 @@ flutter/ 是 GUI 的前端草图，包名 `pipefader_gui`，不进 Cargo workspa
 ```
 lib/
   main.dart            入口：MaterialApp + 透明 Material 包 AppShell
-  theme.dart           T（颜色/几何）+ Ty（字号），唯一来源
-  format.dart          clock / shortClock / bpmText / tempoText
-  layout/
-    app_shell.dart     页面骨架，按宽度分派宽/窄两套
-    header.dart        只有 logo，无名称无工具栏
-    deck_info.dart     deck 身份行 + 整轨 overview
-    waveform_row.dart  单 deck 滚动波形 + 共享缩放键
-    control_band.dart  transport/pads/unit/centre 的九段编排
-    browser_pane.dart  栏头 + library/lists/tracks 三栏
-  widgets/
-    buttons.dart       PanelButton / GlyphButton / ModeTabs
-    bar_fader.dart     竖向推子（通道、EQ 共用）
-    fader.dart         Crossfader 横向交叉推子
-    pad_grid.dart      2x4 八宫格 Pad
-    meter.dart         LevelMeter 电平
-    waveform.dart      Waveform 滚动波形 + Overview 概览
-    cover.dart         CoverArt 封面占位（seed 决定构图）
-    logo.dart          LogoMark TT 标
-    glyph.dart         自绘 Glyph/GlyphKind
-    unit_menu.dart     showChoiceMenu 扁平弹层
-  units/
-    panels.dart        tempo / beatctl / mixer / fx 四种面板
+  core/                 无业务依赖的基础层
+    theme.dart          T（颜色/几何）+ Ty（字号），唯一来源
+    format.dart         clock / shortClock / bpmText / tempoText
+    theme_scope.dart    DeckTheme / DeckThemeScope / deckColors
+    layout_mode.dart    LayoutMode 枚举 + autoLayout
+    layout_metrics.dart 布局分段尺寸的唯一来源：full 定死，其余 flex
+    device.dart         keyFace / slotFace / panelFace + FaderHandle
+    glyph.dart          自绘 Glyph / GlyphKind
+    logo.dart           LogoMark / LogoFaders TT 标
+  controls/             纯受控原子，不引用 model/state，只吃值和回调
+    buttons.dart        PanelButton / GlassKey / GlyphButton / HoldKey / ModeTabs
+    bar_fader.dart      BarFader 竖向推子（通道、EQ 共用）
+    fader.dart          Crossfader 横向交叉推子
+    pad.dart            Pad 单键
+    param_bar.dart      ParamBar 横向参数推子
+    meter.dart          LevelMeter 电平
+    cover.dart          CoverArt 封面占位（seed 决定构图）
+  units/                吃 model/state 的业务组合件
+    unit_header.dart    面板上方的 unit tab + 齿轮
+    unit_menu.dart      showChoiceMenu / showUnitMenu 扁平弹层
+    unit_body.dart      UnitKind → 面板的分派
+    pad_grid.dart       2x4 八宫格 PadGrid
+    tempo_control.dart  TempoControl + TempoRuler
+    deck_picker.dart    DeckPicker / DeckButton
+    transport_keys.dart TransportKeys + PlayButton
+    waveform.dart       Waveform 滚动波形（业务封装）
+    panels/             pads / tempo / mixer / fx / mixer_max / fx_name
+  layout/               只做编排：四种布局 + deck_info / header / control 等
+    app_shell.dart      页面骨架，按 LayoutMode 分派四种布局
+    browser_view.dart   phone 系共用的 browsing 页面
   model/
-    deck.dart          DeckView / UnitKind / PadMode
-    library.dart       LibEntry / ListEntry / TrackRow
-    peaks.dart         波形峰值数据
-    fixtures.dart      两组 deck、library、playlist、tracks 假数据
+    deck.dart           DeckView / UnitKind / PadMode
+    library.dart        LibEntry / ListEntry / TrackRow
+    peaks.dart          波形峰值数据
+    fixtures.dart       两组 deck、library、playlist、tracks 假数据
   state/
-    app_model.dart     AppModel（ChangeNotifier）+ DeckRuntime
+    app_model.dart      AppModel（ChangeNotifier）+ DeckRuntime
 ```
 
 ---

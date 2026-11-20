@@ -1,6 +1,6 @@
-import 'deck.dart';
-import 'library.dart';
-import 'peaks.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/model/library.dart';
+import 'package:pipefader_gui/model/peaks.dart';
 
 /// The decks the sketch renders. The first two are the pair the desk starts
 /// with; the other two are the alternate slots in a four-deck rig.

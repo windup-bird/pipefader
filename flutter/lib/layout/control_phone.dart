@@ -1,15 +1,15 @@
 import 'package:material_ui/material_ui.dart';
 
-import 'layout_mode.dart';
-import '../model/deck.dart';
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../units/unit_body.dart';
-import '../widgets/bar_fader.dart';
-import '../widgets/cover.dart';
-import '../widgets/glyph.dart';
-import '../widgets/transport_keys.dart';
-import '../widgets/unit_header.dart';
+import 'package:pipefader_gui/controls/bar_fader.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/layout_metrics.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/core/theme_scope.dart';
+import 'package:pipefader_gui/model/deck.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/units/transport_keys.dart';
+import 'package:pipefader_gui/units/unit_body.dart';
+import 'package:pipefader_gui/units/unit_header.dart';
 
 /// One deck's touch block: sync and play+cue on one side, a vertical fader on
 /// the other, and the single unit between them. Tempo lives in the deck info.

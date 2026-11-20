@@ -1,19 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import 'control_phone.dart';
-import 'browser_pane.dart';
-import 'deck_info.dart';
-import 'header.dart';
-import 'layout_mode.dart';
-import 'waveform_row.dart';
-
-const double _headerH = 40;
-const double _controlShare = 0.34;
-const double _minControlH = 196;
-const double _maxControlH = 300;
-const double _minSectionH = 150;
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/layout/browser_pane.dart';
+import 'package:pipefader_gui/layout/control_phone.dart';
+import 'package:pipefader_gui/layout/deck_info.dart';
+import 'package:pipefader_gui/layout/header.dart';
+import 'package:pipefader_gui/core/layout_metrics.dart';
+import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/layout/waveform_row.dart';
 
 /// Tall and narrow: one deck section after another, then the touch blocks.
 /// The control takes about a third of the height; if the sections cannot hold
@@ -33,21 +28,21 @@ class StackedLayout extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final hpad = constraints.maxWidth >= 700 ? 18.0 : 10.0;
-        final controlH = (constraints.maxHeight * _controlShare)
-            .clamp(_minControlH, _maxControlH)
+        final controlH = (constraints.maxHeight * stackedControlShare)
+            .clamp(stackedMinControlH, stackedMaxControlH)
             .toDouble();
         final decks = model.activeDecks(deckCount);
-        final available = constraints.maxHeight - _headerH - controlH;
-        final fits = available >= deckCount * _minSectionH;
+        final available = constraints.maxHeight - stackedHeaderH - controlH;
+        final fits = available >= deckCount * stackedMinSectionH;
 
         final header = ColoredBox(
           color: T.band,
           child: SizedBox(
-            height: _headerH,
+            height: stackedHeaderH,
             child: Header(
               model: model,
               mode: LayoutMode.stacked,
-              height: _headerH,
+              height: stackedHeaderH,
             ),
           ),
         );
@@ -78,18 +73,18 @@ class StackedLayout extends StatelessWidget {
                 header,
                 for (final deck in decks)
                   SizedBox(
-                    height: _maxInfoH + _infoPadY * 2,
+                    height: stackedMaxInfoH + stackedInfoPadY * 2,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         hpad,
-                        _infoPadY,
+                        stackedInfoPadY,
                         hpad,
-                        _infoPadY,
+                        stackedInfoPadY,
                       ),
                       child: DeckInfo(
                         model: model,
                         deck: deck,
-                        height: _maxInfoH,
+                        height: stackedMaxInfoH,
                         secondsOnly: deckCount > 2,
                         onCoverTap: model.closeBrowserOverlay,
                       ),
@@ -133,7 +128,7 @@ class StackedLayout extends StatelessWidget {
               header,
               for (final deck in decks)
                 SizedBox(
-                  height: _minSectionH,
+                  height: stackedMinSectionH,
                   child: _DeckSection(
                     model: model,
                     deck: deck,
@@ -149,11 +144,6 @@ class StackedLayout extends StatelessWidget {
     );
   }
 }
-
-const double _infoShare = 0.23;
-const double _minInfoH = 38;
-const double _maxInfoH = 74;
-const double _infoPadY = 2;
 
 class _DeckSection extends StatelessWidget {
   const _DeckSection({
@@ -172,8 +162,8 @@ class _DeckSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final infoH = (constraints.maxHeight * _infoShare)
-            .clamp(_minInfoH, _maxInfoH)
+        final infoH = (constraints.maxHeight * stackedInfoShare)
+            .clamp(stackedMinInfoH, stackedMaxInfoH)
             .toDouble();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -185,14 +175,14 @@ class _DeckSection extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
                     hpad,
-                    _infoPadY,
+                    stackedInfoPadY,
                     hpad,
-                    _infoPadY,
+                    stackedInfoPadY,
                   ),
                   child: DeckInfo(
                     model: model,
                     deck: deck,
-                    height: infoH - _infoPadY * 2,
+                    height: infoH - stackedInfoPadY * 2,
                     secondsOnly: secondsOnly,
                     onCoverTap: model.openBrowserOverlay,
                   ),

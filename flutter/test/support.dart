@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pipefader_gui/layout/app_shell.dart';
 import 'package:pipefader_gui/state/app_model.dart';
-import 'package:pipefader_gui/theme.dart';
+import 'package:pipefader_gui/core/theme.dart';
 
 /// Loads the SDK's Roboto into the test engine so goldens show real glyphs
 /// instead of Ahem boxes. A machine without that path still runs, only boxed.

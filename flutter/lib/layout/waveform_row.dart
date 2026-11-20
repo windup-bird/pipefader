@@ -1,11 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../state/app_model.dart';
-import '../theme.dart';
-import '../widgets/buttons.dart';
-import '../widgets/glyph.dart';
-import '../widgets/waveform.dart';
-import 'beat_bar.dart';
+import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/units/waveform.dart';
+import 'package:pipefader_gui/layout/beat_bar.dart';
 
 /// One deck's scrolling waveform. The beat controls sit over the left edge and
 /// the shared zoom keys live once for the whole band, on the right.
