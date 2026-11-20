@@ -506,7 +506,6 @@ class _ParamBarState extends State<ParamBar> {
   Widget build(BuildContext context) {
     final scale = widget.scale ?? ControlScale.fallback;
     final handleW = scale.size(_handleW);
-    final handleMargin = scale.size(2);
     return Row(
       children: [
         SizedBox(
@@ -522,6 +521,11 @@ class _ParamBarState extends State<ParamBar> {
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final height = constraints.maxHeight;
+              // Like the crossfader, the slot and the handle share one
+              // thickness; the slot only grows to it while held.
+              final slotOpen = height - scale.size(4);
+              final handleH = slotOpen;
+              final handleTop = (height - handleH) / 2;
               final handleX = handleW / 2 + _value * (width - handleW);
               final deckTheme = DeckThemeScope.of(context);
               final fillAccent = deckTheme?.accent ?? T.accent;
@@ -553,7 +557,7 @@ class _ParamBarState extends State<ParamBar> {
                   },
                   child: TweenAnimationBuilder<double>(
                     tween: Tween<double>(
-                      end: _active ? height - scale.size(2) : scale.size(3),
+                      end: _active ? slotOpen : scale.size(3),
                     ),
                     duration: const Duration(milliseconds: 110),
                     curve: Curves.easeOut,
@@ -578,9 +582,9 @@ class _ParamBarState extends State<ParamBar> {
                           ),
                           Positioned(
                             left: handleX - handleW / 2,
-                            top: handleMargin,
+                            top: handleTop,
                             width: handleW,
-                            height: height - handleMargin * 2,
+                            height: handleH,
                             child: FaderHandle(
                               vertical: true,
                               active: _active,
