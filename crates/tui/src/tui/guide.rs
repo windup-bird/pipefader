@@ -186,51 +186,18 @@ impl OutputPane {
     }
 }
 
-/// Reads the mixer file's `[[output]]` tables.
+/// Reads the mixer file's `[[output]]` tables. The parsing lives in `app`; this only renames the
+/// shared role enum to the guide's column spelling.
 fn read_outputs(path: &str) -> Vec<OutputEntry> {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return Vec::new();
-    };
-    let Ok(doc) = text.parse::<toml_edit::DocumentMut>() else {
-        return Vec::new();
-    };
-    let Some(tables) = ::app::config::profile::output_tables(&doc) else {
-        return Vec::new();
-    };
-    tables
-        .iter()
-        .enumerate()
-        .map(|(index, table)| {
-            let role = match table.get("role").and_then(|item| item.as_str()) {
-                Some("cue") => "cue",
-                _ => "master",
-            };
-            let name = table
-                .get("name")
-                .and_then(|item| item.as_str())
-                .unwrap_or("output")
-                .to_owned();
-            let device = table
-                .get("device")
-                .and_then(|item| item.as_str())
-                .map(str::to_owned);
-            let channels = table
-                .get("channels")
-                .and_then(|item| item.as_array())
-                .filter(|array| array.len() == 2)
-                .and_then(|array| {
-                    Some((
-                        u16::try_from(array.get(0)?.as_integer()?).ok()?,
-                        u16::try_from(array.get(1)?.as_integer()?).ok()?,
-                    ))
-                });
-            OutputEntry {
-                index,
-                role,
-                name,
-                device,
-                channels,
-            }
+    ::app::config::output::read(path)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|entry| OutputEntry {
+            index: entry.index,
+            role: entry.role_name(),
+            name: entry.name,
+            device: entry.device,
+            channels: entry.channels,
         })
         .collect()
 }
@@ -873,18 +840,7 @@ fn delete_output(session: &mut Session) {
 
 /// Drops `[[output]]` at `index`, keeping the rest of the file as it was written.
 fn remove_output(path: &str, index: usize) -> Result<(), String> {
-    if ::app::config::profile::is_builtin(path) {
-        return Err("the built-in template is read-only".to_owned());
-    }
-    let text = std::fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
-    let mut doc: toml_edit::DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
-    let tables = ::app::config::profile::output_tables_mut(&mut doc)
-        .map_err(|err| format!("{path}: {err}"))?;
-    if index >= tables.len() {
-        return Err(format!("{path}: no [[mixer.output]] #{index}"));
-    }
-    tables.remove(index);
-    std::fs::write(path, doc.to_string()).map_err(|err| format!("{path}: {err}"))
+    ::app::config::output::remove(path, index)
 }
 
 fn handle_overlay(session: &mut Session, key: KeyEvent) {
@@ -1667,128 +1623,58 @@ fn render_commands(frame: &mut Frame, area: Rect, session: &Session, view: &View
 /// The host's output devices for the mixer's master output, with the bound one marked.
 /// `[role] name` of every `[[output]]` the mixer file declares, for the status line.
 fn output_labels(path: &str) -> Vec<String> {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return Vec::new();
-    };
-    let Ok(doc) = text.parse::<toml_edit::DocumentMut>() else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    if let Some(tables) = ::app::config::profile::output_tables(&doc) {
-        for table in tables.iter() {
-            let name = table
-                .get("name")
-                .and_then(|item| item.as_str())
-                .unwrap_or("output");
-            let role = table
-                .get("role")
-                .and_then(|item| item.as_str())
-                .unwrap_or("master");
-            out.push(format!("{role}:{name}"));
-        }
-    }
-    out
+    ::app::config::output::read(path)
+        .map(|entries| ::app::config::output::labels(&entries))
+        .unwrap_or_default()
 }
 
 /// One output's `(device pattern, channel pair)`, as written in the mixer file.
 fn bound_device(path: &str, index: usize) -> Option<(String, Option<(u16, u16)>)> {
-    let text = std::fs::read_to_string(path).ok()?;
-    let doc = text.parse::<toml_edit::DocumentMut>().ok()?;
-    let table = ::app::config::profile::output_tables(&doc)?.get(index)?;
-    let device = table
-        .get("device")
-        .and_then(|item| item.as_str())
-        .map(str::to_owned)?;
-    let channels = table
-        .get("channels")
-        .and_then(|item| item.as_array())
-        .filter(|array| array.len() == 2)
-        .and_then(|array| {
-            Some((
-                u16::try_from(array.get(0)?.as_integer()?).ok()?,
-                u16::try_from(array.get(1)?.as_integer()?).ok()?,
-            ))
-        });
-    Some((device, channels))
+    let entries = ::app::config::output::read(path).ok()?;
+    let entry = entries.get(index)?;
+    let device = entry.device.clone()?;
+    Some((device, entry.channels))
 }
 
 /// Writes a device into one output, or appends a new output for a role.
 ///
-/// `toml_edit` again: the guide is not allowed to reformat a hand-written topology, and the mixer
-/// file is a second document from the map — the `Save` button belongs to the map, these edits land
-/// immediately.
+/// The write itself lives in `app::config::output`; this only picks the guide's conventional name
+/// (`main0`, `phones1`, ...) for a new destination.
 fn bind_device(
     path: &str,
     target: DeviceTarget,
     device: &str,
     channels: Option<(u16, u16)>,
 ) -> Result<String, String> {
-    if ::app::config::profile::is_builtin(path) {
-        return Err("the built-in template is read-only".to_owned());
-    }
-    let text = std::fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
-    let mut doc: toml_edit::DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
-    let tables = ::app::config::profile::output_tables_mut(&mut doc)
-        .map_err(|err| format!("{path}: {err}"))?;
-    let index = match target {
-        DeviceTarget::Output(index) => index,
+    let label = match target {
+        DeviceTarget::Output(index) => {
+            ::app::config::output::bind(path, index, Some(device), channels)?;
+            let entries = ::app::config::output::read(path)?;
+            let entry = entries
+                .get(index)
+                .ok_or_else(|| format!("{path}: no [[mixer.output]] #{index}"))?;
+            entry.label()
+        }
         DeviceTarget::NewOutput(role) => {
-            let mut table = toml_edit::Table::new();
+            let role = if role == "cue" {
+                protocol::OutputRole::Cue
+            } else {
+                protocol::OutputRole::Master
+            };
+            let entries = ::app::config::output::read(path).unwrap_or_default();
             let name = format!(
                 "{}{}",
-                if role == "cue" { "phones" } else { "main" },
-                tables.len()
+                if role == protocol::OutputRole::Cue {
+                    "phones"
+                } else {
+                    "main"
+                },
+                entries.len()
             );
-            table.insert("name", toml_edit::Item::Value(name.clone().into()));
-            table.insert("role", toml_edit::Item::Value(role.into()));
-            let mut decor = toml_edit::Decor::default();
-            decor.set_prefix("\n");
-            table.decor_mut().clone_from(&decor);
-            tables.push(table);
-            tables.len() - 1
+            ::app::config::output::add(path, &name, role, Some(device), channels)?.label()
         }
     };
-    let table = tables
-        .get_mut(index)
-        .ok_or_else(|| format!("{path}: no [[mixer.output]] #{index}"))?;
-    let role = table
-        .get("role")
-        .and_then(|item| item.as_str())
-        .unwrap_or("master")
-        .to_owned();
-    let name = table
-        .get("name")
-        .and_then(|item| item.as_str())
-        .unwrap_or("output")
-        .to_owned();
-    // Keep the decor (comments, blank lines) around the value.
-    if let Some(toml_edit::Item::Value(existing)) = table.get_mut("device") {
-        let decor = existing.decor().clone();
-        *existing = device.into();
-        *existing.decor_mut() = decor;
-    } else {
-        table.insert("device", toml_edit::Item::Value(device.into()));
-    }
-    if let Some((left, right)) = channels {
-        let mut array = toml_edit::Array::new();
-        array.push(i64::from(left));
-        array.push(i64::from(right));
-        match table.get_mut("channels") {
-            Some(toml_edit::Item::Value(existing)) => {
-                let decor = existing.decor().clone();
-                *existing = toml_edit::Value::Array(array);
-                *existing.decor_mut() = decor;
-            }
-            _ => {
-                table.insert(
-                    "channels",
-                    toml_edit::Item::Value(toml_edit::Value::Array(array)),
-                );
-            }
-        }
-    }
-    std::fs::write(path, doc.to_string()).map_err(|err| format!("{path}: {err}"))?;
-    Ok(format!("{role}:{name}"))
+    Ok(label)
 }
 
 fn event_key(event: &controller::Event) -> Option<(EventKind, u8, u8)> {

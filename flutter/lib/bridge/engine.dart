@@ -97,8 +97,7 @@ class EngineClient {
         value: value,
       );
 
-  Future<void> setCrossfader(double value) =>
-      frb.setCrossfader(value: value);
+  Future<void> setCrossfader(double value) => frb.setCrossfader(value: value);
 
   Future<void> setEq(int deck, frb.EqBand band, double value) =>
       frb.setEq(deck: deck, band: band, value: value);
@@ -158,4 +157,28 @@ class EngineClient {
   Future<frb.CoverData?> cover(int deck) => frb.cover(deck: deck);
 
   Future<frb.DeckMeta?> deckMeta(int deck) => frb.deckMeta(deck: deck);
+
+  // ---- logo menu -----------------------------------------------------------
+
+  Future<frb.MenuStateDto> menuState() => frb.menuState();
+
+  Future<frb.MenuStateDto> outputAdd(String role) => frb.outputAdd(role: role);
+
+  Future<frb.MenuStateDto> outputRemove(int index) =>
+      frb.outputRemove(index: index);
+
+  Future<frb.MenuStateDto> outputRefresh() => frb.outputRefresh();
+
+  Future<List<frb.MidiPortDto>> midiPorts() => frb.midiPorts();
+
+  Future<frb.MenuStateDto> setMidiPort(String port) =>
+      frb.setMidiPort(port: port);
+
+  Future<List<frb.MapFileDto>> midiMaps() => frb.midiMaps();
+
+  Future<frb.MenuStateDto> setMidiMap(String path) =>
+      frb.setMidiMap(mapPath: path);
+
+  Future<frb.MenuStateDto> setSetting(String key, String value) =>
+      frb.setSetting(key: key, value: value);
 }

@@ -18,6 +18,7 @@ class PanelButton extends StatefulWidget {
     this.height,
     this.style,
     this.scale,
+    this.rawLabel = false,
     super.key,
   });
 
@@ -28,6 +29,10 @@ class PanelButton extends StatefulWidget {
   final double? height;
   final TextStyle? style;
   final ControlScale? scale;
+
+  /// Leave the label alone instead of applying the deck-control capitalization. Menu keys use
+  /// this so `Cue` stays title case instead of becoming the transport key's `CUE`.
+  final bool rawLabel;
 
   @override
   State<PanelButton> createState() => _PanelButtonState();
@@ -76,7 +81,7 @@ class _PanelButtonState extends State<PanelButton> {
           ),
           alignment: Alignment.center,
           child: Text(
-            capitalizeWords(widget.label),
+            widget.rawLabel ? widget.label : capitalizeWords(widget.label),
             maxLines: 1,
             overflow: TextOverflow.clip,
             style: style.copyWith(color: foreground),

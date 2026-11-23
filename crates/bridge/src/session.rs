@@ -18,7 +18,7 @@ use library::analyser::Backends;
 use library::LibraryDb;
 use protocol::{
     BeatLen, Command, CueOp, FaderTarget, FxChainId, FxSlotRef, HotCueOp, KeylockMode, LoopOp,
-    NudgeOp, Stem, SyncOp, VinylOp,
+    NudgeOp, OutputOp, Stem, SyncOp, VinylOp,
 };
 
 use crate::api::{
@@ -64,6 +64,12 @@ pub(crate) enum StateRequest {
     Logs {
         reply: Sender<Vec<LogDto>>,
     },
+    /// Replace the MIDI input, and optionally the map, then re-read the pair.
+    ReconnectMidi {
+        port: Option<String>,
+        map: Option<String>,
+        reply: Sender<Result<(), String>>,
+    },
     Shutdown {
         reply: Sender<()>,
     },
@@ -78,6 +84,8 @@ pub(crate) struct BootData {
     pub backends: Backends,
     pub decoder_start_ms: Option<f64>,
     pub grid_offset_ms: f64,
+    /// The profile source this session runs on, for the menu's config pages.
+    pub config_path: String,
 }
 
 pub(crate) struct Handle {
@@ -91,6 +99,7 @@ pub(crate) struct Handle {
     pub backends: Backends,
     pub decoder_start_ms: Option<f64>,
     pub grid_offset_ms: f64,
+    pub config_path: String,
 }
 
 impl Handle {
@@ -170,6 +179,7 @@ pub(crate) fn start(config_path: Option<String>) -> Result<(), String> {
                 backends: boot.backends,
                 decoder_start_ms: boot.decoder_start_ms,
                 grid_offset_ms: boot.grid_offset_ms,
+                config_path: boot.config_path,
             }));
             Ok(())
         }
@@ -287,6 +297,45 @@ pub(crate) fn deck_meta(deck: u8) -> Result<Option<DeckMeta>, String> {
 
 pub(crate) fn logs() -> Result<Vec<LogDto>, String> {
     ask(|reply| StateRequest::Logs { reply })
+}
+
+/// The profile source this session runs on, for the menu's config pages.
+pub(crate) fn config_path() -> Result<String, String> {
+    Ok(global()?.config_path.clone())
+}
+
+/// Re-reads the profile's text and asks the engine to rebuild its topology from it. File IO stays
+/// in `app`; the engine only receives the text.
+pub(crate) fn reload_mixer() -> Result<(), String> {
+    let handle = global()?;
+    let text = profile::read_profile_text(&handle.config_path)?;
+    handle
+        .dispatcher
+        .command_tx
+        .send(Command::MixerReload { text })
+        .map_err(|_| "the engine is gone".to_owned())
+}
+
+/// Re-probes every configured destination. A device plugged in after startup only appears after
+/// this (or a restart), which is what the menu's refresh key is for.
+pub(crate) fn refresh_outputs() -> Result<(), String> {
+    send_command(Command::Output {
+        op: OutputOp::Refresh,
+    })
+}
+
+/// Opens a different MIDI input on the session thread. The map stays the one the session already
+/// resolved; picking a different map is a separate (file-picker) action.
+pub(crate) fn reconnect_midi(port: Option<String>, map: Option<String>) -> Result<(), String> {
+    let handle = global()?;
+    let (reply, answer) = bounded(1);
+    handle
+        .state_tx
+        .send(StateRequest::ReconnectMidi { port, map, reply })
+        .map_err(|_| "the session thread is gone".to_owned())?;
+    answer
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "the session thread did not answer".to_owned())?
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +1009,7 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
         backends,
         decoder_start_ms: pref.library.decoder_start_ms,
         grid_offset_ms: pref.library.grid_offset_ms,
+        config_path: config_path.clone(),
     };
     Ok((pipeline, dispatcher, library, app, boot))
 }
@@ -1050,6 +1100,24 @@ fn pump(
                         })
                         .collect();
                     let _ = reply.send(logs);
+                }
+                StateRequest::ReconnectMidi { port, map, reply } => {
+                    if let Some(port) = port {
+                        app.midi_port = Some(port);
+                    }
+                    if let Some(map) = map {
+                        app.midi_map = Some(map);
+                    }
+                    let retry = app.connect_midi(
+                        dispatcher.command_tx.clone(),
+                        &dispatcher.notices,
+                        &dispatcher,
+                    );
+                    let _ = reply.send(if retry.is_some() {
+                        Err("the controller did not reconnect".to_owned())
+                    } else {
+                        Ok(())
+                    });
                 }
                 StateRequest::Shutdown { reply } => {
                     let _ = reply.send(());

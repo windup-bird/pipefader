@@ -154,7 +154,7 @@ class _DeckInfoRow extends StatelessWidget {
           child: Center(
             child: Builder(
               builder: (context) {
-                final state = logoStateFor(model, LayoutMode.landscape);
+                final state = model.logoStatus(LayoutMode.landscape);
                 return LogoButton(
                   model: model,
                   mode: LayoutMode.landscape,

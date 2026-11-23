@@ -42,6 +42,15 @@ Color bpmColor(double tempo) {
 }
 
 /// Capitalize first letter of each word, except for special all-caps words.
+/// Title case without the deck-control exceptions. The menu uses this so a settings row can say
+/// "Cue" rather than the transport key's "CUE".
+String titleCaseWords(String text) {
+  return text
+      .split(' ')
+      .map((word) => word.isEmpty ? word : word[0].toUpperCase() + word.substring(1))
+      .join(' ');
+}
+
 String capitalizeWords(String text) {
   const allCaps = {'cue', 'bpm', 'pad', 'tab'};
   return text

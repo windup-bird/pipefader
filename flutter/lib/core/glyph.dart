@@ -27,6 +27,7 @@ enum GlyphKind {
   play,
   controller,
   output,
+  refresh,
 }
 
 class Glyph extends StatelessWidget {
@@ -267,6 +268,14 @@ class _GlyphPainter extends CustomPainter {
           false,
           paint,
         );
+      case GlyphKind.refresh:
+        final r = half * 0.58;
+        final rect = Rect.fromCircle(center: center, radius: r);
+        canvas.drawArc(rect, -math.pi * 0.82, math.pi * 1.55, false, paint);
+        // Two short strokes at the open end, forming the arrow head.
+        final tip = center.translate(r * 0.92, -r * 0.40);
+        canvas.drawLine(tip, tip.translate(-r * 0.34, -r * 0.10), paint);
+        canvas.drawLine(tip, tip.translate(r * 0.02, -r * 0.36), paint);
     }
   }
 

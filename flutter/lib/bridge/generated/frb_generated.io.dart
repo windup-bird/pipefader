@@ -145,7 +145,19 @@ abstract class PipefaderBridgeApiImplPlatform
   List<LogDto> dco_decode_list_log_dto(dynamic raw);
 
   @protected
+  List<MapFileDto> dco_decode_list_map_file_dto(dynamic raw);
+
+  @protected
+  List<MidiPortDto> dco_decode_list_midi_port_dto(dynamic raw);
+
+  @protected
+  List<OutputDto> dco_decode_list_output_dto(dynamic raw);
+
+  @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
+  Uint16List dco_decode_list_prim_u_16_strict(dynamic raw);
 
   @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
@@ -167,6 +179,15 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   LoopAction dco_decode_loop_action(dynamic raw);
+
+  @protected
+  MapFileDto dco_decode_map_file_dto(dynamic raw);
+
+  @protected
+  MenuStateDto dco_decode_menu_state_dto(dynamic raw);
+
+  @protected
+  MidiPortDto dco_decode_midi_port_dto(dynamic raw);
 
   @protected
   NudgeAction dco_decode_nudge_action(dynamic raw);
@@ -196,6 +217,9 @@ abstract class PipefaderBridgeApiImplPlatform
   WaveformData? dco_decode_opt_box_autoadd_waveform_data(dynamic raw);
 
   @protected
+  OutputDto dco_decode_output_dto(dynamic raw);
+
+  @protected
   SessionEvent dco_decode_session_event(dynamic raw);
 
   @protected
@@ -209,6 +233,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   TransportAction dco_decode_transport_action(dynamic raw);
+
+  @protected
+  int dco_decode_u_16(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -365,7 +392,19 @@ abstract class PipefaderBridgeApiImplPlatform
   List<LogDto> sse_decode_list_log_dto(SseDeserializer deserializer);
 
   @protected
+  List<MapFileDto> sse_decode_list_map_file_dto(SseDeserializer deserializer);
+
+  @protected
+  List<MidiPortDto> sse_decode_list_midi_port_dto(SseDeserializer deserializer);
+
+  @protected
+  List<OutputDto> sse_decode_list_output_dto(SseDeserializer deserializer);
+
+  @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
+  Uint16List sse_decode_list_prim_u_16_strict(SseDeserializer deserializer);
 
   @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
@@ -387,6 +426,15 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   LoopAction sse_decode_loop_action(SseDeserializer deserializer);
+
+  @protected
+  MapFileDto sse_decode_map_file_dto(SseDeserializer deserializer);
+
+  @protected
+  MenuStateDto sse_decode_menu_state_dto(SseDeserializer deserializer);
+
+  @protected
+  MidiPortDto sse_decode_midi_port_dto(SseDeserializer deserializer);
 
   @protected
   NudgeAction sse_decode_nudge_action(SseDeserializer deserializer);
@@ -422,6 +470,9 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  OutputDto sse_decode_output_dto(SseDeserializer deserializer);
+
+  @protected
   SessionEvent sse_decode_session_event(SseDeserializer deserializer);
 
   @protected
@@ -435,6 +486,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   TransportAction sse_decode_transport_action(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -626,8 +680,32 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_list_log_dto(List<LogDto> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_map_file_dto(
+    List<MapFileDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_midi_port_dto(
+    List<MidiPortDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_output_dto(
+    List<OutputDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_f_32_strict(
     Float32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_u_16_strict(
+    Uint16List self,
     SseSerializer serializer,
   );
 
@@ -663,6 +741,15 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   void sse_encode_loop_action(LoopAction self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_map_file_dto(MapFileDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_menu_state_dto(MenuStateDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_midi_port_dto(MidiPortDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_nudge_action(NudgeAction self, SseSerializer serializer);
@@ -704,6 +791,9 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_output_dto(OutputDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_session_event(SessionEvent self, SseSerializer serializer);
 
   @protected
@@ -720,6 +810,9 @@ abstract class PipefaderBridgeApiImplPlatform
     TransportAction self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

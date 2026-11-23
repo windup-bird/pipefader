@@ -7,6 +7,7 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `midi_pair`, `parse_role`, `read_menu_state`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
 /// Boots the engine, config, library and state pump. Idempotent: a second call while a
@@ -58,6 +59,50 @@ Future<DeckMeta?> deckMeta({required int deck}) =>
     PipefaderBridge.instance.api.crateApiDeckMeta(deck: deck);
 
 Future<List<LogDto>> logs() => PipefaderBridge.instance.api.crateApiLogs();
+
+/// The menu's whole readable state. Outputs and settings come from the same `app` readers the TUI
+/// uses, so a hand-written profile is interpreted identically by both front-ends.
+Future<MenuStateDto> menuState() =>
+    PipefaderBridge.instance.api.crateApiMenuState();
+
+/// Adds a destination for a role. The GUI starts from one master and can add either role; the
+/// channel pair is the first free stereo pair so two destinations never share a socket by accident.
+Future<MenuStateDto> outputAdd({required String role}) =>
+    PipefaderBridge.instance.api.crateApiOutputAdd(role: role);
+
+/// Removes a destination. A mixer with no master output is not a useful state, so the last master is
+/// kept; precue may be emptied.
+Future<MenuStateDto> outputRemove({required int index}) =>
+    PipefaderBridge.instance.api.crateApiOutputRemove(index: index);
+
+/// Re-probes every destination and returns the configured list. The live/missing state is not
+/// reported yet; the engine logs it and a later tick can carry it if the UI needs it.
+Future<MenuStateDto> outputRefresh() =>
+    PipefaderBridge.instance.api.crateApiOutputRefresh();
+
+/// Every MIDI input the host currently reports. The menu compares the names with `midi_port`.
+Future<List<MidiPortDto>> midiPorts() =>
+    PipefaderBridge.instance.api.crateApiMidiPorts();
+
+/// Records a new input in the profile and opens it live. A built-in profile is read-only, so the
+/// menu shows the current input but disables switching there.
+Future<MenuStateDto> setMidiPort({required String port}) =>
+    PipefaderBridge.instance.api.crateApiSetMidiPort(port: port);
+
+/// The map choices: the built-in map plus every parseable `.toml` beside the profile. The current
+/// map is always included, even when it lives outside that folder.
+Future<List<MapFileDto>> midiMaps() =>
+    PipefaderBridge.instance.api.crateApiMidiMaps();
+
+/// Points the controller at another map and reconnects with it. The built-in sentinel is preserved
+/// in the profile rather than being treated as a relative path.
+Future<MenuStateDto> setMidiMap({required String mapPath}) =>
+    PipefaderBridge.instance.api.crateApiSetMidiMap(mapPath: mapPath);
+
+/// Changes one machine setting and, when the engine can take it live, reloads the topology. The
+/// sample rate is written but needs a restart, which the menu marks separately.
+Future<MenuStateDto> setSetting({required String key, required String value}) =>
+    PipefaderBridge.instance.api.crateApiSetSetting(key: key, value: value);
 
 Future<void> transport({required int deck, required TransportAction action}) =>
     PipefaderBridge.instance.api.crateApiTransport(deck: deck, action: action);
@@ -727,6 +772,102 @@ enum LoopAction {
   double,
 }
 
+/// One controller-map file the profile can point at.
+class MapFileDto {
+  final String path;
+  final String name;
+  final bool builtin;
+
+  const MapFileDto({
+    required this.path,
+    required this.name,
+    required this.builtin,
+  });
+
+  @override
+  int get hashCode => path.hashCode ^ name.hashCode ^ builtin.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MapFileDto &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          name == other.name &&
+          builtin == other.builtin;
+}
+
+/// Everything the logo menu needs from the session's profile.
+class MenuStateDto {
+  final String profile;
+  final bool builtin;
+  final String midiPort;
+  final String midiMap;
+  final List<OutputDto> outputs;
+  final int sampleRate;
+  final String crossfaderCurve;
+  final double cueBlend;
+  final bool autogain;
+
+  const MenuStateDto({
+    required this.profile,
+    required this.builtin,
+    required this.midiPort,
+    required this.midiMap,
+    required this.outputs,
+    required this.sampleRate,
+    required this.crossfaderCurve,
+    required this.cueBlend,
+    required this.autogain,
+  });
+
+  @override
+  int get hashCode =>
+      profile.hashCode ^
+      builtin.hashCode ^
+      midiPort.hashCode ^
+      midiMap.hashCode ^
+      outputs.hashCode ^
+      sampleRate.hashCode ^
+      crossfaderCurve.hashCode ^
+      cueBlend.hashCode ^
+      autogain.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MenuStateDto &&
+          runtimeType == other.runtimeType &&
+          profile == other.profile &&
+          builtin == other.builtin &&
+          midiPort == other.midiPort &&
+          midiMap == other.midiMap &&
+          outputs == other.outputs &&
+          sampleRate == other.sampleRate &&
+          crossfaderCurve == other.crossfaderCurve &&
+          cueBlend == other.cueBlend &&
+          autogain == other.autogain;
+}
+
+/// One MIDI input the host currently offers.
+class MidiPortDto {
+  final int index;
+  final String name;
+
+  const MidiPortDto({required this.index, required this.name});
+
+  @override
+  int get hashCode => index.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MidiPortDto &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          name == other.name;
+}
+
 enum NudgeAction {
   /// Hold the bend in the negative direction.
   left,
@@ -734,6 +875,53 @@ enum NudgeAction {
   /// Hold the bend in the positive direction.
   right,
   stop,
+}
+
+/// One mixer destination, as the logo menu's Output page shows it.
+class OutputDto {
+  /// Position in the profile's `[[mixer.output]]` array.
+  final int index;
+  final String name;
+
+  /// `master` or `cue` (the menu spells the latter "precue").
+  final String role;
+
+  /// Empty when the destination uses the host's default device.
+  final String device;
+
+  /// Empty when the file did not name a channel pair.
+  final Uint16List channels;
+  final double gain;
+
+  const OutputDto({
+    required this.index,
+    required this.name,
+    required this.role,
+    required this.device,
+    required this.channels,
+    required this.gain,
+  });
+
+  @override
+  int get hashCode =>
+      index.hashCode ^
+      name.hashCode ^
+      role.hashCode ^
+      device.hashCode ^
+      channels.hashCode ^
+      gain.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OutputDto &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          name == other.name &&
+          role == other.role &&
+          device == other.device &&
+          channels == other.channels &&
+          gain == other.gain;
 }
 
 /// Events pushed from the session thread. The fields not used by a particular [`EventKind`]

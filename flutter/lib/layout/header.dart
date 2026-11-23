@@ -21,7 +21,7 @@ class Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = logoStateFor(model, mode);
+    final state = model.logoStatus(mode);
     return SizedBox(
       height: height,
       child: Center(
@@ -35,26 +35,6 @@ class Header extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The mark's per-deck sounding flags and the leader index for a layout.
-class LogoState {
-  const LogoState(this.sounding, this.leader);
-
-  final List<bool> sounding;
-  final int leader;
-}
-
-LogoState logoStateFor(AppModel model, LayoutMode mode) {
-  final decks = model.activeDecks(model.deckCountFor(mode));
-  var leader = -1;
-  final sounding = <bool>[];
-  for (var i = 0; i < decks.length; i++) {
-    final on = decks[i].playing;
-    sounding.add(on);
-    if (on && leader < 0) leader = i;
-  }
-  return LogoState(sounding, leader);
 }
 
 class LogoButton extends StatefulWidget {
@@ -90,11 +70,18 @@ class _LogoButtonState extends State<LogoButton> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => showAppMenu(
-          context,
-          model: widget.model,
-          current: widget.model.forcedLayout ?? widget.mode,
-        ),
+        onTap: () {
+          final box = context.findRenderObject();
+          final rect = box is RenderBox && box.hasSize
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null;
+          showAppMenu(
+            context,
+            model: widget.model,
+            current: widget.model.forcedLayout ?? widget.mode,
+            logoRect: rect,
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: AnimatedOpacity(

@@ -9,6 +9,7 @@ pub mod browser;
 pub mod command;
 pub mod completer;
 pub mod config;
+pub mod devices;
 pub mod intent;
 pub mod midi;
 pub mod notices;

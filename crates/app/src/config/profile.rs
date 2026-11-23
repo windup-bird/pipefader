@@ -280,7 +280,8 @@ pub fn load_or_create(explicit: Option<&str>) -> Result<Config, String> {
 
 /// Reads a user config; a missing or unreadable file is an error, never a silent fallback.
 fn load_user(path: PathBuf) -> Result<Config, String> {
-    let text = std::fs::read_to_string(&path).map_err(|err| format!("{}: {err}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).map_err(|err| format!("{}: {err}", path.display()))?;
     parse(&path, &text, Vec::new())
 }
 
@@ -359,7 +360,14 @@ pub fn write_controller(
         .parse()
         .map_err(|err| format!("{}: {err}", config.display()))?;
     let derived_id = existing_controller_id(&doc).or_else(|| controller_owner(&doc));
-    let map_text = map.map(|map| config_relative(config, map));
+    let map_text = map.map(|map| {
+        let text = map.to_string_lossy();
+        if is_builtin(&text) {
+            text.into_owned()
+        } else {
+            config_relative(config, map)
+        }
+    });
 
     let table = controller_table(&mut doc)?;
     if table.get("id").is_none() {
@@ -689,6 +697,9 @@ fn controller_section(value: &toml::Value) -> Result<ControllerSection, String> 
 /// A path written inside the config: absolute stays absolute, relative joins the config's folder.
 fn resolve_against(dir: &Path, path: &str) -> String {
     let path = Path::new(path.trim());
+    if is_builtin(path.to_string_lossy().as_ref()) {
+        return path.to_string_lossy().into_owned();
+    }
     if path.is_absolute() {
         return path.to_string_lossy().into_owned();
     }
@@ -924,6 +935,24 @@ device = "DDJ-400"
                 .is_ok(),
             "the persisted id must keep the source mapping alive"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn write_controller_keeps_the_builtin_map_sentinel() {
+        let dir = temp("controller-builtin-map");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[mixer]\n").unwrap();
+
+        write_controller(&path, None, Some(Path::new(BUILTIN_MAP))).unwrap();
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains(BUILTIN_MAP), "{text}");
+        let cfg = load_or_create(Some(path.to_string_lossy().as_ref())).expect("parses");
+        assert_eq!(cfg.controller.map.as_deref(), Some(BUILTIN_MAP));
+        assert!(read_map_text(BUILTIN_MAP).is_ok());
         std::fs::remove_dir_all(&dir).ok();
     }
 

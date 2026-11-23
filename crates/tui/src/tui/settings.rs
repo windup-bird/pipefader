@@ -22,10 +22,7 @@
 //!   without restarting. Probing opens every PCM, so ALSA complains — those lines now land in the
 //!   response log instead of over the canvas (see `stderr.rs`).
 
-use std::fs;
-
 use crossterm::event::KeyCode;
-use toml_edit::DocumentMut;
 
 use ratatui::layout::Rect;
 use ratatui::Frame;
@@ -172,10 +169,16 @@ impl SettingsScreen {
 
     /// Re-reads the mixer file, which is the only list that comes from disk.
     fn refresh(&mut self) {
-        self.outputs = read_doc(&self.mixer_path)
-            .as_ref()
-            .map(outputs_of)
-            .unwrap_or_default();
+        self.outputs = ::app::config::output::read(&self.mixer_path)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|entry| OutputInfo {
+                role: entry.role_name().to_owned(),
+                name: entry.name,
+                device: entry.device,
+                channels: entry.channels,
+            })
+            .collect();
     }
 
     /// Re-probes the host's output devices.
@@ -498,7 +501,7 @@ impl SettingsScreen {
             return;
         };
         let name = info.name.clone();
-        match write_output(&self.mixer_path, output, &name, channels) {
+        match ::app::config::output::bind(&self.mixer_path, output, Some(&name), channels) {
             Ok(()) => {
                 let pair = channels
                     .map(|(left, right)| format!(" ch {left},{right}"))
@@ -670,103 +673,6 @@ pub fn render(frame: &mut Frame, area: Rect, screen: &SettingsScreen, theme: &Th
     popup::render(frame, area, theme, &screen.view());
 }
 
-fn read_doc(path: &str) -> Option<DocumentMut> {
-    ::app::config::profile::read_profile_text(path)
-        .ok()?
-        .parse()
-        .ok()
-}
-
-/// The `[[output]]` tables of a mixer document.
-fn outputs_of(doc: &DocumentMut) -> Vec<OutputInfo> {
-    let Some(tables) = ::app::config::profile::output_tables(doc) else {
-        return Vec::new();
-    };
-    tables
-        .iter()
-        .map(|table| OutputInfo {
-            name: table
-                .get("name")
-                .and_then(|item| item.as_str())
-                .unwrap_or("output")
-                .to_owned(),
-            role: table
-                .get("role")
-                .and_then(|item| item.as_str())
-                .unwrap_or("master")
-                .to_owned(),
-            device: table
-                .get("device")
-                .and_then(|item| item.as_str())
-                .map(str::to_owned),
-            channels: table
-                .get("channels")
-                .and_then(|item| item.as_array())
-                .filter(|array| array.len() == 2)
-                .and_then(|array| {
-                    Some((
-                        u16::try_from(array.get(0)?.as_integer()?).ok()?,
-                        u16::try_from(array.get(1)?.as_integer()?).ok()?,
-                    ))
-                }),
-        })
-        .collect()
-}
-
-/// Writes `device` (and optionally the channel pair) into one destination, keeping its comments.
-fn write_output(
-    path: &str,
-    index: usize,
-    device: &str,
-    channels: Option<(u16, u16)>,
-) -> Result<(), String> {
-    if ::app::config::profile::is_builtin(path) {
-        return Err("the built-in template is read-only; load a user config to bind outputs"
-            .to_owned());
-    }
-    let text = fs::read_to_string(path).map_err(|err| format!("{path}: {err}"))?;
-    let mut doc: DocumentMut = text.parse().map_err(|err| format!("{path}: {err}"))?;
-    let table = ::app::config::profile::output_tables_mut(&mut doc)
-        .map_err(|err| format!("{path}: {err}"))?
-        .get_mut(index)
-        .ok_or_else(|| format!("{path}: no [[mixer.output]] #{index}"))?;
-    set_str(table, "device", device);
-    if let Some((left, right)) = channels {
-        let mut array = toml_edit::Array::new();
-        array.push(i64::from(left));
-        array.push(i64::from(right));
-        set_array(table, "channels", array);
-    }
-    fs::write(path, doc.to_string()).map_err(|err| format!("{path}: {err}"))
-}
-
-/// Sets a string key, keeping the decor (`toml_edit` stores comments and spacing there).
-fn set_str(table: &mut toml_edit::Table, key: &str, value: &str) {
-    match table.get_mut(key) {
-        Some(toml_edit::Item::Value(existing)) => {
-            let decor = existing.decor().clone();
-            *existing = value.into();
-            *existing.decor_mut() = decor;
-        }
-        _ => {
-            table.insert(key, toml_edit::Item::Value(value.into()));
-        }
-    }
-}
-
-fn set_array(table: &mut toml_edit::Table, key: &str, array: toml_edit::Array) {
-    match table.get_mut(key) {
-        Some(toml_edit::Item::Value(existing)) => {
-            let decor = existing.decor().clone();
-            *existing = toml_edit::Value::Array(array);
-            *existing.decor_mut() = decor;
-        }
-        _ => {
-            table.insert(key, toml_edit::Item::Value(toml_edit::Value::Array(array)));
-        }
-    }
-}
-
 #[cfg(test)]
 impl SettingsScreen {
     fn focus(&mut self, needle: &str) -> bool {
@@ -814,6 +720,7 @@ impl SettingsScreen {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     fn unique(tag: &str) -> std::path::PathBuf {
         use std::sync::atomic::{AtomicUsize, Ordering};

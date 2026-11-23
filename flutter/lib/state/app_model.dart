@@ -11,6 +11,7 @@ import 'package:pipefader_gui/model/library.dart';
 import 'package:pipefader_gui/model/peaks.dart';
 import 'package:pipefader_gui/bridge/engine.dart';
 import 'package:pipefader_gui/bridge/generated/api.dart' as frb;
+import 'package:pipefader_gui/state/menu_state.dart';
 
 /// The pieces of a deck that change while the sketch runs: transport, tempo,
 /// pads, units and the meter.
@@ -132,12 +133,19 @@ class AppModel extends ChangeNotifier {
     : _fullDecks = _legalFull(fullDecks),
       _phoneDecks = _legalPhone(phoneDecks),
       decks = _buildDecks(live: engine != null) {
-    if (engine != null) _bindEngine();
+    if (engine != null) {
+      _bindEngine();
+      unawaited(menu.ensureLoaded());
+    }
   }
 
   /// When non-null the model is driven by the Rust engine instead of the
   /// local sketch. Tests and the web preview leave it null.
   final EngineClient? engine;
+
+  /// The logo menu's profile/output/MIDI snapshot. Kept on the model so opening the menu again
+  /// does not lose a half-edited output list.
+  late final MenuState menu = MenuState(engine: engine);
 
   StreamSubscription<frb.SessionEvent>? _engineSub;
 
@@ -218,6 +226,20 @@ class AppModel extends ChangeNotifier {
 
   List<DeckRuntime> activeDecks(int count) =>
       decks.take(count).toList(growable: false);
+
+  /// The main mark's per-deck sounding flags and the first playing deck. The menu draws the same
+  /// `LogoFaders`, so both places stay in step without either owning a copy of the rule.
+  ({List<bool> sounding, int leader}) logoStatus(LayoutMode mode) {
+    final active = activeDecks(deckCountFor(mode));
+    var leader = -1;
+    final sounding = <bool>[];
+    for (var i = 0; i < active.length; i++) {
+      final on = active[i].playing;
+      sounding.add(on);
+      if (on && leader < 0) leader = i;
+    }
+    return (sounding: sounding, leader: leader);
+  }
 
   List<TrackRow> get visibleTracks {
     final query = searchText.trim().toLowerCase();
@@ -316,7 +338,8 @@ class AppModel extends ChangeNotifier {
       // tick is the source of truth and snaps any drift away.
       for (final deck in decks) {
         if (deck.playing && deck.view.totalFrames > 0) {
-          deck.frame += (step * deck.view.sampleRate * deck.playingRate).round();
+          deck.frame += (step * deck.view.sampleRate * deck.playingRate)
+              .round();
           if (deck.frame > deck.view.totalFrames) {
             deck.frame = deck.view.totalFrames;
           }
@@ -472,10 +495,7 @@ class AppModel extends ChangeNotifier {
       deck.keylock = state.keylock;
       deck.loopActive = state.loopActive;
       deck.loopArmed = state.loopArmed;
-      deck.loopBeatsIndex = _beatIndex(
-        state.loopBeatsNum,
-        state.loopBeatsDen,
-      );
+      deck.loopBeatsIndex = _beatIndex(state.loopBeatsNum, state.loopBeatsDen);
       deck.jumpBeatsIndex = _jumpIndex(state.jumpBeats.toInt());
       deck.hotCues
         ..clear()
@@ -508,8 +528,9 @@ class AppModel extends ChangeNotifier {
       }
 
       final view = deck.view;
-      final sampleRate =
-          state.sampleRate > 0 ? state.sampleRate : view.sampleRate;
+      final sampleRate = state.sampleRate > 0
+          ? state.sampleRate
+          : view.sampleRate;
       final bpm = state.bpmAtFrame > 0 ? state.bpmAtFrame : view.bpm;
       if (view.sampleRate != sampleRate ||
           view.totalFrames != state.totalFrames.toInt() ||
@@ -795,11 +816,7 @@ class AppModel extends ChangeNotifier {
       ..clear()
       ..addAll(
         fetchedLists.map(
-          (list) => ListEntry(
-            list.name,
-            id: list.id,
-            sourceId: list.sourceId,
-          ),
+          (list) => ListEntry(list.name, id: list.id, sourceId: list.sourceId),
         ),
       );
     selectedList = fetchedLists.isEmpty
@@ -820,11 +837,7 @@ class AppModel extends ChangeNotifier {
       ..clear()
       ..addAll(
         lists.map(
-          (list) => ListEntry(
-            list.name,
-            id: list.id,
-            sourceId: list.sourceId,
-          ),
+          (list) => ListEntry(list.name, id: list.id, sourceId: list.sourceId),
         ),
       );
     selectedList = 0;
@@ -1371,6 +1384,7 @@ class AppModel extends ChangeNotifier {
     for (final deck in decks) {
       deck.cover?.dispose();
     }
+    menu.dispose();
     clock.dispose();
     super.dispose();
   }

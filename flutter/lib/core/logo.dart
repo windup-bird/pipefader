@@ -43,12 +43,17 @@ class LogoFaders extends StatelessWidget {
     // with the count.
     final s = size;
     final count = sounding.isEmpty ? 1 : sounding.length;
-    final w = s * (_barRatio * count + _gapRatio * (count - 1));
+    final w = widthFor(s, count);
     return CustomPaint(
       size: Size(w, s),
       painter: _LogoFadersPainter(sounding, leader),
     );
   }
+
+  /// The natural width of [count] faders at [size] high. The menu's fly-in target uses the same
+  /// number as the painter, so the mark does not jump when the animation lands.
+  static double widthFor(double size, int count) =>
+      size * (_barRatio * count + _gapRatio * (count - 1));
 
   /// Handle width and gap as fractions of the height, taken from the two-deck
   /// mark so every deck count reuses that proportion.

@@ -19,6 +19,13 @@ import 'support.dart';
 void main() {
   setUpAll(loadTestFonts);
 
+  /// The app runs a frame ticker, so `pumpAndSettle` never settles. Two fixed frames are enough
+  /// for the menu's 220 ms open and 150 ms page switch to finish and drop their outgoing widgets.
+  Future<void> settleMenu(WidgetTester tester, [int milliseconds = 320]) async {
+    await tester.pump(Duration(milliseconds: milliseconds));
+    await tester.pump(const Duration(milliseconds: 80));
+  }
+
   test('control scale clamps and grows with the band', () {
     const small = ControlScale(40);
     const base = ControlScale(128);
@@ -32,8 +39,9 @@ void main() {
   testWidgets('logo menu switches layout', (tester) async {
     await pumpAppAt(tester, const Size(1440, 900));
     await tester.tap(find.byType(LogoButton).first);
-    await tester.pump(const Duration(milliseconds: 80));
-    expect(find.text('Decks'), findsOneWidget);
+    await settleMenu(tester);
+    expect(find.byKey(const ValueKey('decks-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('decks-4')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('layout-stacked')));
     await tester.pump(const Duration(milliseconds: 300));
@@ -46,9 +54,9 @@ void main() {
     expect(find.byType(DeckInfo), findsNWidgets(2));
 
     await tester.tap(find.byType(LogoButton).first);
-    await tester.pump(const Duration(milliseconds: 80));
+    await settleMenu(tester);
     await tester.tap(find.byKey(const ValueKey('decks-4')));
-    await tester.pump(const Duration(milliseconds: 300));
+    await settleMenu(tester);
     expect(find.byType(DeckInfo), findsNWidgets(4));
   });
 
@@ -66,16 +74,12 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(
-      find.descendant(of: first, matching: find.text('LOOP')),
-    );
+    await tester.tap(find.descendant(of: first, matching: find.text('LOOP')));
     await tester.pump(const Duration(milliseconds: 200));
     expect(model.decks[0].unitA, UnitKind.padsLoop);
     expect(model.decks[0].padMode, PadMode.loop);
 
-    await tester.tap(
-      find.descendant(of: second, matching: find.text('TEMPO')),
-    );
+    await tester.tap(find.descendant(of: second, matching: find.text('TEMPO')));
     await tester.pump(const Duration(milliseconds: 200));
     expect(model.decks[0].unitB, UnitKind.tempo);
   });
@@ -308,10 +312,54 @@ void main() {
   testWidgets('settings row opens a panel', (tester) async {
     await pumpAppAt(tester, const Size(1440, 900));
     await tester.tap(find.byType(LogoButton).first);
-    await tester.pump(const Duration(milliseconds: 80));
+    await settleMenu(tester);
     await tester.tap(find.byKey(const ValueKey('menu-settings')));
-    await tester.pump(const Duration(milliseconds: 120));
+    await settleMenu(tester);
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.textContaining('Tempo Range'), findsOneWidget);
+    expect(find.text('Sample Rate'), findsOneWidget);
+    expect(find.text('Crossfader'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('setting-sample_rate-48000')));
+    await settleMenu(tester);
+    expect(find.text('Settings'), findsOneWidget);
+  });
+
+  testWidgets('output adds and removes channels', (tester) async {
+    await pumpAppAt(tester, const Size(1440, 900));
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-output')));
+    await settleMenu(tester);
+    expect(find.text('Output'), findsOneWidget);
+    expect(find.text('Master 1'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('output-add-master')));
+    await settleMenu(tester);
+    expect(find.text('Master 2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('output-remove-1')));
+    await settleMenu(tester);
+    expect(find.text('Master 2'), findsNothing);
+
+    await tester.tap(find.text('Precue'));
+    await settleMenu(tester);
+    expect(find.text('No precue channels'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('output-add-precue')));
+    await settleMenu(tester);
+    expect(find.text('Precue 1'), findsOneWidget);
+  });
+
+  testWidgets('midi and output refresh keys settle', (tester) async {
+    await pumpAppAt(tester, const Size(1440, 900));
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-midi')));
+    await settleMenu(tester);
+    expect(find.text('Midi / Map'), findsOneWidget);
+    expect(find.text('No controller connected'), findsOneWidget);
+    expect(find.text('mapping.toml'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('midi-refresh')));
+    await settleMenu(tester);
+    expect(find.text('Midi / Map'), findsOneWidget);
   });
 }
