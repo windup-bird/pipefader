@@ -15,6 +15,7 @@ pub mod notices;
 pub mod response;
 pub mod session;
 pub mod state;
+pub mod waveform;
 
 // `crate::profile` is the path every module already speaks; keep it as a re-export rather than a
 // second module.

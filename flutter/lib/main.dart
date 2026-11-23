@@ -1,11 +1,22 @@
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
+import 'package:pipefader_gui/bridge/engine.dart';
 import 'package:pipefader_gui/layout/app_shell.dart';
 import 'package:pipefader_gui/state/app_model.dart';
 import 'package:pipefader_gui/core/theme.dart';
 
-void main() {
-  runApp(const PipefaderApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  EngineClient? engine;
+  if (!kIsWeb) {
+    try {
+      engine = await EngineClient.start();
+    } catch (error, stack) {
+      debugPrint('Pipefader engine failed to start: $error\n$stack');
+    }
+  }
+  runApp(PipefaderApp(model: AppModel(engine: engine)));
 }
 
 class PipefaderApp extends StatelessWidget {

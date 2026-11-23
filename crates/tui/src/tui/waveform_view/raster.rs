@@ -1,12 +1,14 @@
-//! Shared pixel rasteriser for the image backends.
+//! The shared palette-indexed rasteriser for the scrolling waveform.
 //!
-//! Everything is drawn into a small palette-indexed buffer; the Kitty backend lets the terminal
-//! scale it to the cell rectangle.
+//! The projection itself lives in `app::waveform`; this module only turns the
+//! renderer-independent frame into the small palette buffer the Kitty encoder
+//! transmits. Nothing here knows about analysis, beat grids or zoom.
 
-use library::{StereoPeaks, Waveform};
-use protocol::{BeatGrid, HOT_CUE_SLOTS};
-use ratatui::style::Color;
+use app::waveform::{WaveFrame, WavePalette};
+use library::StereoPeaks;
+use protocol::HOT_CUE_SLOTS;
 
+#[cfg(test)]
 use crate::preference::WaveformColors;
 
 /// Palette slots. Shared by both encoders so a pixel means the same thing everywhere.
@@ -23,18 +25,9 @@ pub const MEMORY: u8 = 9;
 pub const HOT0: u8 = 10;
 pub const PALETTE_LEN: usize = 18;
 
-const HOT_COLORS: [[u8; 4]; HOT_CUE_SLOTS] = [
-    [255, 72, 72, 255],
-    [255, 160, 64, 255],
-    [255, 232, 64, 255],
-    [80, 255, 96, 255],
-    [64, 240, 240, 255],
-    [80, 160, 255, 255],
-    [200, 96, 255, 255],
-    [255, 96, 200, 255],
-];
-
 /// The cue/loop furniture drawn over the waveform. Frames are source frames.
+/// Kept for the Kitty strip cache key; the raster itself takes the projected
+/// columns from [`WaveFrame`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Overlay {
     pub loop_range: Option<(u64, u64)>,
@@ -42,7 +35,7 @@ pub struct Overlay {
     pub hot_cues: [Option<u64>; HOT_CUE_SLOTS],
 }
 
-/// Palette derived from the three configurable band colours plus the fixed UI furniture.
+/// Palette derived from the application's one waveform palette.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Palette {
     /// RGBA for Kitty; index 0 is transparent.
@@ -50,47 +43,87 @@ pub struct Palette {
 }
 
 impl Palette {
-    pub fn from_colors(colors: WaveformColors) -> Self {
+    pub fn from_palette(palette: &WavePalette) -> Self {
         let mut rgba = [[0u8, 0, 0, 255]; PALETTE_LEN];
         rgba[usize::from(BG)] = [0, 0, 0, 0];
-        rgba[usize::from(LOW)] = rgb(colors.low);
-        rgba[usize::from(MID)] = rgb(colors.mid);
-        rgba[usize::from(HIGH)] = rgb(colors.high);
-        rgba[usize::from(CENTER)] = [80, 80, 80, 255];
-        rgba[usize::from(BEAT)] = [110, 110, 110, 255];
-        rgba[usize::from(BAR)] = [160, 160, 160, 255];
-        rgba[usize::from(PLAYHEAD)] = [255, 40, 40, 255];
-        rgba[usize::from(LOOP)] = [76, 76, 76, 255];
-        rgba[usize::from(MEMORY)] = [245, 245, 245, 255];
-        for (slot, color) in HOT_COLORS.iter().enumerate() {
-            rgba[usize::from(HOT0) + slot] = *color;
+        let mut set = |slot: u8, color: app::waveform::Rgb| {
+            rgba[usize::from(slot)] = [color.r, color.g, color.b, 255];
+        };
+        set(LOW, palette.low);
+        set(MID, palette.mid);
+        set(HIGH, palette.high);
+        set(CENTER, palette.center);
+        set(BEAT, palette.beat);
+        set(BAR, palette.bar);
+        set(PLAYHEAD, palette.playhead);
+        set(LOOP, palette.loop_wash);
+        set(MEMORY, palette.memory_cue);
+        for (slot, color) in palette.hot_cues.iter().enumerate() {
+            set(HOT0 + slot as u8, *color);
         }
         Self { rgba }
     }
+
+    /// Compatibility for the existing Kitty tests and callers that still hold
+    /// terminal colours. New code should use [`Palette::from_palette`].
+    #[cfg(test)]
+    pub fn from_colors(colors: WaveformColors) -> Self {
+        let bytes = |color: ratatui::style::Color| match color {
+            ratatui::style::Color::Rgb(r, g, b) => [r, g, b, 255],
+            ratatui::style::Color::Black => [0, 0, 0, 255],
+            ratatui::style::Color::Red => [255, 0, 0, 255],
+            ratatui::style::Color::Green => [0, 255, 0, 255],
+            ratatui::style::Color::Yellow => [255, 255, 0, 255],
+            ratatui::style::Color::Blue => [0, 0, 255, 255],
+            ratatui::style::Color::Magenta => [255, 0, 255, 255],
+            ratatui::style::Color::Cyan => [0, 255, 255, 255],
+            ratatui::style::Color::Gray => [128, 128, 128, 255],
+            ratatui::style::Color::DarkGray => [64, 64, 64, 255],
+            ratatui::style::Color::LightRed => [255, 128, 128, 255],
+            ratatui::style::Color::LightGreen => [128, 255, 128, 255],
+            ratatui::style::Color::LightYellow => [255, 255, 128, 255],
+            ratatui::style::Color::LightBlue => [128, 128, 255, 255],
+            ratatui::style::Color::LightMagenta => [255, 128, 255, 255],
+            ratatui::style::Color::LightCyan => [128, 255, 255, 255],
+            ratatui::style::Color::White => [255, 255, 255, 255],
+            _ => [255, 255, 255, 255],
+        };
+        let palette = WavePalette::from_band_colors(
+            rgb(colors.low),
+            rgb(colors.mid),
+            rgb(colors.high),
+        );
+        let mut out = Self::from_palette(&palette);
+        out.rgba[usize::from(LOW)] = bytes(colors.low);
+        out.rgba[usize::from(MID)] = bytes(colors.mid);
+        out.rgba[usize::from(HIGH)] = bytes(colors.high);
+        out
+    }
 }
 
-fn rgb(color: Color) -> [u8; 4] {
+#[cfg(test)]
+fn rgb(color: ratatui::style::Color) -> app::waveform::Rgb {
     let (r, g, b) = match color {
-        Color::Black => (0, 0, 0),
-        Color::Red => (255, 0, 0),
-        Color::Green => (0, 255, 0),
-        Color::Yellow => (255, 255, 0),
-        Color::Blue => (0, 0, 255),
-        Color::Magenta => (255, 0, 255),
-        Color::Cyan => (0, 255, 255),
-        Color::Gray => (128, 128, 128),
-        Color::DarkGray => (64, 64, 64),
-        Color::LightRed => (255, 128, 128),
-        Color::LightGreen => (128, 255, 128),
-        Color::LightYellow => (255, 255, 128),
-        Color::LightBlue => (128, 128, 255),
-        Color::LightMagenta => (255, 128, 255),
-        Color::LightCyan => (128, 255, 255),
-        Color::White => (255, 255, 255),
-        Color::Rgb(r, g, b) => (r, g, b),
+        ratatui::style::Color::Rgb(r, g, b) => (r, g, b),
+        ratatui::style::Color::Black => (0, 0, 0),
+        ratatui::style::Color::Red => (255, 0, 0),
+        ratatui::style::Color::Green => (0, 255, 0),
+        ratatui::style::Color::Yellow => (255, 255, 0),
+        ratatui::style::Color::Blue => (0, 0, 255),
+        ratatui::style::Color::Magenta => (255, 0, 255),
+        ratatui::style::Color::Cyan => (0, 255, 255),
+        ratatui::style::Color::Gray => (128, 128, 128),
+        ratatui::style::Color::DarkGray => (64, 64, 64),
+        ratatui::style::Color::LightRed => (255, 128, 128),
+        ratatui::style::Color::LightGreen => (128, 255, 128),
+        ratatui::style::Color::LightYellow => (255, 255, 128),
+        ratatui::style::Color::LightBlue => (128, 128, 255),
+        ratatui::style::Color::LightMagenta => (255, 128, 255),
+        ratatui::style::Color::LightCyan => (128, 255, 255),
+        ratatui::style::Color::White => (255, 255, 255),
         _ => (255, 255, 255),
     };
-    [r, g, b, 255]
+    app::waveform::Rgb::new(r, g, b)
 }
 
 /// Palette-indexed pixels, row-major.
@@ -110,113 +143,55 @@ impl Raster {
     }
 }
 
-/// Draws the current viewport into `width × height` pixels.
-///
-/// `frames_per_pixel` is the only projection parameter; the caller derives it from the
-/// backend-independent `frames_per_cell`.
-#[allow(dead_code, clippy::too_many_arguments)]
-pub fn rasterize(
-    waveform: Option<&Waveform>,
-    grid: Option<&BeatGrid>,
-    playhead: f64,
-    frames_per_pixel: f64,
+/// Draws one shared frame into `width × height` pixels. The frame's columns must
+/// already sit on the same `frames_per_pixel` grid as the viewport; width is the
+/// frame's column count for the strip being rendered.
+pub fn rasterize_frame(
+    frame: &WaveFrame,
     width: u32,
     height: u32,
     include_playhead: bool,
-) -> Raster {
-    rasterize_with(
-        waveform,
-        grid,
-        playhead,
-        frames_per_pixel,
-        width,
-        height,
-        include_playhead,
-        &Overlay::default(),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn rasterize_with(
-    waveform: Option<&Waveform>,
-    grid: Option<&BeatGrid>,
-    playhead: f64,
-    frames_per_pixel: f64,
-    width: u32,
-    height: u32,
-    include_playhead: bool,
-    overlay: &Overlay,
 ) -> Raster {
     let width = width.max(1);
     let height = height.max(1);
     let mut indices = vec![BG; (width as usize) * (height as usize)];
     let center_y = height / 2;
     let center_x = width / 2;
-    let frames_per_pixel = frames_per_pixel.max(1.0);
-    let playhead = playhead.max(0.0);
-    let start_frame = playhead - f64::from(center_x) * frames_per_pixel;
 
-    if let Some((in_frame, out_frame)) = overlay.loop_range {
-        draw_loop(
-            &mut indices,
-            width,
-            height,
-            playhead,
-            frames_per_pixel,
-            in_frame,
-            out_frame,
-        );
+    if let Some((start, end)) = frame.markers.loop_range {
+        for x in start..end.min(width) {
+            for y in 0..height {
+                indices[(y as usize) * (width as usize) + x as usize] = LOOP;
+            }
+        }
     }
-    if let Some(grid) = grid {
-        draw_beats(
-            &mut indices,
-            width,
-            height,
-            grid,
-            playhead,
-            frames_per_pixel,
-        );
+    let mut draw_beat = |x: u32, color: u8| {
+        if x < width {
+            for y in 0..height {
+                indices[(y as usize) * (width as usize) + x as usize] = color;
+            }
+        }
+    };
+    for &x in &frame.markers.beats {
+        draw_beat(x, BEAT);
+    }
+    for &x in &frame.markers.bars {
+        draw_beat(x, BAR);
     }
 
-    // Centre line first, waveform over it.
     for x in 0..width {
         indices[(center_y as usize) * (width as usize) + x as usize] = CENTER;
     }
 
-    if let Some(waveform) = waveform {
-        for (index, peaks) in waveform
-            .columns(start_frame, frames_per_pixel, width as usize)
-            .enumerate()
-        {
-            draw_stereo_column(&mut indices, width, height, center_y, index as u32, peaks);
-        }
+    for (index, peaks) in frame.columns.iter().take(width as usize).enumerate() {
+        draw_stereo_column(&mut indices, width, height, center_y, index as u32, *peaks);
     }
 
-    if let Some(frame) = overlay.memory_cue {
-        draw_cue(
-            &mut indices,
-            width,
-            height,
-            playhead,
-            frames_per_pixel,
-            frame,
-            MEMORY,
-            3,
-        );
+    if let Some(x) = frame.markers.cue {
+        draw_cue(&mut indices, width, height, x, MEMORY, 3);
     }
-    for (slot, frame) in overlay.hot_cues.iter().enumerate() {
-        if let Some(frame) = frame {
-            draw_cue(
-                &mut indices,
-                width,
-                height,
-                playhead,
-                frames_per_pixel,
-                *frame,
-                HOT0 + slot as u8,
-                4,
-            );
-        }
+    for &(slot, x) in &frame.markers.hot_cues {
+        draw_cue(&mut indices, width, height, x, HOT0 + slot, 4);
     }
 
     if include_playhead {
@@ -232,44 +207,14 @@ pub fn rasterize_with(
     }
 }
 
-fn draw_loop(
-    indices: &mut [u8],
-    width: u32,
-    height: u32,
-    playhead: f64,
-    frames_per_pixel: f64,
-    in_frame: u64,
-    out_frame: u64,
-) {
-    let center = f64::from(width) / 2.0;
-    let start = center + (in_frame as f64 - playhead) / frames_per_pixel;
-    let end = center + (out_frame as f64 - playhead) / frames_per_pixel;
-    let start = start.max(0.0).min(f64::from(width)) as u32;
-    let end = end.max(0.0).min(f64::from(width)) as u32;
-    for x in start..end {
-        for y in 0..height {
-            indices[(y as usize) * (width as usize) + x as usize] = LOOP;
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 fn draw_cue(
     indices: &mut [u8],
     width: u32,
     height: u32,
-    playhead: f64,
-    frames_per_pixel: f64,
-    frame: u64,
+    x: u32,
     color: u8,
     thickness: u32,
 ) {
-    let center = f64::from(width) / 2.0;
-    let x = center + (frame as f64 - playhead) / frames_per_pixel;
-    if !(0.0..f64::from(width)).contains(&x) {
-        return;
-    }
-    let x = x.round() as u32;
     let half = thickness / 2;
     let start = x.saturating_sub(half);
     let end = (x + half + 1).min(width);
@@ -335,46 +280,20 @@ fn draw_band(
     }
 }
 
-fn draw_beats(
-    indices: &mut [u8],
-    width: u32,
-    height: u32,
-    grid: &BeatGrid,
-    playhead: f64,
-    frames_per_pixel: f64,
-) {
-    if grid.is_empty() {
-        return;
-    }
-    let center = f64::from(width) / 2.0;
-    let start_frame = playhead - center * frames_per_pixel;
-    let end_frame = playhead + center * frames_per_pixel;
-    if end_frame <= 0.0 {
-        return;
-    }
-    let first = grid.floor_beat(start_frame.max(0.0) as u64);
-    for beat in (first..).take(512) {
-        let frame = grid.frame_at_beat(beat) as f64;
-        if frame > end_frame {
-            break;
-        }
-        let x = center + (frame - playhead) / frames_per_pixel;
-        if !(0.0..f64::from(width)).contains(&x) {
-            continue;
-        }
-        let x = x as u32;
-        let color = if beat.is_multiple_of(4) { BAR } else { BEAT };
-        for y in 0..height {
-            indices[(y as usize) * (width as usize) + x as usize] = color;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use app::waveform::{WaveMarkers, WavePalette};
     use library::BandPeaks;
-    use library::StereoPeaks;
+
+    fn frame(columns: Vec<StereoPeaks>, markers: WaveMarkers) -> WaveFrame {
+        WaveFrame {
+            start_frame: 0.0,
+            frames_per_pixel: 1.0,
+            columns,
+            markers,
+        }
+    }
 
     fn stereo(left: u8, right: u8) -> StereoPeaks {
         StereoPeaks {
@@ -393,33 +312,41 @@ mod tests {
 
     #[test]
     fn loop_and_cues_are_drawn_over_the_waveform() {
-        let waveform = Waveform::from_buckets(vec![stereo(255, 255)], 256, 256);
-        let overlay = Overlay {
-            loop_range: Some((480, 520)),
-            memory_cue: Some(500),
-            hot_cues: [Some(510), None, None, None, None, None, None, None],
-        };
-        let image = rasterize_with(Some(&waveform), None, 500.0, 1.0, 21, 13, false, &overlay);
-        let index = |x: u32| image.indices[(6 * image.width + x) as usize];
+        let frame = frame(
+            vec![stereo(0, 0); 21],
+            WaveMarkers {
+                loop_range: Some((4, 8)),
+                cue: Some(10),
+                hot_cues: vec![(0, 20)],
+                ..WaveMarkers::default()
+            },
+        );
+        let image = rasterize_frame(&frame, 21, 13, false);
         assert!((0..21)
             .any(|x| (0..13).any(|y| { image.indices[(y * image.width + x) as usize] == LOOP })));
-        assert_eq!(index(10), MEMORY);
-        assert_eq!(index(20), HOT0);
+        assert_eq!(image.indices[(6 * image.width + 10) as usize], MEMORY);
+        assert_eq!(image.indices[(6 * image.width + 20) as usize], HOT0);
     }
 
     #[test]
     fn left_paints_above_and_right_below_the_centre() {
-        let waveform = Waveform::from_buckets(vec![stereo(255, 0)], 256, 256);
-        // Centre the viewport on the one bucket so every column has data.
-        let raster = rasterize(Some(&waveform), None, 128.0, 1.0, 21, 12, false);
-        let center = raster.height / 2;
+        let image = rasterize_frame(&frame(vec![stereo(255, 0)], WaveMarkers::default()), 21, 12, false);
+        let center = image.height / 2;
         let left = (0..center).any(|y| {
-            (0..raster.width).any(|x| raster.indices[(y * raster.width + x) as usize] != BG)
+            (0..image.width).any(|x| image.indices[(y * image.width + x) as usize] != BG)
         });
-        let right = (center + 1..raster.height).any(|y| {
-            (0..raster.width).any(|x| raster.indices[(y * raster.width + x) as usize] != BG)
+        let right = (center + 1..image.height).any(|y| {
+            (0..image.width).any(|x| image.indices[(y * image.width + x) as usize] != BG)
         });
         assert!(left, "left channel should paint above the centre");
         assert!(!right, "right channel is empty");
+    }
+
+    #[test]
+    fn the_palette_uses_the_application_colours() {
+        let palette = Palette::from_palette(&WavePalette::default());
+        assert_eq!(palette.rgba[usize::from(LOW)], [0, 0, 255, 255]);
+        assert_eq!(palette.rgba[usize::from(MID)], [0, 255, 0, 255]);
+        assert_eq!(palette.rgba[usize::from(HIGH)], [255, 255, 255, 255]);
     }
 }

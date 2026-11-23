@@ -125,7 +125,8 @@ void showUnitMenu({
   required ControlSlot slot,
 }) {
   final legal = switch (slot) {
-    ControlSlot.a || ControlSlot.b => deskUnitKinds,
+    ControlSlot.a => deskUnitA,
+    ControlSlot.b => deskUnitB,
     ControlSlot.phone => phoneUnitKinds,
   };
   const rowHeight = 28.0;

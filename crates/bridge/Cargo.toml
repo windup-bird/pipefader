@@ -1,0 +1,24 @@
+[package]
+name = "bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Flutter Rust Bridge surface for the Pipefader engine"
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+app = { path = "../app", default-features = false }
+protocol = { path = "../protocol" }
+media = { path = "../media" }
+audio = { path = "../audio" }
+library = { path = "../library" }
+controller = { path = "../controller" }
+crossbeam-channel = { workspace = true }
+flutter_rust_bridge = "=2.13.0"
+
+[features]
+default = []
+stems = ["app/stems"]
+cuda = ["stems", "app/cuda"]

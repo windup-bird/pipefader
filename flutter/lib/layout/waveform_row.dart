@@ -28,6 +28,9 @@ class WaveformRow extends StatelessWidget {
     return ClipRect(
       child: LayoutBuilder(
         builder: (context, constraints) {
+          if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+            model.setWaveView(constraints.maxWidth, model.framesPerPixel);
+          }
           final beatBar =
               showBeatBar &&
               constraints.maxWidth >= 240 &&
@@ -40,6 +43,7 @@ class WaveformRow extends StatelessWidget {
                   builder: (context, _, _) => Waveform(
                     deck: deck,
                     framesPerPixel: model.framesPerPixel,
+                    palette: model.wavePalette,
                   ),
                 ),
               ),

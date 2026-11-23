@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 
@@ -12,11 +13,13 @@ class CoverArt extends StatelessWidget {
     required this.size,
     required this.seed,
     this.color = T.accent,
+    this.image,
     super.key,
   });
 
   final double size;
   final int seed;
+  final ui.Image? image;
 
   /// The deck accent the artwork leans on. Defaults to the global accent when
   /// no deck is around.
@@ -24,12 +27,21 @@ class CoverArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = this.image;
     return ClipRRect(
       borderRadius: BorderRadius.circular(T.radiusCover),
-      child: CustomPaint(
-        size: Size.square(size),
-        painter: _CoverPainter(seed, color),
-      ),
+      child: image == null
+          ? CustomPaint(
+              size: Size.square(size),
+              painter: _CoverPainter(seed, color),
+            )
+          : RawImage(
+              image: image,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
+            ),
     );
   }
 }

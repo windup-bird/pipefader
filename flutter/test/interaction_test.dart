@@ -52,30 +52,44 @@ void main() {
     expect(find.byType(DeckInfo), findsNWidgets(4));
   });
 
-  testWidgets('unit tab switches a slot to mixer', (tester) async {
+  testWidgets('desk slots split pads and mixer units', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.full);
     await pumpAppAt(tester, const Size(1440, 900), model: model);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(UnitHeader).first,
-        matching: find.text('MIXER'),
-      ),
+    final first = find.byType(UnitHeader).first;
+    final second = find.byType(UnitHeader).at(1);
+    expect(
+      find.descendant(of: first, matching: find.text('MIXER')),
+      findsNothing,
     );
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(model.decks[0].unitA, UnitKind.mixer);
-    expect(find.text('HIGH'), findsNWidgets(3));
+    expect(
+      find.descendant(of: second, matching: find.text('TEMPO')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: first, matching: find.text('LOOP')),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(model.decks[0].unitA, UnitKind.padsLoop);
+    expect(model.decks[0].padMode, PadMode.loop);
+
+    await tester.tap(
+      find.descendant(of: second, matching: find.text('TEMPO')),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(model.decks[0].unitB, UnitKind.tempo);
   });
 
   testWidgets('unit gear toggles the tab set', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.full);
     await pumpAppAt(tester, const Size(1440, 900), model: model);
-    final header = find.byType(UnitHeader).first;
+    final header = find.byType(UnitHeader).at(1);
     expect(
       find.descendant(of: header, matching: find.text('TEMPO')),
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const ValueKey('unit-settings')).first);
+    await tester.tap(find.byKey(const ValueKey('unit-settings')).at(1));
     await tester.pump(const Duration(milliseconds: 80));
     await tester.tap(find.byKey(const ValueKey('unit-option-tempo')));
     await tester.pump(const Duration(milliseconds: 80));
@@ -152,13 +166,13 @@ void main() {
 
   testWidgets('removing the active unit selects the first tab', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.full);
-    model.decks[0].unitA = UnitKind.tempo;
+    model.decks[0].unitB = UnitKind.tempo;
     await pumpAppAt(tester, const Size(1440, 900), model: model);
-    await tester.tap(find.byKey(const ValueKey('unit-settings')).first);
+    await tester.tap(find.byKey(const ValueKey('unit-settings')).at(1));
     await tester.pump(const Duration(milliseconds: 80));
     await tester.tap(find.byKey(const ValueKey('unit-option-tempo')));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(model.decks[0].unitA, UnitKind.padsCue);
+    expect(model.decks[0].unitB, UnitKind.mixer);
     expect(model.decks[0].padMode, PadMode.cue);
   });
 

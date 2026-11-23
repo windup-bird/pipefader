@@ -9,6 +9,7 @@ members = [
     "crates/controller",
     "crates/app",
     "crates/tui",
+    "crates/bridge",
 ]
 exclude = ["vendor/signalsmith-stretch"]
 

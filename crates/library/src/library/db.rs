@@ -352,6 +352,49 @@ impl LibraryDb {
             .map_err(LibraryError::from)
     }
 
+    /// Case-insensitive title/artist/path search across the cache. The browser uses this
+    /// for a typed query; results are ordered by artist then title so a search feels stable.
+    pub fn search_tracks(&self, query: &str, limit: usize) -> Result<Vec<TrackRow>> {
+        let needle = format!("%{}%", query.trim());
+        let conn = self.lock()?;
+        let mut statement = conn.prepare(
+            "SELECT t.id, l.id, t.title, t.artist, t.album, t.bpm,
+                    t.key_pc, t.key_mode, t.key_confidence,
+                    t.duration_frames, t.sample_rate, l.path
+             FROM track t
+             JOIN track_location l ON l.track_id = t.id
+             WHERE t.title LIKE ?1 COLLATE NOCASE
+                OR t.artist LIKE ?1 COLLATE NOCASE
+                OR l.path LIKE ?1 COLLATE NOCASE
+             ORDER BY t.artist COLLATE NOCASE, t.title COLLATE NOCASE
+             LIMIT ?2",
+        )?;
+        let rows = statement.query_map(rusqlite::params![needle, limit as i64], |row| {
+            let title: Option<String> = row.get(2)?;
+            let path: String = row.get(11)?;
+            Ok(TrackRow {
+                track_id: row.get(0)?,
+                location_id: row.get(1)?,
+                title: title
+                    .filter(|title| !title.trim().is_empty())
+                    .unwrap_or_else(|| file_stem(&path)),
+                artist: row.get(3)?,
+                album: row.get(4)?,
+                bpm: row.get::<_, Option<f64>>(5)?.map(|bpm| bpm as f32),
+                key: key_from_columns(
+                    row.get(6)?,
+                    row.get::<_, Option<String>>(7)?.as_deref(),
+                    row.get(8)?,
+                ),
+                duration_frames: row.get::<_, i64>(9)?.max(0) as u64,
+                sample_rate: u32::try_from(row.get::<_, i64>(10)?).unwrap_or(44_100),
+                path: PathBuf::from(path),
+            })
+        })?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(LibraryError::from)
+    }
+
     /// The load snapshot for one location. The caller queries this before spawning the decode
     /// worker, so the database lock is never held across a decode.
     pub fn track_load(&self, location_id: i64) -> Result<Option<TrackLoad>> {
@@ -1273,6 +1316,23 @@ mod tests {
             .remove(0);
         assert_eq!(second.track_id, first.track_id);
         assert_eq!(second.location_id, first.location_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_finds_a_track_by_title_or_path() {
+        let (db, dir) = temp_db("search");
+        let root = dir.join("music");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("alpha.wav"), wav_bytes(100, 400)).unwrap();
+        std::fs::write(root.join("beta.wav"), wav_bytes(100, 400)).unwrap();
+        let source = db.add_folder_source(&root, None).unwrap();
+        db.scan_source(source.id, &mut |_| {}).unwrap();
+
+        let hits = db.search_tracks("ALPHA", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "alpha");
+        assert!(db.search_tracks("no-such-track", 10).unwrap().is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

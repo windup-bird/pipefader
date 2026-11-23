@@ -7,6 +7,7 @@
 use ratatui::style::Color;
 
 use app::config::preference as source;
+use app::waveform::{Rgb, WavePalette};
 
 pub use app::config::preference::{DisplaySettings, LibrarySettings, WaveformBackend};
 
@@ -40,6 +41,8 @@ pub struct WaveformSettings {
     pub low_hz: u16,
     pub high_hz: u16,
     pub colors: WaveformColors,
+    /// The same palette the application and the GUI use, in plain RGB.
+    pub palette: WavePalette,
 }
 
 impl Default for WaveformSettings {
@@ -51,6 +54,7 @@ impl Default for WaveformSettings {
             low_hz: 200,
             high_hz: 4_000,
             colors: WaveformColors::default(),
+            palette: WavePalette::default(),
         }
     }
 }
@@ -91,17 +95,21 @@ pub struct Preference {
 impl From<source::Preference> for Preference {
     fn from(preference: source::Preference) -> Self {
         Self {
-            waveform: WaveformSettings {
-                backend: preference.waveform.backend,
-                refresh_hz: preference.waveform.refresh_hz,
-                cell: preference.waveform.cell,
-                low_hz: preference.waveform.low_hz,
-                high_hz: preference.waveform.high_hz,
-                colors: WaveformColors {
-                    low: color(preference.waveform.colors.low),
-                    mid: color(preference.waveform.colors.mid),
-                    high: color(preference.waveform.colors.high),
-                },
+            waveform: {
+                let palette = WavePalette::from_preference(&preference.waveform.colors);
+                WaveformSettings {
+                    backend: preference.waveform.backend,
+                    refresh_hz: preference.waveform.refresh_hz,
+                    cell: preference.waveform.cell,
+                    low_hz: preference.waveform.low_hz,
+                    high_hz: preference.waveform.high_hz,
+                    colors: WaveformColors {
+                        low: rgb_color(palette.low),
+                        mid: rgb_color(palette.mid),
+                        high: rgb_color(palette.high),
+                    },
+                    palette,
+                }
             },
             library: preference.library,
             display: preference.display,
@@ -115,6 +123,12 @@ impl From<source::Preference> for Preference {
             },
         }
     }
+}
+
+/// Plain RGB to the terminal's colour type. The application palette is the
+/// source of truth; ratatui only sees this adapter.
+pub fn rgb_color(color: Rgb) -> Color {
+    Color::Rgb(color.r, color.g, color.b)
 }
 
 fn color(color: source::Color) -> Color {

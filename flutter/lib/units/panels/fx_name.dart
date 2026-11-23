@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/core/device.dart';
+import 'package:pipefader_gui/core/format.dart';
 import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/state/app_model.dart';
@@ -55,7 +56,7 @@ class _FxNameState extends State<FxName> {
           decoration: keyFace(active: on, hover: _nameHover),
           alignment: Alignment.center,
           child: Text(
-            fxSlots[widget.deck.fxSlot],
+            capitalizeWords(widget.deck.fxName),
             maxLines: 1,
             overflow: TextOverflow.clip,
             style: Ty.label.copyWith(
@@ -79,7 +80,9 @@ class _FxNameState extends State<FxName> {
           onTap: () => showChoiceMenu(
             context: context,
             anchorKey: _anchor,
-            labels: fxSlots,
+            labels: widget.deck.fxNames
+                .map(capitalizeWords)
+                .toList(growable: false),
             current: widget.deck.fxSlot,
             onSelect: (index) => widget.model.setFxSlot(widget.deck, index),
           ),

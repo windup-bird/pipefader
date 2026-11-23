@@ -313,6 +313,9 @@ pub struct AppState {
     pub log_offset: usize,
     pub pending_states: usize,
     pub meters: Option<Meters>,
+    /// Set when a library scan event arrived. Front-ends that do not consume the
+    /// Miller-column browser directly (the GUI bridge) use it to refresh their own view.
+    pub library_dirty: bool,
 
     pub midi: Vec<MidiSession>,
     /// The chosen (or flag-supplied) port, remembered across reconnects.
@@ -427,6 +430,7 @@ impl AppState {
             log_offset: 0,
             pending_states: 0,
             meters: None,
+            library_dirty: false,
             midi: Vec::new(),
             midi_port: None,
             midi_map: None,
@@ -877,6 +881,9 @@ impl AppState {
             events
         };
         let scan_changed = !events.is_empty();
+        if scan_changed {
+            self.library_dirty = true;
+        }
         // Reload only when what the browser *shows* can have changed. A rebuild resets navigation
         // state, so a refresh on every event would make the browser flicker after each scan.
         let mut reload = false;

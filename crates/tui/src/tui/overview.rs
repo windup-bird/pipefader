@@ -16,7 +16,7 @@
 //! The three bands are stacked (low at the bottom, high on top) rather than drawn over each other.
 
 use library::Waveform;
-use protocol::{BeatGrid, DeckState, HOT_CUE_SLOTS};
+use protocol::{BeatGrid, DeckState};
 use ratatui::buffer::CellDiffOption;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
@@ -24,7 +24,9 @@ use ratatui::symbols::Marker;
 use ratatui::widgets::canvas::{Canvas, Context, Line as CanvasLine};
 use ratatui::Frame;
 
-use crate::preference::{Theme, WaveformColors};
+use app::waveform::WavePalette;
+
+use crate::preference::{rgb_color, Theme, WaveformColors};
 
 /// One column of the overview: the folded, normalised, S-curved heights of the three bands, each in
 /// `0.0..=1.0` and summing to at most 1.
@@ -32,51 +34,12 @@ pub type Profile = [f64; 3];
 
 /// Folds, normalises and curves the whole track into `columns` profiles.
 pub fn profiles(waveform: Option<&Waveform>, total_frames: u64, columns: usize) -> Vec<Profile> {
-    let columns = columns.max(1);
-    let Some(waveform) = waveform.filter(|_| total_frames > 0) else {
-        return Vec::new();
-    };
-    let frames_per_column = total_frames as f64 / columns as f64;
-    let mut raw: Vec<Profile> = Vec::with_capacity(columns);
-    for peaks in waveform.columns(0.0, frames_per_column, columns) {
-        // Fold: the lower half is turned up onto the upper half, so the two channels overlap.
-        let fold = |left: u8, right: u8| f64::from(left.max(right)) / 255.0;
-        raw.push([
-            fold(peaks.left.low, peaks.right.low),
-            fold(peaks.left.mid, peaks.right.mid),
-            fold(peaks.left.high, peaks.right.high),
-        ]);
-    }
-    // Normalise against the loudest column of the track, not of the viewport: the overview shows the
-    // whole track, so its scale must not jump around as the playhead moves.
-    let loudest = raw
-        .iter()
-        .map(|bands| bands[0] + bands[1] + bands[2])
-        .fold(0.0f64, f64::max);
-    if loudest <= 0.0 {
-        return vec![[0.0; 3]; raw.len()];
-    }
-    raw.into_iter()
-        .map(|bands| {
-            let sum = bands[0] + bands[1] + bands[2];
-            let height = s_curve((sum / loudest).clamp(0.0, 1.0));
-            // Each band keeps its share of the column, so the stack keeps its colours as it grows.
-            if sum <= 0.0 {
-                [0.0; 3]
-            } else {
-                [
-                    height * bands[0] / sum,
-                    height * bands[1] / sum,
-                    height * bands[2] / sum,
-                ]
-            }
-        })
-        .collect()
+    app::waveform::overview_profiles(waveform, total_frames, columns)
 }
 
-/// `smoothstep`: the cheap S-curve the plan asks for. It flattens the two ends of the amplitude
-/// range and steepens the middle, so a quiet intro stays visibly quiet while a loud chorus fills the
-/// box instead of everything landing in the middle.
+/// `smoothstep`: kept for the overview tests; the production curve lives in
+/// [`app::waveform::overview_profiles`].
+#[cfg(test)]
 fn s_curve(value: f64) -> f64 {
     value * value * (3.0 - 2.0 * value)
 }
@@ -93,6 +56,7 @@ pub fn render(
     grid: Option<&BeatGrid>,
     state: &DeckState,
     colors: WaveformColors,
+    palette: &WavePalette,
     theme: &Theme,
 ) {
     if area.width == 0 || area.height == 0 || state.total_frames == 0 {
@@ -123,8 +87,8 @@ pub fn render(
         });
     frame.render_widget(canvas, area);
 
-    paint_loop(frame, area, state, total);
-    draw_cues(frame, area, state);
+    paint_loop(frame, area, state, total, rgb_color(palette.loop_wash));
+    draw_cues(frame, area, state, palette);
 }
 
 /// Paints the playhead over the whole overview height. A terminal-cell overlay rather than a
@@ -205,6 +169,7 @@ pub fn rgba(
     grid: Option<&BeatGrid>,
     state: &DeckState,
     colors: WaveformColors,
+    palette: &WavePalette,
     width: u32,
     height: u32,
     theme: &Theme,
@@ -256,7 +221,12 @@ pub fn rgba(
                     let offset = ((row * width + x) * 4) as usize;
                     if let Some(pixel) = image.get_mut(offset..offset + 4) {
                         if pixel[3] == 0 {
-                            pixel.copy_from_slice(&[40, 40, 40, 255]);
+                            pixel.copy_from_slice(&[
+                                palette.loop_wash.r,
+                                palette.loop_wash.g,
+                                palette.loop_wash.b,
+                                255,
+                            ]);
                         }
                     }
                 }
@@ -282,7 +252,10 @@ pub fn rgba(
                     width,
                     x.min(width - 1),
                     row,
-                    HOT_RGB[slot.min(HOT_RGB.len() - 1)],
+                    palette
+                        .hot_cues
+                        .get(slot)
+                        .map_or([255, 255, 255, 255], |c| [c.r, c.g, c.b, 255]),
                 );
             }
         }
@@ -295,7 +268,12 @@ pub fn rgba(
                 width,
                 x.min(width - 1),
                 row,
-                [245, 245, 245, 255],
+                [
+                    palette.memory_cue.r,
+                    palette.memory_cue.g,
+                    palette.memory_cue.b,
+                    255,
+                ],
             );
         }
     }
@@ -356,17 +334,6 @@ fn rgb(color: Color) -> [u8; 4] {
     [r, g, b, 255]
 }
 
-const HOT_RGB: [[u8; 4]; HOT_CUE_SLOTS] = [
-    [255, 72, 72, 255],
-    [255, 160, 64, 255],
-    [255, 232, 64, 255],
-    [80, 255, 96, 255],
-    [64, 240, 240, 255],
-    [80, 160, 255, 255],
-    [200, 96, 255, 255],
-    [255, 96, 200, 255],
-];
-
 fn draw_beats(
     ctx: &mut Context,
     grid: &BeatGrid,
@@ -389,7 +356,7 @@ fn draw_beats(
     }
 }
 
-fn paint_loop(frame: &mut Frame, area: Rect, state: &DeckState, total: f64) {
+fn paint_loop(frame: &mut Frame, area: Rect, state: &DeckState, total: f64, color: Color) {
     let Some((start, end)) = state.loop_range else {
         return;
     };
@@ -400,25 +367,30 @@ fn paint_loop(frame: &mut Frame, area: Rect, state: &DeckState, total: f64) {
         let x = area.x + column as u16;
         for y in area.top()..area.bottom() {
             if let Some(cell) = buffer.cell_mut((x, y)) {
-                cell.set_bg(Color::Rgb(60, 60, 60));
+                cell.set_bg(color);
             }
         }
     }
 }
 
 /// Cue marks on the bottom row: white for the memory cue, slot colours for the hot cues.
-fn draw_cues(frame: &mut Frame, area: Rect, state: &DeckState) {
+fn draw_cues(frame: &mut Frame, area: Rect, state: &DeckState, palette: &WavePalette) {
     if state.total_frames == 0 || area.height == 0 {
         return;
     }
     let y = area.bottom() - 1;
     let mut marks: Vec<(u64, Color)> = Vec::new();
     if state.cue_frame > 0 {
-        marks.push((state.cue_frame, Color::White));
+        marks.push((state.cue_frame, rgb_color(palette.memory_cue)));
     }
     for (slot, cue) in state.hot_cues.iter().enumerate() {
         if let Some(cue) = cue {
-            marks.push((cue.frame, HOT_COLORS[slot.min(HOT_COLORS.len() - 1)]));
+            let color = palette
+                .hot_cues
+                .get(slot)
+                .copied()
+                .unwrap_or(palette.memory_cue);
+            marks.push((cue.frame, rgb_color(color)));
         }
     }
     let buffer = frame.buffer_mut();
@@ -430,21 +402,11 @@ fn draw_cues(frame: &mut Frame, area: Rect, state: &DeckState) {
     }
 }
 
-const HOT_COLORS: [Color; HOT_CUE_SLOTS] = [
-    Color::Rgb(255, 72, 72),
-    Color::Rgb(255, 160, 64),
-    Color::Rgb(255, 232, 64),
-    Color::Rgb(80, 255, 96),
-    Color::Rgb(64, 240, 240),
-    Color::Rgb(80, 160, 255),
-    Color::Rgb(200, 96, 255),
-    Color::Rgb(255, 96, 200),
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use library::{BandPeaks, StereoPeaks};
+    use protocol::HOT_CUE_SLOTS;
 
     fn column(left: u8, right: u8) -> StereoPeaks {
         StereoPeaks {
@@ -576,6 +538,7 @@ mod tests {
             None,
             &state,
             colors,
+            &app::waveform::WavePalette::default(),
             8,
             8,
             &theme,

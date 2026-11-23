@@ -6,6 +6,7 @@ import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/core/theme_scope.dart';
 import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/model/library.dart';
 import 'package:pipefader_gui/units/tempo_control.dart';
 import 'package:pipefader_gui/units/waveform.dart';
 
@@ -46,7 +47,7 @@ class DeckInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final deckTheme = DeckTheme(deck.index);
     final accent = deckTheme.accent;
-    return ColoredBox(
+    final content = ColoredBox(
       color: T.band,
       child: DeckThemeScope(
         theme: deckTheme,
@@ -107,6 +108,7 @@ class DeckInfo extends StatelessWidget {
                               size: topH,
                               seed: deck.view.coverSeed,
                               color: accent,
+                              image: deck.cover,
                             ),
                           ),
                         ),
@@ -279,6 +281,11 @@ class DeckInfo extends StatelessWidget {
                       builder: (context, _, _) => Overview(
                         deck: deck.view,
                         frame: deck.frame.toDouble(),
+                        cueFrame: deck.cueFrame,
+                        loopIn: deck.loopIn,
+                        loopOut: deck.loopOut,
+                        hotCueFrames: Map<int, int>.of(deck.hotCueFrames),
+                        palette: model.wavePalette,
                       ),
                     ),
                   ),
@@ -288,6 +295,29 @@ class DeckInfo extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return DragTarget<TrackRow>(
+      onWillAcceptWithDetails: (details) => details.data.locationId >= 0,
+      onAcceptWithDetails: (details) =>
+          model.loadTrackRow(deck, details.data),
+      builder: (context, candidates, rejected) {
+        if (candidates.isEmpty) return content;
+        return Stack(
+          children: [
+            content,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: accent, width: 2),
+                    color: accent.withValues(alpha: 0.08),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

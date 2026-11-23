@@ -19,8 +19,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use library::Waveform;
-use protocol::{BeatGrid, DeckState, HOT_CUE_SLOTS};
+use app::waveform::{WaveMarkers, WavePalette, WaveViewport};
+use library::{StereoPeaks, Waveform};
+use protocol::{BeatGrid, DeckState};
 use ratatui::buffer::CellDiffOption;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
@@ -28,30 +29,10 @@ use ratatui::symbols::Marker;
 use ratatui::widgets::canvas::{Canvas, Context, Line as CanvasLine};
 use ratatui::Frame;
 
-use crate::preference::{WaveformColors, WaveformSettings};
+use crate::preference::{rgb_color, WaveformSettings};
 
 pub use detect::{Backend, CellPx};
 
-const PLAYHEAD_COLOR: Color = Color::Red;
-const CENTER_COLOR: Color = Color::DarkGray;
-/// Beat lines sit clearly above the loop wash; bar starts (every 4th) are brighter still.
-const BEAT_COLOR: Color = Color::Rgb(110, 110, 110);
-const BAR_COLOR: Color = Color::Rgb(160, 160, 160);
-const LOOP_BG_COLOR: Color = Color::Rgb(70, 70, 70);
-const MEMORY_COLOR: Color = Color::White;
-const HOT_CUE_COLORS: [Color; HOT_CUE_SLOTS] = [
-    Color::Rgb(255, 72, 72),
-    Color::Rgb(255, 160, 64),
-    Color::Rgb(255, 232, 64),
-    Color::Rgb(80, 255, 96),
-    Color::Rgb(64, 240, 240),
-    Color::Rgb(80, 160, 255),
-    Color::Rgb(200, 96, 255),
-    Color::Rgb(255, 96, 200),
-];
-/// More than this many beat lines in one view means we are zoomed far out; stop drawing rather than
-/// spend the frame on the grid.
-const MAX_BEATS: usize = 512;
 /// Even an unchanged image is re-sent once a second. That is cheap (it is only a few kilobytes)
 /// and recovers from a terminal/modal that cleared the placement behind our back.
 const IMAGE_REFRESH_HEAL: Duration = Duration::from_secs(1);
@@ -232,10 +213,10 @@ impl WaveformView {
                 area,
                 waveform,
                 grid,
+                state,
                 playhead_frame,
                 frames_per_cell,
-                self.settings.colors,
-                &overlay,
+                &self.settings.palette,
             );
             return;
         }
@@ -245,10 +226,10 @@ impl WaveformView {
                 area,
                 waveform,
                 grid,
+                state,
                 playhead_frame,
                 frames_per_cell,
-                self.settings.colors,
-                &overlay,
+                &self.settings.palette,
             ),
             Backend::Kitty => self.render_kitty(
                 frame,
@@ -256,6 +237,7 @@ impl WaveformView {
                 area,
                 waveform,
                 grid,
+                state,
                 playhead_frame,
                 frames_per_cell,
                 &overlay,
@@ -271,6 +253,7 @@ impl WaveformView {
         area: Rect,
         waveform: Option<&Arc<Waveform>>,
         grid: Option<&BeatGrid>,
+        deck_state: &DeckState,
         playhead_frame: f64,
         frames_per_cell: f64,
         overlay: &raster::Overlay,
@@ -286,10 +269,10 @@ impl WaveformView {
                 area,
                 waveform,
                 grid,
+                deck_state,
                 playhead_frame,
                 frames_per_cell,
-                self.settings.colors,
-                overlay,
+                &self.settings.palette,
             );
             return;
         }
@@ -344,11 +327,11 @@ impl WaveformView {
                 .is_some_and(|last| last.elapsed() < IMAGE_REFRESH_HEAL);
         if !rebuild && (!due || static_frame) {
             skip_area(frame, area);
-            draw_playhead_overlay(frame, area);
+            draw_playhead_overlay(frame, area, rgb_color(self.settings.palette.playhead));
             return;
         }
 
-        let palette = raster::Palette::from_colors(self.settings.colors);
+        let palette = raster::Palette::from_palette(&self.settings.palette);
         let sequence = if rebuild {
             // One viewport of lookahead on each side: at the default zoom that is several seconds
             // of playback between transmissions, while the placement itself stays 1:1.
@@ -357,15 +340,22 @@ impl WaveformView {
             let start_frame = playhead_frame.max(0.0)
                 - (f64::from(margin) + f64::from(viewport_width) / 2.0) * frames_per_pixel;
             let virtual_playhead = start_frame + f64::from(strip_width) / 2.0 * frames_per_pixel;
-            let image = raster::rasterize_with(
+            let viewport = app::waveform::WaveViewport {
+                width: strip_width,
+                frames_per_pixel,
+                playhead: virtual_playhead.max(0.0).round() as u64,
+            };
+            let wave_frame = app::waveform::frame(
                 waveform.map(AsRef::as_ref),
                 grid,
-                virtual_playhead,
-                frames_per_pixel,
+                deck_state,
+                viewport,
+            );
+            let image = raster::rasterize_frame(
+                &wave_frame,
                 strip_width,
                 viewport_height,
                 false,
-                overlay,
             );
             let source = kitty::SourceRect {
                 x: margin,
@@ -427,7 +417,7 @@ impl WaveformView {
 
         skip_area(frame, area);
         set_image_cell(frame, area, &sequence);
-        draw_playhead_overlay(frame, area);
+        draw_playhead_overlay(frame, area, rgb_color(self.settings.palette.playhead));
         state.last = Some(Instant::now());
         state.last_playhead = Some(playhead_bits);
     }
@@ -483,13 +473,13 @@ fn set_image_cell(frame: &mut Frame, area: Rect, sequence: &str) {
 
 /// Kitty places images below text, so the playhead can stay a normal braille-style cell and move
 /// at the UI tick without re-transmitting the waveform.
-fn draw_playhead_overlay(frame: &mut Frame, area: Rect) {
+fn draw_playhead_overlay(frame: &mut Frame, area: Rect, color: Color) {
     let x = area.x + area.width / 2;
     let buffer = frame.buffer_mut();
     for y in area.top()..area.bottom() {
         if let Some(cell) = buffer.cell_mut((x, y)) {
             cell.set_symbol("│")
-                .set_fg(PLAYHEAD_COLOR)
+                .set_fg(color)
                 .set_bg(Color::Reset)
                 .set_diff_option(CellDiffOption::AlwaysUpdate);
         }
@@ -502,167 +492,169 @@ fn render_braille(
     area: Rect,
     waveform: Option<&Arc<Waveform>>,
     grid: Option<&BeatGrid>,
+    deck_state: &DeckState,
     playhead_frame: f64,
     frames_per_cell: f64,
-    colors: WaveformColors,
-    overlay: &raster::Overlay,
+    palette: &WavePalette,
 ) {
     let dots_x = f64::from(area.width) * 2.0;
     let dots_y = f64::from(area.height) * 4.0;
     let center_x = (dots_x - 1.0) / 2.0;
     let center_y = (dots_y - 1.0) / 2.0;
     let playhead = playhead_frame.max(0.0);
-    // A braille cell has two horizontal dots, so a cell-sized zoom maps to half as many frames per
-    // dot. The pyramid sees the same unit the user chose.
+    // A braille cell has two horizontal dots, so a cell-sized zoom maps to half
+    // as many frames per dot. The shared frame uses the same unit.
     let frames_per_dot = (frames_per_cell / 2.0).max(1.0);
+    let viewport = WaveViewport {
+        width: dots_x.max(1.0) as u32,
+        frames_per_pixel: frames_per_dot,
+        playhead: playhead.max(0.0).round() as u64,
+    };
+    let wave_frame = app::waveform::frame(
+        waveform.map(AsRef::as_ref),
+        grid,
+        deck_state,
+        viewport,
+    );
+    let beat_color = rgb_color(palette.beat);
+    let bar_color = rgb_color(palette.bar);
 
     let canvas = Canvas::default()
         .x_bounds([0.0, dots_x])
         .y_bounds([0.0, dots_y])
         .marker(Marker::Braille)
         .paint(|ctx| {
-            // Grid first, waveform over it, playhead last: each later shape should win.
-            if let Some(grid) = grid {
-                draw_beats(
-                    ctx,
-                    grid,
-                    playhead,
-                    frames_per_dot,
-                    center_x,
-                    dots_x,
+            for &x in &wave_frame.markers.beats {
+                ctx.draw(&CanvasLine::new(
+                    f64::from(x),
+                    0.0,
+                    f64::from(x),
                     dots_y,
-                );
+                    beat_color,
+                ));
+            }
+            for &x in &wave_frame.markers.bars {
+                ctx.draw(&CanvasLine::new(
+                    f64::from(x),
+                    0.0,
+                    f64::from(x),
+                    dots_y,
+                    bar_color,
+                ));
             }
             ctx.draw(&CanvasLine::new(
                 0.0,
                 center_y,
                 dots_x,
                 center_y,
-                CENTER_COLOR,
+                rgb_color(palette.center),
             ));
-            if let Some(waveform) = waveform {
-                draw_stereo(
-                    ctx,
-                    waveform,
-                    playhead,
-                    frames_per_dot,
-                    center_x,
-                    center_y,
-                    dots_x,
-                    dots_y,
-                    colors,
-                );
-            }
-            draw_cue_lines(
+            draw_columns(
                 ctx,
-                overlay,
-                playhead,
-                frames_per_dot,
+                &wave_frame.columns,
                 center_x,
+                center_y,
                 dots_x,
                 dots_y,
+                palette,
+            );
+            draw_cue_lines(
+                ctx,
+                &wave_frame.markers,
+                f64::from(viewport.width),
+                dots_y,
+                palette,
             );
             ctx.draw(&CanvasLine::new(
                 center_x,
                 0.0,
                 center_x,
                 dots_y,
-                PLAYHEAD_COLOR,
+                rgb_color(palette.playhead),
             ));
         });
     frame.render_widget(canvas, area);
     paint_loop_bg(
         frame,
         area,
-        playhead_frame,
-        frames_per_cell,
-        overlay.loop_range,
+        wave_frame.markers.loop_range,
+        rgb_color(palette.loop_wash),
     );
 }
 
-#[allow(clippy::too_many_arguments)]
 fn draw_cue_lines(
     ctx: &mut Context,
-    overlay: &raster::Overlay,
-    playhead: f64,
-    frames_per_dot: f64,
-    center_x: f64,
-    dots_x: f64,
+    markers: &WaveMarkers,
+    width: f64,
     dots_y: f64,
+    palette: &WavePalette,
 ) {
-    let draw = |ctx: &mut Context, frame: u64, color: Color| {
-        let x = center_x + (frame as f64 - playhead) / frames_per_dot;
-        if (0.0..=dots_x).contains(&x) {
+    let draw = |ctx: &mut Context, x: f64, color: Color| {
+        if (0.0..=width).contains(&x) {
             ctx.draw(&CanvasLine::new(x, 0.0, x, dots_y, color));
             // A second dot column makes cues visibly thicker than the one-dot grid.
-            if x + 1.0 <= dots_x {
+            if x + 1.0 <= width {
                 ctx.draw(&CanvasLine::new(x + 1.0, 0.0, x + 1.0, dots_y, color));
             }
         }
     };
-    if let Some(frame) = overlay.memory_cue {
-        draw(ctx, frame, MEMORY_COLOR);
+    if let Some(x) = markers.cue {
+        draw(ctx, f64::from(x), rgb_color(palette.memory_cue));
     }
-    for (slot, frame) in overlay.hot_cues.iter().enumerate() {
-        if let Some(frame) = frame {
-            draw(ctx, *frame, HOT_CUE_COLORS[slot]);
-        }
+    for &(slot, x) in &markers.hot_cues {
+        let color = palette
+            .hot_cues
+            .get(slot as usize)
+            .copied()
+            .unwrap_or(palette.memory_cue);
+        draw(ctx, f64::from(x), rgb_color(color));
     }
 }
 
-/// Paint the loop range as a bright wash behind the braille glyphs. Doing it after the canvas keeps
-/// the waveform and cue glyphs intact while changing only their background.
+/// Paint the loop range as a bright wash behind the braille glyphs. The frame
+/// already clipped the loop to the viewport, so this is just a column fill.
 fn paint_loop_bg(
     frame: &mut Frame,
     area: Rect,
-    playhead: f64,
-    frames_per_cell: f64,
-    loop_range: Option<(u64, u64)>,
+    loop_range: Option<(u32, u32)>,
+    color: Color,
 ) {
-    let Some((in_frame, out_frame)) = loop_range else {
+    let Some((first, last)) = loop_range else {
         return;
     };
-    if area.width == 0 || frames_per_cell <= 0.0 {
-        return;
-    }
-    let start = playhead - f64::from(area.width) / 2.0 * frames_per_cell;
-    let first = ((in_frame as f64 - start) / frames_per_cell).floor() as i64;
-    let last = ((out_frame as f64 - start) / frames_per_cell).ceil() as i64;
     let buffer = frame.buffer_mut();
-    for column in first.max(0)..last.min(i64::from(area.width)) {
+    for column in first..last.min(u32::from(area.width)) {
         let x = area.x + column as u16;
         for y in area.top()..area.bottom() {
             if let Some(cell) = buffer.cell_mut((x, y)) {
-                cell.set_bg(LOOP_BG_COLOR);
+                cell.set_bg(color);
             }
         }
     }
 }
 
-/// Per braille column, the left channel above the centre and the right channel below it. Each band
-/// is drawn from the centre outward; the last band wins the dots near the centre.
+/// Per braille column, the left channel above the centre and the right channel
+/// below it. Each band is drawn from the centre outward; the last band wins the
+/// dots near the centre.
 #[allow(clippy::too_many_arguments)]
-fn draw_stereo(
+fn draw_columns(
     ctx: &mut Context,
-    waveform: &Waveform,
-    playhead: f64,
-    frames_per_dot: f64,
-    center_x: f64,
+    columns: &[StereoPeaks],
+    _center_x: f64,
     center_y: f64,
-    dots_x: f64,
+    _dots_x: f64,
     dots_y: f64,
-    colors: WaveformColors,
+    palette: &WavePalette,
 ) {
-    let start_frame = playhead - center_x * frames_per_dot;
     let up = center_y;
     let down = dots_y - center_y;
-    for (index, peaks) in waveform
-        .columns(start_frame, frames_per_dot, dots_x as usize)
-        .enumerate()
-    {
+    let low = rgb_color(palette.low);
+    let mid = rgb_color(palette.mid);
+    let high = rgb_color(palette.high);
+    for (index, peaks) in columns.iter().enumerate() {
         let x = index as f64;
-        draw_channel(ctx, x, center_y, up, true, peaks.left, colors);
-        draw_channel(ctx, x, center_y, down, false, peaks.right, colors);
+        draw_channel(ctx, x, center_y, up, true, peaks.left, low, mid, high);
+        draw_channel(ctx, x, center_y, down, false, peaks.right, low, mid, high);
     }
 }
 
@@ -674,14 +666,16 @@ fn draw_channel(
     extent: f64,
     upward: bool,
     peaks: library::BandPeaks,
-    colors: WaveformColors,
+    low_color: Color,
+    mid_color: Color,
+    high_color: Color,
 ) {
     let low = f64::from(peaks.low) / 255.0;
     let mid = f64::from(peaks.mid) / 255.0;
     let high = f64::from(peaks.high) / 255.0;
-    segment_line(ctx, x, center_y, extent, upward, low, colors.low);
-    segment_line(ctx, x, center_y, extent, upward, mid, colors.mid);
-    segment_line(ctx, x, center_y, extent, upward, high, colors.high);
+    segment_line(ctx, x, center_y, extent, upward, low, low_color);
+    segment_line(ctx, x, center_y, extent, upward, mid, mid_color);
+    segment_line(ctx, x, center_y, extent, upward, high, high_color);
 }
 
 fn segment_line(
@@ -699,42 +693,6 @@ fn segment_line(
     }
     let end = if upward { base + length } else { base - length };
     ctx.draw(&CanvasLine::new(x, base, x, end, color));
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_beats(
-    ctx: &mut Context,
-    grid: &BeatGrid,
-    playhead: f64,
-    frames_per_dot: f64,
-    center: f64,
-    dots_x: f64,
-    dots_y: f64,
-) {
-    if grid.is_empty() {
-        return;
-    }
-    let start_frame = playhead - center * frames_per_dot;
-    let end_frame = playhead + center * frames_per_dot;
-    if end_frame <= 0.0 {
-        return;
-    }
-    let first = grid.floor_beat(start_frame.max(0.0) as u64);
-    for beat in (first..).take(MAX_BEATS) {
-        let frame = grid.frame_at_beat(beat) as f64;
-        if frame > end_frame {
-            break;
-        }
-        let x = center + (frame - playhead) / frames_per_dot;
-        if (0.0..=dots_x).contains(&x) {
-            let color = if beat.is_multiple_of(4) {
-                BAR_COLOR
-            } else {
-                BEAT_COLOR
-            };
-            ctx.draw(&CanvasLine::new(x, 0.0, x, dots_y, color));
-        }
-    }
 }
 
 #[cfg(test)]
@@ -786,6 +744,7 @@ mod tests {
             low_hz: 200,
             high_hz: 4_000,
             colors: WaveformColors::default(),
+            palette: app::waveform::WavePalette::default(),
         }
     }
 
@@ -946,8 +905,17 @@ mod tests {
         let mut encode_ms = 0.0f64;
         for _ in 0..rounds.min(6) {
             let t0 = Instant::now();
-            let image =
-                raster::rasterize(Some(&waveform), None, 128.0, 2048.0 / 8.0, 2832, 112, false);
+            let frame = app::waveform::frame(
+                Some(&waveform),
+                None,
+                &deck_state(128),
+                app::waveform::WaveViewport {
+                    width: 2832,
+                    frames_per_pixel: 2048.0 / 8.0,
+                    playhead: 128,
+                },
+            );
+            let image = raster::rasterize_frame(&frame, 2832, 112, false);
             raster_ms += t0.elapsed().as_secs_f64() * 1000.0;
             let t1 = Instant::now();
             let _ = kitty::transmit(&image, &palette, 1);
@@ -983,7 +951,17 @@ mod tests {
             256,
             256,
         );
-        let image = raster::rasterize(Some(&left), None, 128.0, 1.0, 21, 13, false);
+        let frame = app::waveform::frame(
+            Some(&left),
+            None,
+            &deck_state(128),
+            app::waveform::WaveViewport {
+                width: 21,
+                frames_per_pixel: 1.0,
+                playhead: 128,
+            },
+        );
+        let image = raster::rasterize_frame(&frame, 21, 13, false);
         let center = image.height / 2;
         assert!((0..center).any(|y| {
             (0..image.width).any(|x| image.indices[(y * image.width + x) as usize] != raster::BG)

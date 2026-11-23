@@ -43,7 +43,7 @@ class FxPanel extends StatelessWidget {
                 Expanded(
                   child: Center(
                     child: _ValueLabel(
-                      value: fxBeats[deck.beatsIndex],
+                      value: deck.fxHasBeats ? fxBeats[deck.beatsIndex] : '--',
                       label: 'beats',
                       scale: s,
                     ),
@@ -63,7 +63,7 @@ class FxPanel extends StatelessWidget {
           SizedBox(height: s.size(4)),
           Expanded(
             child: ParamBar(
-              label: 'FB',
+              label: deck.fxParamALabel,
               value: deck.fx1,
               scale: s,
               onChanged: (value) => model.setFxParam(deck, 0, value),
@@ -72,7 +72,7 @@ class FxPanel extends StatelessWidget {
           SizedBox(height: s.size(3)),
           Expanded(
             child: ParamBar(
-              label: 'MIX',
+              label: deck.fxParamBLabel,
               value: deck.fx2,
               scale: s,
               onChanged: (value) => model.setFxParam(deck, 1, value),

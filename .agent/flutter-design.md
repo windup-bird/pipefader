@@ -1,6 +1,6 @@
 # flutter 前端设计
 
-flutter/ 是 GUI 的前端草图，包名 `pipefader_gui`，不进 Cargo workspace。不引第三方 pub 依赖，Material 用 SDK 拆出的 `material_ui`。数据全部来自 `model/fixtures.dart` 和 `state/app_model.dart` 的假数据，不碰 app crate。当前只做前端草案和 web 预览，不写后端绑定；控件尽量拆成可复用件，方便后期换皮肤。
+flutter/ 是 GUI 的前端草图，包名 `pipefader_gui`，不进 Cargo workspace。不引第三方 pub 依赖，Material 用 SDK 拆出的 `material_ui`。数据默认来自 `model/fixtures.dart` 和 `state/app_model.dart` 的假数据；传了 `EngineClient` 时改接 `crates/bridge` 的真实引擎状态（web 仍走假数据）。控件尽量拆成可复用件，方便后期换皮肤。绑定细节见 `frb.md`。
 
 ---
 

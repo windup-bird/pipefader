@@ -86,8 +86,10 @@ abstract final class T {
   static const waveMid = Color(0xFF3B82F6);
   static const waveHi = Color(0xFFDCE9FF);
   static const playhead = Color(0xFFFF4D4F);
-  static const beat = Color(0x2AAAAAAA);
-  static const bar = Color(0x55AAAAAA);
+  // Opaque TUI grid greys. The old translucent whites washed out to ~#333/#5C
+  // over the near-black waveform band, which made the grid nearly invisible.
+  static const beat = Color(0xFF6E6E6E);
+  static const bar = Color(0xFFA0A0A0);
 
   // Geometry.
   static const radiusCover = 4.0;

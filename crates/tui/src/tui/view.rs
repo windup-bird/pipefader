@@ -35,7 +35,7 @@ use ratatui::Frame;
 
 use protocol::{BeatGrid, DeckState, FxSlotStatus, Key, Stem};
 
-use crate::preference::Theme;
+use crate::preference::{rgb_color, Theme};
 use crate::tui::app::{
     App, BeatMode, EqPanel, Hit, Knob, LoopHit, Overlay, PadMode, PadPanel, Target, TransportHit,
     COMPLETION_ROWS, DECKS_PER_PAGE,
@@ -727,11 +727,19 @@ fn render_overview(
             app.grids[deck].as_ref(),
             &app.states[deck],
             app.waveform.colors,
+            &app.waveform.palette,
             &app.theme,
         );
         // Braille repaints the old column with the waveform, so there is no stale glyph to clear.
         let column =
-            overview::draw_playhead(frame, area, &app.states[deck], Color::Red, None, false);
+            overview::draw_playhead(
+                frame,
+                area,
+                &app.states[deck],
+                rgb_color(app.waveform.palette.playhead),
+                None,
+                false,
+            );
         app.overview_playhead[deck] = column;
         return;
     }
@@ -747,11 +755,19 @@ fn render_overview(
             app.grids[deck].as_ref(),
             &app.states[deck],
             app.waveform.colors,
+            &app.waveform.palette,
             &app.theme,
         );
         let previous = app.overview_playhead[deck].take();
         let column =
-            overview::draw_playhead(frame, area, &app.states[deck], Color::Red, previous, false);
+            overview::draw_playhead(
+                frame,
+                area,
+                &app.states[deck],
+                rgb_color(app.waveform.palette.playhead),
+                previous,
+                false,
+            );
         app.overview_playhead[deck] = column;
         return;
     };
@@ -783,6 +799,7 @@ fn render_overview(
                     grid.as_ref(),
                     &state,
                     colors,
+                    &app.waveform.palette,
                     width_px.max(1),
                     height_px.max(1),
                     &theme,
@@ -791,7 +808,14 @@ fn render_overview(
         });
     }
     let previous = app.overview_playhead[deck].take();
-    let column = overview::draw_playhead(frame, area, &state, Color::Red, previous, true);
+    let column = overview::draw_playhead(
+        frame,
+        area,
+        &state,
+        rgb_color(app.waveform.palette.playhead),
+        previous,
+        true,
+    );
     app.overview_playhead[deck] = column;
 }
 
@@ -2814,11 +2838,12 @@ mod tests {
         let band = bands(buffer.area, app.decks);
         assert!(band.pages[0].info.height >= 3);
         let overview_row = band.pages[0].info.y + 2;
+        let playhead = rgb_color(app.waveform.palette.playhead);
         let reds: Vec<u16> = (0..band.pages[0].info.width)
             .filter(|x| {
                 buffer
                     .cell((*x, overview_row))
-                    .is_some_and(|cell| cell.fg == Color::Red)
+                    .is_some_and(|cell| cell.fg == playhead)
             })
             .collect();
         assert!(!reds.is_empty(), "no playhead in the overview");
@@ -2857,6 +2882,7 @@ mod tests {
     fn the_overview_playhead_moves_with_the_frame() {
         let mut app = test_app();
         let red_x = |app: &mut App| {
+            let playhead = rgb_color(app.waveform.palette.playhead);
             let buffer = render_at(app, 120, 40);
             let band = bands(buffer.area, app.decks);
             let row = band.pages[0].info.y + 2;
@@ -2864,7 +2890,7 @@ mod tests {
                 .find(|x| {
                     buffer
                         .cell((*x, row))
-                        .is_some_and(|cell| cell.fg == Color::Red)
+                        .is_some_and(|cell| cell.fg == playhead)
                 })
                 .expect("overview playhead")
         };

@@ -11,25 +11,52 @@ import 'package:pipefader_gui/core/theme.dart';
 /// layered from the centre out, the beat grid over the top, playhead pinned to
 /// the middle — the terminal's view, at pixel resolution.
 class Waveform extends StatelessWidget {
-  const Waveform({required this.deck, required this.framesPerPixel, super.key});
+  const Waveform({
+    required this.deck,
+    required this.framesPerPixel,
+    this.palette,
+    super.key,
+  });
 
   final DeckRuntime deck;
   final double framesPerPixel;
+  final WavePaletteData? palette;
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.infinite,
-      painter: _WaveformPainter(deck: deck, framesPerPixel: framesPerPixel),
+      painter: _WaveformPainter(
+        framesPerPixel: framesPerPixel,
+        frame: deck.frame,
+        view: deck.view,
+        overlay: deck.wave,
+        strip: deck.strip,
+        palette: palette,
+      ),
     );
   }
 }
 
 class _WaveformPainter extends CustomPainter {
-  _WaveformPainter({required this.deck, required this.framesPerPixel});
+  _WaveformPainter({
+    required this.framesPerPixel,
+    required this.frame,
+    required this.view,
+    required this.overlay,
+    required this.strip,
+    required this.palette,
+  });
 
-  final DeckRuntime deck;
   final double framesPerPixel;
+  final int frame;
+  final DeckView view;
+  final WaveOverlay? overlay;
+  final WaveStripData? strip;
+  final WavePaletteData? palette;
+
+  Color _color(int argb, Color fallback) =>
+      palette == null ? fallback : Color(argb);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -37,31 +64,183 @@ class _WaveformPainter extends CustomPainter {
     final height = size.height;
     if (width <= 0 || height <= 0) return;
     final centre = height / 2;
-    final frame = deck.frame;
-    final view = deck.view;
     final fpp = math.max(framesPerPixel, 1.0);
-    final start = frame - width / 2 * fpp;
+    final hints = overlay;
+    final start = hints?.startFrame ?? (frame - width / 2 * fpp);
 
-    _paintWave(canvas, size, frame, fpp, start);
-    _paintBeats(canvas, size, frame.toDouble(), fpp, view);
+    // TUI order: loop wash, beat grid, waveform, cue lines, playhead. Each
+    // later layer wins, so the waveform never hides a cue.
+    if (hints != null) {
+      _paintLoop(canvas, size, hints);
+      _paintBeats(canvas, size, hints);
+    }
 
     canvas.drawLine(
       Offset(0, centre),
       Offset(width, centre),
       Paint()
-        ..color = T.text.withValues(alpha: 0.06)
-        ..strokeWidth = 1,
+        ..color = _color(palette?.center ?? 0, T.text.withValues(alpha: 0.06)),
     );
 
+    final strip = this.strip;
+    if (strip != null &&
+        (strip.framesPerPixel - fpp).abs() < 0.01 &&
+        strip.columns > 1) {
+      _paintStrip(canvas, size, strip, start, fpp);
+    } else {
+      _paintWave(canvas, size, frame, fpp, start);
+    }
+
+    if (hints != null) _paintCues(canvas, size, hints);
+
     final playheadX = width / 2;
+    final playhead = _color(palette?.playhead ?? 0, T.playhead);
     canvas.drawRect(
       Rect.fromLTWH(playheadX - 3, 0, 6, height),
-      Paint()..color = T.playhead.withValues(alpha: 0.10),
+      Paint()..color = playhead.withValues(alpha: 0.10),
     );
     canvas.drawRect(
       Rect.fromLTWH(playheadX - 0.5, 0, 1, height),
-      Paint()..color = T.playhead,
+      Paint()..color = playhead,
     );
+  }
+
+  void _paintLoop(Canvas canvas, Size size, WaveOverlay hints) {
+    final start = hints.loopStart;
+    final end = hints.loopEnd;
+    if (start == null || end == null) return;
+    final left = math.min(start, end).clamp(0.0, size.width);
+    final right = math.max(start, end).clamp(0.0, size.width);
+    if (right <= left) return;
+    canvas.drawRect(
+      Rect.fromLTRB(left, 0, right, size.height),
+      Paint()..color = _color(palette?.loopWash ?? 0, const Color(0x55464646)),
+    );
+  }
+
+  void _paintBeats(Canvas canvas, Size size, WaveOverlay hints) {
+    final beatPaint = Paint()
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.butt
+      ..color = _color(palette?.beat ?? 0, T.beat);
+    for (final x in hints.beats) {
+      if (x < 0 || x > size.width) continue;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), beatPaint);
+    }
+    final barPaint = Paint()
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.butt
+      ..color = _color(palette?.bar ?? 0, T.bar);
+    for (final x in hints.bars) {
+      if (x < 0 || x > size.width) continue;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), barPaint);
+    }
+  }
+
+  void _paintCues(Canvas canvas, Size size, WaveOverlay hints) {
+    final armed = hints.loopArmed;
+    if (armed != null && armed >= 0 && armed <= size.width) {
+      canvas.drawLine(
+        Offset(armed, 0),
+        Offset(armed, size.height),
+        Paint()
+          ..strokeWidth = 1
+          ..color = T.accent.withValues(alpha: 0.8),
+      );
+    }
+    final cue = hints.cue;
+    if (cue != null && cue >= 0 && cue <= size.width) {
+      canvas.drawLine(
+        Offset(cue, 0),
+        Offset(cue, size.height),
+        Paint()
+          ..strokeWidth = 2
+          ..color = _color(palette?.memoryCue ?? 0, T.text),
+      );
+    }
+    for (final hot in hints.hotCues) {
+      if (hot.column < 0 || hot.column > size.width) continue;
+      canvas.drawLine(
+        Offset(hot.column, 0),
+        Offset(hot.column, size.height),
+        Paint()
+          ..strokeWidth = 2
+          ..color = palette != null
+              ? Color(palette!.hotCues[hot.slot % palette!.hotCues.length])
+              : T.padCueColors[hot.slot % T.padCueColors.length],
+      );
+    }
+  }
+
+  void _paintStrip(
+    Canvas canvas,
+    Size size,
+    WaveStripData strip,
+    double viewStart,
+    double fpp,
+  ) {
+    final width = size.width;
+    final centre = size.height / 2;
+    final extent = centre - 3;
+    final x0 = (strip.startFrame - viewStart) / fpp;
+    final leftLow = Path();
+    final leftMid = Path();
+    final leftHigh = Path();
+    final rightLow = Path();
+    final rightMid = Path();
+    final rightHigh = Path();
+    var started = false;
+    var lastX = 0.0;
+    for (var i = 0; i < strip.columns; i++) {
+      final x = x0 + i;
+      if (x < -1) continue;
+      if (x > width + 1) break;
+      if (!started) {
+        leftLow.moveTo(x, centre);
+        leftMid.moveTo(x, centre);
+        leftHigh.moveTo(x, centre);
+        rightLow.moveTo(x, centre);
+        rightMid.moveTo(x, centre);
+        rightHigh.moveTo(x, centre);
+        started = true;
+      }
+      leftLow.lineTo(x, centre - strip.leftLow[i] * extent);
+      leftMid.lineTo(x, centre - strip.leftMid[i] * extent);
+      leftHigh.lineTo(x, centre - strip.leftHigh[i] * extent);
+      rightLow.lineTo(x, centre + strip.rightLow[i] * extent);
+      rightMid.lineTo(x, centre + strip.rightMid[i] * extent);
+      rightHigh.lineTo(x, centre + strip.rightHigh[i] * extent);
+      lastX = x;
+    }
+    if (!started) return;
+    leftLow
+      ..lineTo(lastX, centre)
+      ..close();
+    leftMid
+      ..lineTo(lastX, centre)
+      ..close();
+    leftHigh
+      ..lineTo(lastX, centre)
+      ..close();
+    rightLow
+      ..lineTo(lastX, centre)
+      ..close();
+    rightMid
+      ..lineTo(lastX, centre)
+      ..close();
+    rightHigh
+      ..lineTo(lastX, centre)
+      ..close();
+
+    final low = _color(palette?.low ?? 0, T.waveLo);
+    final mid = _color(palette?.mid ?? 0, T.waveMid);
+    final high = _color(palette?.high ?? 0, T.waveHi);
+    canvas.drawPath(leftLow, Paint()..color = low);
+    canvas.drawPath(rightLow, Paint()..color = low);
+    canvas.drawPath(leftMid, Paint()..color = mid);
+    canvas.drawPath(rightMid, Paint()..color = mid);
+    canvas.drawPath(leftHigh, Paint()..color = high);
+    canvas.drawPath(rightHigh, Paint()..color = high);
   }
 
   void _paintWave(
@@ -71,9 +250,10 @@ class _WaveformPainter extends CustomPainter {
     double fpp,
     double start,
   ) {
-    final view = deck.view;
+    if (view.totalFrames <= 0 || view.bpm <= 0) return;
     if (frame < 0 || frame > view.totalFrames) return;
     final peaks = view.peaks;
+    if (peaks.length < 2) return;
     final width = size.width;
     final centre = size.height / 2;
     final extent = centre - 3;
@@ -137,45 +317,25 @@ class _WaveformPainter extends CustomPainter {
       ..lineTo(width, centre)
       ..close();
 
-    canvas.drawPath(leftLow, Paint()..color = T.waveLo);
-    canvas.drawPath(rightLow, Paint()..color = T.waveLo);
-    canvas.drawPath(leftMid, Paint()..color = T.waveMid);
-    canvas.drawPath(rightMid, Paint()..color = T.waveMid);
-    canvas.drawPath(leftHigh, Paint()..color = T.waveHi);
-    canvas.drawPath(rightHigh, Paint()..color = T.waveHi);
-  }
-
-  void _paintBeats(
-    Canvas canvas,
-    Size size,
-    double frame,
-    double fpp,
-    DeckView view,
-  ) {
-    final beatFrames = view.beatFrames;
-    final width = size.width;
-    final start = frame - width / 2 * fpp;
-    final end = frame + width / 2 * fpp;
-    var index = ((start - view.firstBeat) / beatFrames).floor();
-    final paint = Paint()..strokeWidth = 1;
-    while (true) {
-      final beat = view.firstBeat + index * beatFrames;
-      if (beat > end) break;
-      if (beat >= start) {
-        final x = (beat - frame) / fpp + width / 2;
-        final bar = index % 4 == 0;
-        paint.color = T.text.withValues(alpha: bar ? 0.16 : 0.07);
-        canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-      }
-      index++;
-    }
+    final low = _color(palette?.low ?? 0, T.waveLo);
+    final mid = _color(palette?.mid ?? 0, T.waveMid);
+    final high = _color(palette?.high ?? 0, T.waveHi);
+    canvas.drawPath(leftLow, Paint()..color = low);
+    canvas.drawPath(rightLow, Paint()..color = low);
+    canvas.drawPath(leftMid, Paint()..color = mid);
+    canvas.drawPath(rightMid, Paint()..color = mid);
+    canvas.drawPath(leftHigh, Paint()..color = high);
+    canvas.drawPath(rightHigh, Paint()..color = high);
   }
 
   @override
   bool shouldRepaint(_WaveformPainter old) =>
-      old.deck.frame != deck.frame ||
+      old.frame != frame ||
       old.framesPerPixel != framesPerPixel ||
-      old.deck.view != deck.view;
+      old.view != view ||
+      old.overlay != overlay ||
+      old.strip != strip ||
+      old.palette != palette;
 }
 
 /// The whole track at a glance, under the title: the two channels are folded
@@ -183,25 +343,63 @@ class _WaveformPainter extends CustomPainter {
 /// through the TUI's S-curve, then the three bands are stacked. Played is lit,
 /// the rest stays a quiet silhouette.
 class Overview extends StatelessWidget {
-  const Overview({required this.deck, required this.frame, super.key});
+  const Overview({
+    required this.deck,
+    required this.frame,
+    this.cueFrame = 0,
+    this.loopIn = 0,
+    this.loopOut = 0,
+    this.hotCueFrames = const <int, int>{},
+    this.palette,
+    super.key,
+  });
 
   final DeckView deck;
   final double frame;
+  final int cueFrame;
+  final int loopIn;
+  final int loopOut;
+  final Map<int, int> hotCueFrames;
+  final WavePaletteData? palette;
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.infinite,
-      painter: _OverviewPainter(deck, frame),
+      painter: _OverviewPainter(
+        deck,
+        frame,
+        cueFrame: cueFrame,
+        loopIn: loopIn,
+        loopOut: loopOut,
+        hotCueFrames: hotCueFrames,
+        palette: palette,
+      ),
     );
   }
 }
 
 class _OverviewPainter extends CustomPainter {
-  _OverviewPainter(this.deck, this.frame);
+  _OverviewPainter(
+    this.deck,
+    this.frame, {
+    this.cueFrame = 0,
+    this.loopIn = 0,
+    this.loopOut = 0,
+    this.hotCueFrames = const <int, int>{},
+    this.palette,
+  });
 
   final DeckView deck;
   final double frame;
+  final int cueFrame;
+  final int loopIn;
+  final int loopOut;
+  final Map<int, int> hotCueFrames;
+  final WavePaletteData? palette;
+
+  Color _color(int argb, Color fallback) =>
+      palette == null ? fallback : Color(argb);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -292,9 +490,9 @@ class _OverviewPainter extends CustomPainter {
     if (played > 0) {
       canvas.save();
       canvas.clipRect(Rect.fromLTWH(0, 0, played, height));
-      canvas.drawPath(lowPath, Paint()..color = T.waveLo);
-      canvas.drawPath(midPath, Paint()..color = T.waveMid);
-      canvas.drawPath(highPath, Paint()..color = T.waveHi);
+      canvas.drawPath(lowPath, Paint()..color = _color(palette?.low ?? 0, T.waveLo));
+      canvas.drawPath(midPath, Paint()..color = _color(palette?.mid ?? 0, T.waveMid));
+      canvas.drawPath(highPath, Paint()..color = _color(palette?.high ?? 0, T.waveHi));
       canvas.restore();
     }
 
@@ -302,9 +500,47 @@ class _OverviewPainter extends CustomPainter {
       Rect.fromLTWH(played - 0.5, 0, 1, height),
       Paint()..color = T.accentHi,
     );
+
+    final total = deck.totalFrames;
+    if (total <= 0) return;
+    double xOf(int source) =>
+        (source / total).clamp(0.0, 1.0) * width;
+    if (loopOut > loopIn) {
+      canvas.drawRect(
+        Rect.fromLTRB(xOf(loopIn), 0, xOf(loopOut), height),
+        Paint()..color = _color(palette?.loopWash ?? 0, const Color(0x55464646)),
+      );
+    }
+    if (cueFrame > 0) {
+      canvas.drawLine(
+        Offset(xOf(cueFrame), 0),
+        Offset(xOf(cueFrame), height),
+        Paint()
+          ..strokeWidth = 2
+          ..color = _color(palette?.memoryCue ?? 0, T.text),
+      );
+    }
+    for (final entry in hotCueFrames.entries) {
+      final x = xOf(entry.value);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, height),
+        Paint()
+          ..strokeWidth = 2
+          ..color = palette != null
+              ? Color(palette!.hotCues[entry.key % palette!.hotCues.length])
+              : T.padCueColors[entry.key % T.padCueColors.length],
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_OverviewPainter old) =>
-      old.frame != frame || old.deck != deck;
+      old.frame != frame ||
+      old.deck != deck ||
+      old.cueFrame != cueFrame ||
+      old.loopIn != loopIn ||
+      old.loopOut != loopOut ||
+      old.hotCueFrames != hotCueFrames ||
+      old.palette != palette;
 }

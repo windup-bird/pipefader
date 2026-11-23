@@ -6,6 +6,7 @@ import 'package:pipefader_gui/state/app_model.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/controls/buttons.dart';
 import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/device.dart';
 
 /// The bottom band: a header with the two column switches and the status or
 /// search field, then library | lists | tracks, plus the empty right column.
@@ -434,7 +435,7 @@ class _TracksColumn extends StatelessWidget {
           itemCount: tracks.length,
           itemBuilder: (context, index) {
             final track = tracks[index];
-            return _TrackRow(
+            final row = _TrackRow(
               index: index,
               track: track,
               selected: model.selectedTrack == index,
@@ -443,9 +444,70 @@ class _TracksColumn extends StatelessWidget {
               showTime: showTime,
               onTap: () => model.selectTrack(index),
             );
+            if (track.locationId < 0) return row;
+            return LongPressDraggable<TrackRow>(
+              data: track,
+              delay: const Duration(milliseconds: 100),
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: _TrackDragFeedback(track: track),
+              childWhenDragging: Opacity(opacity: 0.35, child: row),
+              child: row,
+            );
           },
         );
       },
+    );
+  }
+}
+
+/// The small card under the pointer while a library row is dragged to a deck.
+class _TrackDragFeedback extends StatelessWidget {
+  const _TrackDragFeedback({required this.track, this.wide = false});
+
+  final TrackRow track;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: wide ? 280 : 240),
+        decoration: panelFace(color: T.surfaceHi),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 3, height: 28, color: T.accent),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: T.s12,
+                      color: T.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    track.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: T.s10, color: T.dim),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -752,10 +814,19 @@ class _TrackList extends StatelessWidget {
       itemCount: tracks.length,
       itemBuilder: (context, index) {
         final track = tracks[index];
-        return _PhoneTrackRow(
+        final row = _PhoneTrackRow(
           track: track,
           selected: model.selectedTrack == index,
           onTap: () => onTap(index),
+        );
+        if (track.locationId < 0) return row;
+        return LongPressDraggable<TrackRow>(
+          data: track,
+          delay: const Duration(milliseconds: 100),
+          dragAnchorStrategy: pointerDragAnchorStrategy,
+          feedback: _TrackDragFeedback(track: track, wide: true),
+          childWhenDragging: Opacity(opacity: 0.35, child: row),
+          child: row,
         );
       },
     );

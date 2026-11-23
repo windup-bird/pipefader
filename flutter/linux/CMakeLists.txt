@@ -57,6 +57,22 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# The Flutter bridge is a cdylib built by Cargo. Building it from CMake keeps
+# `flutter run` and a packaged bundle using the same artifact, and the runner's
+# $ORIGIN/lib rpath lets Dart's DynamicLibrary.open find it in bundle/lib.
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+set(BRIDGE_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/bridge/Cargo.toml")
+set(BRIDGE_SOURCE_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../target/release/libbridge.so")
+set(BRIDGE_BUNDLE_LIB "${CMAKE_BINARY_DIR}/lib/libbridge.so")
+add_custom_target(pipefader_bridge ALL
+  COMMAND ${CARGO_EXECUTABLE} build --release -p bridge --manifest-path "${BRIDGE_MANIFEST}" --target-dir "${CMAKE_CURRENT_SOURCE_DIR}/../../target"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lib"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BRIDGE_SOURCE_LIB}" "${BRIDGE_BUNDLE_LIB}"
+  COMMENT "Building the Pipefader Rust bridge"
+  VERBATIM
+)
+add_dependencies(${BINARY_NAME} pipefader_bridge)
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
@@ -98,6 +114,9 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+install(FILES "${BRIDGE_BUNDLE_LIB}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
