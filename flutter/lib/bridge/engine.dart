@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:pipefader_gui/bridge/generated/api.dart' as frb;
 import 'package:pipefader_gui/bridge/generated/frb_generated.dart';
 
@@ -18,9 +20,9 @@ class EngineClient {
   /// Boots the Rust engine and starts listening. Idempotent in Rust, so a
   /// Flutter hot restart reuses the live session instead of opening the sound
   /// card twice.
-  static Future<EngineClient> start({String? configPath}) async {
+  static Future<EngineClient> start({frb.SessionPathsDto? paths}) async {
     await PipefaderBridge.init();
-    await frb.start(configPath: configPath);
+    await frb.start(paths: paths);
     final client = EngineClient._();
     client._subscription = frb.subscribe().listen(
       client._events.add,
@@ -28,6 +30,23 @@ class EngineClient {
       onDone: client._events.close,
     );
     return client;
+  }
+
+  /// Appends Flutter-side failures to the bridge log. Best effort: if the native library never
+  /// loaded there is nowhere to write, so the caller still gets the debug print.
+  static Future<void> logClientError(String text) async {
+    try {
+      await PipefaderBridge.init();
+      await frb.logClientError(text: text);
+    } catch (error) {
+      debugPrint('Pipefader could not log: $error\n$text');
+    }
+  }
+
+  /// The in-app log reader; works even when the engine never attached.
+  static Future<List<String>> recentLogs({int limit = 400}) async {
+    await PipefaderBridge.init();
+    return frb.recentLogs(limit: limit);
   }
 
   Future<void> shutdown() async {
@@ -162,7 +181,27 @@ class EngineClient {
 
   Future<frb.MenuStateDto> menuState() => frb.menuState();
 
-  Future<frb.MenuStateDto> outputAdd(String role) => frb.outputAdd(role: role);
+  Future<frb.MenuStateDto> outputAdd(
+    String role, {
+    String? device,
+    List<int>? channels,
+  }) => frb.outputAdd(
+    role: role,
+    device: device,
+    channels: channels == null ? null : Uint16List.fromList(channels),
+  );
+
+  Future<List<frb.OutputDeviceDto>> outputDevices() => frb.outputDevices();
+
+  Future<frb.MenuStateDto> outputBind(
+    int index, {
+    String? device,
+    List<int>? channels,
+  }) => frb.outputBind(
+    index: index,
+    device: device,
+    channels: channels == null ? null : Uint16List.fromList(channels),
+  );
 
   Future<frb.MenuStateDto> outputRemove(int index) =>
       frb.outputRemove(index: index);

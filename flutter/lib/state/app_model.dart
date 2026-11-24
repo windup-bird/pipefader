@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 
 import 'package:pipefader_gui/core/layout_mode.dart';
 import 'package:pipefader_gui/model/deck.dart';
-import 'package:pipefader_gui/model/fixtures.dart';
 import 'package:pipefader_gui/model/library.dart';
 import 'package:pipefader_gui/model/peaks.dart';
 import 'package:pipefader_gui/bridge/engine.dart';
@@ -118,9 +117,9 @@ class DeckRuntime {
   int get jumpSize => jumpSizes[jumpBeatsIndex];
 }
 
-/// The session the GUI paints. Without an [EngineClient] it is the original
-/// local sketch (fixtures and simulated frames); with one it mirrors the Rust
-/// session and forwards every performance action to the engine.
+/// The session the GUI paints. Without an [EngineClient] it is empty (blank decks, no browser
+/// rows); with one it mirrors the Rust session and forwards every performance action to the
+/// engine.
 class AppModel extends ChangeNotifier {
   AppModel({
     LayoutMode? forcedLayout,
@@ -129,19 +128,77 @@ class AppModel extends ChangeNotifier {
     EngineClient? engine,
   }) : this._(forcedLayout, fullDecks, phoneDecks, engine);
 
-  AppModel._(this._forcedLayout, int fullDecks, int phoneDecks, this.engine)
-    : _fullDecks = _legalFull(fullDecks),
+  AppModel._(
+    this._forcedLayout,
+    int fullDecks,
+    int phoneDecks,
+    EngineClient? engine,
+  ) : _engine = engine,
+      _fullDecks = _legalFull(fullDecks),
       _phoneDecks = _legalPhone(phoneDecks),
-      decks = _buildDecks(live: engine != null) {
+      decks = _buildDecks() {
     if (engine != null) {
       _bindEngine();
       unawaited(menu.ensureLoaded());
     }
   }
 
-  /// When non-null the model is driven by the Rust engine instead of the
-  /// local sketch. Tests and the web preview leave it null.
-  final EngineClient? engine;
+  /// When non-null the model is driven by the Rust engine. Tests and the web preview leave it
+  /// null and paint the empty state.
+  EngineClient? _engine;
+  EngineClient? get engine => _engine;
+
+  bool _starting = false;
+  String? _engineError;
+  bool _storageGranted = true;
+
+  /// True between `beginEngineStart` and the attach/failure callback; the shell shows a small
+  /// banner instead of pretending the empty state is the live engine.
+  bool get engineStarting => _starting;
+
+  /// Set when boot failed; stays set so the UI can say the engine is offline.
+  String? get engineError => _engineError;
+
+  /// False on Android until the all-files / legacy storage grant is in place. The shell shows a
+  /// grant prompt and the bridge waits before walking the media root.
+  bool get storageGranted => _storageGranted;
+
+  void setStorageGranted(bool granted) {
+    if (_storageGranted == granted) return;
+    _storageGranted = granted;
+    if (granted && _engine != null) {
+      unawaited(refreshLibrary());
+    }
+    notifyListeners();
+  }
+
+  void beginEngineStart() {
+    _starting = true;
+    notifyListeners();
+  }
+
+  /// Attaches the engine after the first frame. Resets to the engine's blank decks, then replays
+  /// the subscriptions and menu/library loads that were skipped at startup.
+  bool attachEngine(EngineClient engine) {
+    if (_engine != null) return false;
+    _engine = engine;
+    _starting = false;
+    _engineError = null;
+    decks
+      ..clear()
+      ..addAll(_buildDecks());
+    _bindEngine();
+    menu.attach(engine);
+    unawaited(menu.ensureLoaded());
+    notifyListeners();
+    return true;
+  }
+
+  void markEngineFailed(String error) {
+    _starting = false;
+    _engineError = error;
+    notifyListeners();
+  }
 
   /// The logo menu's profile/output/MIDI snapshot. Kept on the model so opening the menu again
   /// does not lose a half-edited output list.
@@ -155,9 +212,9 @@ class AppModel extends ChangeNotifier {
   /// the browser and the control band are not rebuilt sixty times a second.
   final ValueNotifier<int> clock = ValueNotifier<int>(0);
 
-  final List<LibEntry> libraryRoots = List<LibEntry>.of(libraries);
-  final List<ListEntry> lists = List<ListEntry>.of(playlists);
-  final List<TrackRow> allTracks = List<TrackRow>.of(tracks);
+  final List<LibEntry> libraryRoots = <LibEntry>[];
+  final List<ListEntry> lists = <ListEntry>[];
+  final List<TrackRow> allTracks = <TrackRow>[];
 
   /// Guards against an older async library query overwriting a newer one.
   int _libraryEpoch = 0;
@@ -195,8 +252,6 @@ class AppModel extends ChangeNotifier {
   double framesPerPixel = 340;
 
   double crossfader = 0.0;
-
-  double _time = 0;
 
   static const double minFramesPerPixel = 256;
   static const double maxFramesPerPixel = 45000;
@@ -241,21 +296,7 @@ class AppModel extends ChangeNotifier {
     return (sounding: sounding, leader: leader);
   }
 
-  List<TrackRow> get visibleTracks {
-    final query = searchText.trim().toLowerCase();
-    if (query.isEmpty) return allTracks;
-    // The Rust library search also matches the path; filtering by title/artist
-    // here would silently drop those hits. With a live engine the query has
-    // already been applied, so show its results as-is.
-    if (engine != null) return allTracks;
-    return allTracks
-        .where(
-          (track) =>
-              track.title.toLowerCase().contains(query) ||
-              track.artist.toLowerCase().contains(query),
-        )
-        .toList(growable: false);
-  }
+  List<TrackRow> get visibleTracks => allTracks;
 
   /// Total playing time of the visible list, in seconds.
   int get visibleSeconds =>
@@ -331,7 +372,6 @@ class AppModel extends ChangeNotifier {
 
   void advance(double dt) {
     final step = dt.clamp(0.0, 0.1);
-    _time += step;
     if (engine != null) {
       // The engine pushes a tick at ~30Hz; advance the playhead locally between
       // ticks so the waveform moves at the display's refresh rate. The next
@@ -345,36 +385,8 @@ class AppModel extends ChangeNotifier {
           }
         }
       }
-      clock.value++;
-      return;
-    }
-    for (final deck in decks) {
-      if (deck.playing && !deck.atEnd) {
-        deck.frame += (step * deck.view.sampleRate * deck.playingRate).round();
-        if (deck.frame >= deck.view.totalFrames) {
-          deck.frame = deck.view.totalFrames;
-          deck.playing = false;
-        }
-      }
-      _updateMeter(deck);
     }
     clock.value++;
-  }
-
-  void _updateMeter(DeckRuntime deck) {
-    final peaks = deck.peaks;
-    final index = ((deck.frame / deck.view.totalFrames) * (peaks.length - 1))
-        .round()
-        .clamp(0, peaks.length - 1);
-    final amplitude = peaks.leftLow[index];
-    final wobble =
-        0.68 +
-        0.32 *
-            math.sin(_time * 5.1 + deck.view.coverSeed) *
-            math.sin(_time * 2.3 + 1.1);
-    final level = (amplitude * deck.fader * 0.66 + 0.01) * wobble;
-    deck.meter = deck.playing ? level.clamp(0.0, 1.0) : 0.0;
-    deck.meterPeak = math.max(deck.meter, deck.meterPeak * 0.985);
   }
 
   /// Reports the scrolling waveform's pixel width and zoom. Rust uses it to
@@ -400,7 +412,9 @@ class AppModel extends ChangeNotifier {
   void _bindEngine() {
     _engineSub = engine!.events.listen(_onEngineEvent);
     unawaited(_loadPalette());
-    unawaited(loadLibrary());
+    if (_storageGranted) {
+      unawaited(loadLibrary());
+    }
   }
 
   Future<void> _loadPalette() async {
@@ -1413,57 +1427,18 @@ class AppModel extends ChangeNotifier {
     );
   }
 
-  static List<DeckRuntime> _buildDecks({bool live = false}) {
-    if (live) {
-      return [
-        for (var index = 0; index < 4; index++)
-          DeckRuntime(
+  static List<DeckRuntime> _buildDecks() {
+    return [
+      for (var index = 0; index < 4; index++)
+        DeckRuntime(
             view: _blankView(index),
             index: index,
             frame: 0,
             playing: false,
             tempo: 1.0,
-          ),
-      ];
-    }
-    final views = buildDecks();
-    return [
-      DeckRuntime(
-        view: views[0],
-        index: 0,
-        frame: (views[0].totalFrames * 0.372).round(),
-        playing: true,
-        tempo: 1.0,
-      )..hotCues.addAll(const [0, 2, 4]),
-      DeckRuntime(
-          view: views[1],
-          index: 1,
-          frame: (views[1].totalFrames * 0.518).round(),
-          playing: false,
-          tempo: 1.02,
-        )
-        ..hotCues.addAll(const [1, 3])
-        ..high = 0.16
-        ..mid = -0.22
-        ..low = 0.20
-        ..filter = -0.28,
-      DeckRuntime(
-        view: views[2],
-        index: 2,
-        frame: (views[2].totalFrames * 0.214).round(),
-        playing: false,
-        tempo: 0.99,
-      )..hotCues.add(6),
-      DeckRuntime(
-          view: views[3],
-          index: 3,
-          frame: (views[3].totalFrames * 0.633).round(),
-          playing: false,
-          tempo: 1.0,
-        )
-        ..high = -0.08
-        ..low = 0.44
-        ..filter = 0.12,
+          )
+          ..meter = 0
+          ..meterPeak = 0,
     ];
   }
 }

@@ -25,13 +25,16 @@ pub fn template() -> &'static str {
     reference_toml()
 }
 
-/// The shipped unit-map template (`crates/controller/mapping.toml`), embedded so `--guide` has a map
-/// to edit on a machine with no checkout. It is written only when the guide opens a map that does
-/// not exist yet, never at startup — the first start still creates exactly one file, the config.
+/// The shipped controller map (`controllers/numark_partymix_3.toml`), embedded so the menu and
+/// `--guide` have a map on a machine with no checkout. This is also what a first start writes as
+/// `mapping.toml`; the `controllers/` directory is the source for built-in maps.
 pub const MAP_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../controller/mapping.toml"
+    "/../../controllers/numark_partymix_3.toml"
 ));
+
+/// The menu label for [`MAP_TEMPLATE`].
+pub const BUILTIN_MAP_NAME: &str = "Numark Party Mix 3";
 
 /// Reserved source ids for the built-in template of each kind. They are never real files; every
 /// reader resolves them to the embedded text. `map_path_for(BUILTIN_PROFILE)` deliberately yields
@@ -238,9 +241,15 @@ fn parse_source(source: &str) -> Option<(Option<String>, String, bool)> {
     Some((owner, face, mirror))
 }
 
-/// The platform's config path. `PIPEFADER_CONFIG` wins when set, which is also how a test or a
-/// Termux/proot session names its own location.
+/// The platform's config path. A front-end-supplied path wins, else `PIPEFADER_CONFIG`, else the
+/// platform config directory; the variable is how a test or a Termux/proot session names its own
+/// location.
 pub fn default_path() -> Option<PathBuf> {
+    // A front-end that knows its own sandbox (the Flutter bridge on Android) wins over the
+    // environment, which has no HOME or XDG there.
+    if let Some(path) = crate::paths::config() {
+        return Some(path);
+    }
     // An empty value means "not set" — joining onto it would put the config in the working
     // directory instead of the user's config directory.
     if let Some(path) = std::env::var_os("PIPEFADER_CONFIG").filter(|v| !v.is_empty()) {
@@ -276,6 +285,87 @@ pub fn load_or_create(explicit: Option<&str>) -> Result<Config, String> {
         // Missing (or no platform directory at all) → built-in, entirely in memory.
         _ => load_builtin(),
     }
+}
+
+/// The shipped template adjusted for a phone: 48 kHz is what AAudio usually opens, and a stereo
+/// device cannot take the cue pair `[2,3]`. One master output keeps the mixer from disabling both
+/// destinations when the device only offers two channels or 48 kHz.
+fn android_template() -> Result<String, String> {
+    let mut doc: DocumentMut = template()
+        .parse()
+        .map_err(|err| format!("built-in template: {err}"))?;
+    if doc.get("live").is_none() {
+        doc.insert("live", Item::Table(Table::new()));
+    }
+    let live = doc
+        .get_mut("live")
+        .and_then(Item::as_table_mut)
+        .ok_or_else(|| "built-in template: live is not a table".to_owned())?;
+    if live.get("audio").is_none() {
+        live.insert("audio", Item::Table(Table::new()));
+    }
+    let audio = live
+        .get_mut("audio")
+        .and_then(Item::as_table_mut)
+        .ok_or_else(|| "built-in template: live.audio is not a table".to_owned())?;
+    audio.insert("sample_rate", toml_edit::value(48_000i64));
+
+    if let Some(outputs) = doc
+        .get_mut("mixer")
+        .and_then(Item::as_table_mut)
+        .and_then(|mixer| mixer.get_mut("output"))
+        .and_then(Item::as_array_of_tables_mut)
+    {
+        let mut index = 0;
+        while index < outputs.len() {
+            let cue = outputs
+                .get(index)
+                .and_then(|output| output.get("role"))
+                .and_then(Item::as_str)
+                == Some("cue");
+            if cue {
+                outputs.remove(index);
+            } else {
+                index += 1;
+            }
+        }
+    }
+    Ok(doc.to_string())
+}
+
+/// Materialises the built-in template at `config` when it does not exist yet, and seeds the sibling
+/// map as well. Only a front-end with a private, writable directory (Android's `filesDir`) asks for
+/// this; desktop keeps the in-memory template until the user edits a setting.
+pub fn seed(config: &Path) -> Result<PathBuf, String> {
+    seed_with(config, template())
+}
+
+/// The Android first-start copy. Existing configs are never rewritten, so a device that already
+/// has the desktop template keeps it until the file is deleted.
+pub fn seed_android(config: &Path) -> Result<PathBuf, String> {
+    let text = android_template()?;
+    seed_with(config, &text)
+}
+
+fn seed_with(config: &Path, text: &str) -> Result<PathBuf, String> {
+    if let Some(parent) = config
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).map_err(|err| format!("{}: {err}", parent.display()))?;
+    }
+    if !config.is_file() {
+        std::fs::write(config, text).map_err(|err| format!("{}: {err}", config.display()))?;
+    }
+    let map = PathBuf::from(map_path_for(config));
+    if !map.is_file() {
+        if let Some(parent) = map.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("{}: {err}", parent.display()))?;
+        }
+        std::fs::write(&map, MAP_TEMPLATE).map_err(|err| format!("{}: {err}", map.display()))?;
+    }
+    Ok(map)
 }
 
 /// Reads a user config; a missing or unreadable file is an error, never a silent fallback.
@@ -732,6 +822,36 @@ mod tests {
             cfg.controllers.is_empty(),
             "the template's empty [controller] table means no controller, not a phantom session"
         );
+    }
+
+    #[test]
+    fn seed_writes_the_template_and_map_without_overwriting_the_config() {
+        let dir = temp("seed");
+        let _ = std::fs::remove_dir_all(&dir);
+        let config = dir.join("pipefader").join("config.toml");
+        let map = seed(&config).expect("seeds");
+        assert!(config.is_file());
+        assert_eq!(map, dir.join("pipefader").join("mapping.toml"));
+        assert!(map.is_file());
+
+        let edited = "[mixer]\n";
+        std::fs::write(&config, edited).unwrap();
+        seed(&config).expect("seeds again");
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), edited);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn android_seed_uses_48k_and_a_single_master() {
+        let dir = temp("seed-android");
+        let _ = std::fs::remove_dir_all(&dir);
+        let config = dir.join("pipefader").join("config.toml");
+        seed_android(&config).expect("seeds");
+        let cfg = load_user(config).expect("parses the seeded config");
+        assert_eq!(cfg.live.audio.sample_rate, 48_000);
+        assert_eq!(cfg.mixer.outputs.len(), 1);
+        assert_eq!(cfg.mixer.outputs[0].role, audio::OutputRole::Master);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -23,7 +23,7 @@ pub struct MapFile {
 pub fn candidates(source: &str) -> Vec<MapFile> {
     let mut out = vec![MapFile {
         path: profile::BUILTIN_MAP.to_owned(),
-        name: "Built-in map".to_owned(),
+        name: profile::BUILTIN_MAP_NAME.to_owned(),
         builtin: true,
     }];
     if profile::is_builtin(source) {

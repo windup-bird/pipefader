@@ -1,5 +1,7 @@
 # 构建方式(termux chroot)
 
+这份只适用于 termux chroot（aarch64 Arch Linux + 系统 clang wrapper）。本机 x86_64 的 release 构建走 `android-build.md`，不要把这里的 wrapper 套过去。
+
 宿主机是 aarch64 Arch Linux，NDK 自带的 clang/lld 是 x86_64，直接跑会 `Exec format error`。所以用系统 clang 23 + lld，配 NDK 28 的 sysroot 和静态库，写一个 wrapper 覆盖 CC/CXX/linker，绕开 cargo-ndk。wrapper 在 `/tmp/android-cross/clang`，重启就没了，内容如下（`clang++` 是指向它的软链）：
 
 ```sh

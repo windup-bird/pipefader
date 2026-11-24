@@ -22,3 +22,17 @@ flutter_rust_bridge = "=2.13.0"
 default = []
 stems = ["app/stems"]
 cuda = ["stems", "app/cuda"]
+
+[build-dependencies]
+cc = "1"
+
+# Android/Linux only: `dup2` stderr into the log file so cpal/audio's eprintln
+# and panic backtraces land where the user can read them.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# cpal (oboe) and midir both read ndk-context; MainActivity initializes it through JNI.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+android_log-sys = "0.3"

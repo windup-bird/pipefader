@@ -1,51 +1,101 @@
 # Android 构建与适配
 
-只做 arm64-v8a，产物是 `flutter/build/app/outputs/flutter-apk/app-debug.apk`，里面 `lib/arm64-v8a/libbridge.so` 是交叉编译的 Rust 桥。本机 Flutter SDK（`~/flutter`，3.51.0-0.2.pre）在 arm64 Linux 上没有 release 的 `gen_snapshot`，只能出 debug APK（Dart 走 JIT，Rust 是 release），release 得换 x86 主机或 CI。
+目标只有 arm64-v8a 的 release APK：`flutter/build/app/outputs/flutter-apk/app-release.apk`，Dart 走 AOT，Rust 也是 release。构建链已经在本机跑通：32M 的 APK 里有 `libbridge.so`（14M，已 strip）、`libapp.so`、`libflutter.so` 和 `libc++_shared.so`（1.2M），minSdk 29。真机上已经验证 audio 能在 48k 打开、midir 能枚举 Party Mix；还没解决的是“没声”的路由/UI 和完整 MIDI。termux chroot 那条路只留在 `build-on-termux.md`，不混进这里。
+
+## 本机环境
+
+Flutter 3.50.1 stable 在 `/opt/flutter`，wrapper 会把它挂到 `~/.cache/flutter_sdk`，直接 `flutter` 可用；`/opt/flutter` 本身不要写。NDK 28.2.13676358 在 `/opt/android-ndk`，SDK 在 `/opt/android-sdk`（platform 36，build-tools 36/37）。Rust 的 `aarch64-linux-android` target 和 `cargo-ndk` 都装了。
+
+gradle 里的 minSdk 已经改成 29：`libamidi` 只有 29+，低版本设备装得上，但 `System.loadLibrary("bridge")` 会直接失败。走 B 以后如果要把 midir 从 Android 依赖里摘掉，可以再试更低的 minSdk，但要单独验证 oboe 的 API 下限，不跟这次混。
+
+## 构建
+
+编 Rust：
+
+```sh
+cargo ndk -t arm64-v8a -P 29 \
+  -o flutter/android/app/src/main/jniLibs \
+  build --release -p bridge
+```
+
+`-P 29` 不能省，cargo-ndk 默认 21；`-o` 会把 `libbridge.so` 放进 `jniLibs/arm64-v8a`。`jniLibs` 已经加进 `flutter/android/.gitignore`，每次改 Rust 都要重编；只改 Dart 时打包仍会带上目录里现有的 `.so`，注意别拿旧的。
+
+`libbridge.so` 的 NEEDED 里有 `libc++_shared.so`（oboe 的 C++ 部分），Flutter 的 APK 不会自带这一份，要手动放进 `jniLibs`：
+
+```sh
+cp /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+  flutter/android/app/src/main/jniLibs/arm64-v8a/
+```
+
+`/opt/android-sdk/ndk/28.2.13676358` 已经指向 `/opt/android-ndk`，Flutter 能看到 NDK，不再走合成 CMake。出 APK：
+
+```sh
+cd flutter && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=/opt/flutter \
+  CI=true FLUTTER_SUPPRESS_ANALYTICS=true \
+  flutter build apk --release --target-platform android-arm64
+```
+
+`GIT_CONFIG_*` 只是绕 `/opt/flutter` 的 git 所有权检查，不改仓库配置；SDK 属主正常时可以去掉。release 现在用 debug key 签名（`build.gradle.kts` 里就是这么写的），侧载能装；正式分发再换 keystore。
 
 ## 依赖与链接
 
-`crates/library` 的 rusqlite 要用 `bundled-sqlcipher-vendored-openssl` 才能在 Android 上编过：wrapper 的 sysroot 里没有 OpenSSL 头，`bundled-sqlcipher` 会在 `sqlite3.c` 处报 `openssl/crypto.h` 找不到。不能退化成普通 `bundled`，rekordbox 6 的 `exportLibrary.db` 是 SQLCipher 加密的，`import/rekordbox.rs` 的 `open_encrypted` 靠 `PRAGMA key` 解密。vendored 只是把 OpenSSL 静态编进来，功能不变。现在 main 上是临时改、编完还原；应该改成 `[target.'cfg(target_os = "android")'.dependencies]` 里单独开，桌面构建不受拖累。
+`crates/library` 的 rusqlite 在 Android 上要用 `bundled-sqlcipher-vendored-openssl`：NDK 的 sysroot 没有 OpenSSL 头，`bundled-sqlcipher` 会在 `sqlite3.c` 报 `openssl/crypto.h` 找不到。不能退化成普通 bundled：U 盘里 rekordbox 6 的 `exportLibrary.db` 也是 SQLCipher 加密的，`import/rekordbox.rs` 的 `open_encrypted` 靠 `PRAGMA key` 解密，手机上要保留这条功能。vendored 只是把 OpenSSL 静态编进来，功能不变；用 target-specific 依赖挂在 android 下，桌面保持现在的 `bundled-sqlcipher`，不要改 workspace 的默认 features。
 
-链接还有一个真问题：Android 16 的 bionic 不再导出 `atexit`，`libc.so` 里只有 `__cxa_atexit`（`/apex/com.android.runtime/lib64/bionic/libc.so` 和 NDK 21–35 的 stub 都核对过），而 vendored OpenSSL 的 `libcrypto-lib-init.o` 仍引用 `atexit`；共享库链接默认允许未定义符号，所以编译能过，装机后 `dlopen` 直接失败：`cannot locate symbol "atexit"`。两条出路：给 bridge 导出一个 Android 下的 `atexit` 转发到 `__cxa_atexit`（试过，`.so` 里符号定义正常、其余导入也都存在），或者给 OpenSSL 配 `no-atexit`（要 patch `openssl-src`，最干净但麻烦）。另外建议给 wrapper 加 `-Wl,-z,defs`，让这类缺符号在链接期就报出来，而不是等到手机上。
-
-目前的状态：只加 atexit shim 之后 dlopen 过了，但 app 反而起不来，根因没定位（没有日志，只能猜是 boot 卡在 cpal/oboe、`menu.ensureLoaded()` 里 midir 的 panic，或原生崩溃），改动已回滚。所以下一步先做日志，再谈功能。
+链接上有一个真问题：NDK 28 的 libc stub 在 API 21–35 都不导出 `atexit`（21/24/28/30/35 都抽查过），它由 `crtbegin_so.o` 提供给可执行文件；Rust 的 cdylib 不链 crtbegin，vendored OpenSSL 的 `libcrypto-lib-init.o` 又引用它，所以共享库链接默认允许未定义符号、能编过，装机后 `dlopen` 失败：`cannot locate symbol "atexit"`。这不是 Android 16 才有的变化。现在 `crates/bridge/build.rs` 在 Android 下编 `src/android_atexit.c`（`atexit` 转 `__cxa_atexit`）并加 `-Wl,-z,defs`；链接已经通过，`--dyn-syms` 里 `atexit` 不再是 UND，`__cxa_atexit` 由 libc 提供，其余 UND 都落在 NEEDED 的 `libc`/`liblog`/`libOpenSLES`/`libamidi`/`libc++_shared`/`libdl`/`libm` 上。
 
 ## 启动与日志
 
-`main()` 现在先 `await EngineClient.start()` 再 `runApp`，而 `session::start` 最多等 30 秒；Android 上如果音频或别的 boot 步骤卡住，就是一段白启动画面。应该改成先出界面、异步起引擎，失败时显示明确的离线状态。Rust 侧要有 panic hook 和 boot 错误落盘（`filesDir/pipefader/logs`），Flutter 侧把启动异常和未处理错误也写进去，界面上能看最近几条。没有 adb 的环境里，这是唯一能定位问题的手段。
+`main()` 已经改成先 `runApp`、再异步 boot：`AppModel.beginEngineStart()` 先显示空 deck，`attachEngine` 成功后换成引擎 deck 并重放订阅、菜单和库加载，失败走 `markEngineFailed`，`AppShell` 顶部显示“Starting engine...”或“Engine offline: ...”。测试注入的 `AppModel` 不置这两个状态，横幅不出现。
+
+Rust 侧已经做了：`bridge/src/logging.rs` 把 boot 阶段（config/audio/library/preference/ready）、panic 和 Flutter 上报的错误写到 `filesDir/pipefader/logs/bridge.log`，每行带毫秒时间戳并立即 flush；`start` 的失败和超时也落盘。打开日志后 stderr 被 `dup2` 到同一文件，cpal/audio 的 `eprintln` 和 panic backtrace 也会进来。Flutter 的 `FlutterError.onError` / `PlatformDispatcher.onError` 通过 `log_client_error` 进同一份文件。根菜单的 Logs 页通过 `recent_logs` 读最近 400 行，引擎没起来也能读。
+
+`menu.ensureLoaded()` 在 `AppModel` 构造时就会调 `midiPorts()`；ndk-context 初始化后它正常枚举，之前那个 `android_context` panic 已经不在了。真机上的 `adb logcat -s Pipefader` 能看到 boot 和 midi 行。
 
 ## 路径与配置
 
-Android app 进程没有 `HOME`，也没有 XDG。这不是「绕开用户目录」的问题：`Context.getFilesDir()`（`/data/user/0/<包名>/files`）就是应用自己的目录，配置放这里是 Android 的常规做法，用户看不到；要让用户改文件只能走 SAF 导入导出，或者用应用内的菜单编辑（我们已经有）。
+Android app 进程没有 `HOME`，也没有 XDG；`filesDir`（`/data/user/0/<包名>/files`）就是应用自己的目录。现在 `SessionPaths { config, cache, media_home, log_dir }` 在 `app::paths`，MainActivity 通过 `pipefader/session` 把 `filesDir/pipefader`、`/storage/emulated/0` 和日志目录交给 Dart，`frb.start` 接收并安装；`profile::default_path`、`gui_cache_dir`、`home_dir` 都先看这份路径，桌面留空时仍走 `HOME`/XDG。
 
-现状：`profile::default_path()` 返回 `None`，会话跑内建模板，而内建模板是只读的，`settings::set`、`output_*`、`set_midi_port` 都会报 `the built-in profile is read-only`，等于手机上菜单改不了任何设置；`gui_cache_dir()` 也是 `None`，库 DB 打不开，`library_roots()` 返回 `the library is not available`，Flutter 侧就停在预填充数据上。
+首启 seed：`profile::seed` 在启动 DTO 的 `seed` 为 true 且 config 不存在时，把内建模板写到 `filesDir/pipefader/config.toml`，同时落一份同目录 `mapping.toml`；桌面不 seed，继续跑内建模板。config 落盘后 `preference` 和 `map_path_for` 都跟着它走，菜单的写操作不再报 read-only。库 DB 在 `filesDir/pipefader/library.sqlite3`，不放 cache；打开失败会写日志，不再被 `.ok()` 吞掉。
 
-方案：首次启动把内建模板写到 `filesDir/pipefader/config.toml`（桌面保持现在的「不落盘」），库 DB 也放 `filesDir`，别放 cache（会被系统清掉，清了就得重扫）。路径传递两条路：MainActivity 用 MethodChannel 把 `filesDir`/`cacheDir` 给 Dart，再扩 `frb.start(configPath, cacheDir)`（要重跑 FRB codegen）；或者在 Kotlin 里初始化 `ndk-context`（这个 MIDI 那边也要用），让 Rust 自己 JNI 调 `getFilesDir()`。前者边界清楚，后者一份初始化两个用途，但 Android 细节会渗进 Rust。
+## 权限与曲库
 
-多端统一的做法是把平台差异压到三个注入点，`app` 和 `library` 里不出现 `cfg(android)`。第一是会话路径，用 `SessionPaths { config, cache, media_home }`，TUI 从 `PIPEFADER_CONFIG`/`XDG_*`/`HOME` 填，bridge 从 Dart/Kotlin 填；`media_home` 是 `~` 的展开目标，桌面是 `$HOME`，Android 是 `/storage/emulated/0`，于是同一份 `config.toml` 里写 `folders = ["~/Music"]` 两边都成立。第二是卷事件，见下一节。第三是权限，只在 Android 侧有，表现为启动时的一次性授权引导。
+曲库只做文件夹路径和 USB，不做 MediaStore。manifest 已经声明 `MANAGE_EXTERNAL_STORAGE`，Android 10 用 `READ/WRITE_EXTERNAL_STORAGE`（maxSdk 29）加 `requestLegacyExternalStorage`（这一档要真机确认，Android 11+ 是全文件访问的主路径）；MainActivity 通过 `pipefader/session` 暴露 `hasStoragePermission` / `requestStoragePermission`，Android 11+ 跳 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION`，Android 10 弹旧版运行时权限。AppShell 顶部常驻 “Storage permission needed · Grant”，AppModel 没授权时不加载库，回到前台会重查并在授权后刷新；引擎照常启动，菜单和界面可用。ColorOS 上 `adb shell pm clear` 会被拒（shell 没有 `CLEAR_APP_USER_DATA`），要重 seed 只能用系统设置清数据或卸载重装。授权后 `/storage/emulated/0` 和 USB 卷对 `WalkDir` 就是普通目录，`import/folder.rs`、标签、解码、波形都不用改。代价是 Google Play 会限制，侧载没关系。
 
-## 曲库
-
-曲库只做文件夹路径和 USB，不做 MediaStore，`MANAGE_EXTERNAL_STORAGE` 作为必需权限：manifest 声明，首次启动用 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 引导去设置里授权，没授权时界面明说并停止扫描；授权后 `/storage/emulated/0` 和 USB 卷对 `WalkDir` 就是普通目录，`import/folder.rs`、标签、解码、波形都不用改。代价是这个特殊权限上 Google Play 会被限制，侧载没关系。
-
-USB 那块把 `ScanService` 拆出 `volume_mounted(root)` / `volume_unmounted(root)` 两个入口：桌面由 `usb::watch`（`/sys/block` + `udisksctl`）喂，Android 由 Kotlin 的 `StorageManager.getStorageVolumes()` + `StorageVolume.getDirectory()`（API 30+）或 `ACTION_MEDIA_MOUNTED` 拿到卷根后喂同一个入口，两边都落成 `SourceOrigin::Usb`，后面的扫描、列表、分析完全共用。rekordbox/Serato/VirtualDJ 的本地库路径在 Android 上不存在，`local_roots` 按存在性过滤即可，不用 `cfg`。
-
-## MIDI
-
-midir 0.11 确实有 Android 后端（JNI + AMidi），能力不是问题，缺的是几块只有 Kotlin 能给的东西。第一个是身份：`MidiInput::new` 走 `jni_min_helper`，`jni_get_vm()` 最后落到 `ndk_context::android_context()`，而这个全局在 Flutter embedding 里没人填，`expect("android context was not initialized")` 直接 panic；`controller::list_ports()` 在菜单加载时就会调用，所以现在这一步必炸。补法是在 MainActivity 里 `System.loadLibrary("bridge")` 后调一个 JNI 入口，把 `JavaVM` 和 `Application` 交给 Rust，里面执行 `ndk_context::initialize_android_context`。
-
-第二个是 USB 权限：`MidiManager.openDevice` 要求 app 已持有该 USB 设备权限，权限框只能由 Activity 用 `UsbManager.requestPermission(device, PendingIntent)` 弹，midir 在 Rust 线程里弹不出来；没授权时它只会把失败报成 `InvalidPort`，看不出是权限问题。第三个是热插拔：midir 全平台都没有设备增删回调，只能重新枚举，Android 的 `MidiManager.registerDeviceCallback` 才有真正的插拔事件。第四个是蓝牙 MIDI：只有 `MidiManager.openBluetoothDevice` 支持。另外 `libamidi` 是 API 29+，`.so` 直接 NEEDED 它，等于 minSdk 从 24 抬到 29。
-
-两条路。A，Kotlin 补 ndk-context 初始化、USB 权限和插拔通知，剩下的枚举和读取继续交给 midir；改动最小，USB 控制器能先跑通，缺点是错误信息糊、没有蓝牙、minSdk 29。B，Android 侧全部交给 Kotlin 的 `MidiManager`：找设备、弹权限、听插拔、读字节，字节经 JNI 直接喂给 `controller::msg::Decoder`，桌面仍然走 midir。不管选哪条，先把 `app::midi` 的边界统一成 `ingest(bytes)`（解码、映射、往 dispatcher 发命令都在这），桌面 midir 的回调和 Android 的字节来源都调它，将来换实现上层不用动。A 只适合 USB + Android 10+ 的快速验证，MIDI 是必备功能的话最终按 B 收口。
+USB 已经接上同一个扫描入口：`ScanService` 有 `volume_mounted(root)` / `volume_unmounted(root)`，桌面仍由 `usb::watch`（`/sys/block` + `udisksctl`）喂，Android 由 Kotlin 的 `StorageVolumeCallback`（API 30+）或 media 广播（API 29）拿到卷根，经 `pipefader/session` 的 `volumeMounted` / `volumeUnmounted` 到 Dart `volume_events.dart`，再走 FRB 进同一个 worker；API 30+ 在引擎起来且有存储授权后由 Dart 调 `listVolumes` 枚举一遍已挂载的卷，避免 callback 的首批事件早于 Dart handler 而丢失。两边都落成 `SourceOrigin::Usb`，扫描、列表、分析共用。没上设备，挂载/拔出和权限的组合还没验。rekordbox/Serato/VirtualDJ 的本地库路径在 Android 上不存在，`local_roots` 按存在性过滤即可，不用 `cfg`。
 
 ## 音频
 
-cpal 0.15.3 自带 oboe 后端，编出来的 `.so` 已链 `libOpenSLES`，理论上有声，但还没在设备上验证。内建模板是两路输出：master `[0,1]` 加 cue `[2,3]`；手机只有立体声，cue 那路会被判成不支持然后 disable（不致命），master 正常。Android 应该用单独的模板：`sample_rate = 48000`（AAudio 上 44.1k 经常打不开），只留一个 master `[0,1]`。cue 在手机上要么放弃，要么以后做 split cue，那要给 mixer 加输出模式。前台服务、音频焦点、后台播放都放后面。
+cpal 0.15.3 自带 oboe 后端，编出来的 `.so` 已链 `libOpenSLES`。oboe 和 midir 一样要读 `ndk_context`，Flutter embedding 不填它时，音频 producer 会在 cpal 里 panic，producer 线程在回报前退出，表现就是 `the audio thread exited before reporting`。MainActivity 现在先 `System.loadLibrary("bridge")`，再调 `nativeInit(applicationContext)`，由 `crates/bridge/src/android.rs` 把 JavaVM 和全局 Context 交给 ndk-context。JNI 函数名要按 JNI 规则把包名里的 `_` 写成 `_1`（`Java_com_example_pipefader_1gui_MainActivity_nativeInit`）；写成字面下划线会 `No implementation found`，ndk-context 起不来，音频和 MIDI 都会挂；这一步同时让 midir 的端口枚举可用。如果音频仍打不开，bridge 会清空 `[[mixer.output]]` 再启动一次，让菜单、浏览器和 MIDI 可用，只是没声；失败原因留在 logs。内建模板是 44.1k、master `[0,1]` 加 cue `[2,3]`；手机只有立体声时不是“cue 那一路 disable”这么温和：`preferred_config` 按 4 声道找配置，找不到整个 cue output 进 `Disabled`；如果设备只报 48k，44.1k 的 master 也会 `Disabled`，结果完全没声。`profile::seed_android` 已经从同一份模板生成 48k、单 master 的 config，首次启动才写，已有 config 不会覆盖（开发期要删 `filesDir/pipefader/config.toml` 再启动）。手机插上 Party Mix 后 Android 的 media 默认路由会变成它的 USB audio；要听手机扬声器，Output 页把 master 绑到 `OPD2407`（或上机身的设备名）并重启，或者把音箱接在控制器的 master 输出上。
+
+Output 页现在能选 device 和 channel pair，最后一路 master 也能删。Android 上改输出拓扑不会立刻 reload：oboe 在 producer 线程开关 stream 会卡住音频回调，所以只写配置，后端在 `MenuStateDto.restart_required` 里标出来，页脚提示重启；桌面仍然即时 reload。`output_devices` 会按名字去重，Party Mix 下面那个 `OPD2407` 就是手机扬声器。`channel_pair` 的兜底是 `(0,1)`，留着 cue 还可能在 4 声道设备上让两路写同一对通道。cue 在手机上要么放弃，要么以后做 split cue，那要给 mixer 加输出模式。前台服务、音频焦点、后台播放放后面。
+
+## MIDI
+
+最终目标是 B：Android 全部交给 Kotlin 的 `MidiManager`，桌面继续 midir。当前先用 A 验证：ndk-context 由 MainActivity 的 `nativeInit` 初始化，`controller::list_ports()` 能跑；midir 自己不请求 USB 权限，MainActivity 在启动/USB attach 时对带 MIDI streaming 接口的 `UsbDevice` 调 `UsbManager.requestPermission`，授权后 midir 的 `openDevice` 才有机会成功。真机日志已经能看到 `midi: 1 port(s) ["Numark ..."]`。
+
+A 还缺热插拔回调、蓝牙 MIDI 和可读的错误信息；这些要 B。B 要把列端口、开端口、收字节、关端口一起抽成 backend（只在 bridge/controller 选实现），字节经 JNI 喂给 `controller::msg::Decoder`；`app::midi` 现在直连 midir 的 `Input`，不能只加一个 `ingest(bytes)`。走 B 后如果 midir 从 Android 依赖里摘掉，`controller::ports` 要按平台条件编译，别让 `libamidi` 继续被链进来。Kotlin↔Rust 的 JavaVM/Application 初始化已经就是 `nativeInit`，别删。
 
 ## 预填充数据
 
-`flutter/lib/model/fixtures.dart` 是预填充数据的唯一来源，可以整体删掉：连同 `AppModel` 里的 `live` 分支、`_time`/`_updateMeter` 模拟推子和 `buildDecks()`，deck 初值就是 `No Track`，浏览器初始为空，引擎失败就显示离线状态，不再退回示例数据。影响面：`interaction_test` 只有一处用到 fixtures 的 `'USB'` 文本，其余是布局用例；`golden_test` 本来缺参考图；web 预览会变空壳，因为 web 上本来就没有引擎。
+`fixtures.dart` 已经删除，`buildPeaks` 和 `AppModel` 里的 `_time`/`_updateMeter`/fixture deck 分支一起清掉了：deck 初值就是 `No Track`，浏览器初始为空，引擎失败显示离线状态，不再退回示例数据。`libraries`/`tracks`/`playlists` 改成空列表；`interaction_test` 的 library 用例改成空库断言，transport 从暂停开始，tempo 拖拽断言改成 `tempo` 而不是 bpm。web 预览现在也是空壳。
 
 ## 建议顺序
 
-先做最小可启动：SessionPaths 注入、配置落盘、All files access 授权引导、MIDI 的 panic 兜底（Android 上 `list_ports` 先返回空或走 A 的初始化）、atexit、日志落文件、删 fixtures 的空状态，验证引擎 tick、波形和菜单；然后验音频、加 Android 模板；再补文件夹扫描和 USB 卷事件；最后做 MIDI（先 A 验证，再按 B 收口）。
+构建链、`SessionPaths`、首启 seed、bridge 日志、异步 attach、Logs 页、权限引导、删 fixtures、Android 48k 单 master 的 seed、USB 卷事件和输出设备/通道选择都做了（minSdk 29、target-specific openssl、atexit shim、`-z defs`、APK、符号审计、`bridge.log`、离线横幅、空状态）。下一步是 UI 重整、没有声时的音频路由/stream 恢复、完整 MIDI B。
+
+## 设备测试
+
+先清应用数据再装，`seed_android` 才会重新写 48k、单 master 的 config（旧 config 不会被覆盖）。ColorOS 的 `pm clear` 会被拒，改用系统设置清数据或 `adb uninstall` 后重装。release APK 不可调试，`run-as` 读不到私有文件，日志走根菜单的 Logs 页，或者：
+
+```sh
+adb devices
+adb uninstall com.example.pipefader_gui   # 需要重 seed 时
+adb install flutter/build/app/outputs/flutter-apk/app-release.apk
+adb logcat -d -s Pipefader flutter AndroidRuntime > /tmp/pipefader-logcat.txt
+```
+
+要报告的东西：手机型号/Android 版本、启动后是否还显示 offline、Logs 页最后几十行、插上 USB MIDI 后有没有系统授权框、MIDI/Map 里端口数、插 U 盘后浏览器有没有出现 USB 源。
+
+## 控制器映射
+
+内建 map 的来源是 `controllers/numark_partymix_3.toml`（`profile::MAP_TEMPLATE`），首启 seed 也会把它写成 `filesDir/pipefader/mapping.toml`；菜单里显示为 “Numark Party Mix 3”。当前只有一个内建 map；要把 `controllers/` 里更多文件都变成内建候选，需要再做一个注册表/生成步骤。

@@ -14,11 +14,22 @@ import 'package:pipefader_gui/model/menu.dart';
 class MenuState extends ChangeNotifier {
   MenuState({this.engine});
 
-  final EngineClient? engine;
+  EngineClient? engine;
+
+  /// Attaches the engine after the first frame. The menu then reloads its snapshot instead of
+  /// keeping the local defaults it painted while the engine was still booting.
+  void attach(EngineClient next) {
+    if (engine != null) return;
+    engine = next;
+    _loaded = false;
+    _error = null;
+    notifyListeners();
+  }
 
   bool _loaded = false;
   bool _loading = false;
   bool _busy = false;
+  bool _restartRequired = false;
   String? _error;
 
   String profile = 'config.toml';
@@ -36,6 +47,10 @@ class MenuState extends ChangeNotifier {
   ];
 
   OutputRole role = OutputRole.master;
+  List<frb.OutputDeviceDto> devices = const <frb.OutputDeviceDto>[];
+  int deviceChoice =
+      0; // 0 = the host default, otherwise devices[deviceChoice - 1].
+  (int, int) addChannels = (0, 1);
   List<MidiPortInfo> ports = const <MidiPortInfo>[];
   List<MapFileInfo> maps = const <MapFileInfo>[
     MapFileInfo(path: 'mapping.toml', name: 'mapping.toml'),
@@ -48,6 +63,10 @@ class MenuState extends ChangeNotifier {
   bool get loading => _loading;
   bool get busy => _busy;
   String? get error => _error;
+
+  /// Android does not reload output streams live (oboe can block the audio callback); the config is
+  /// written and the output page asks for a restart.
+  bool get restartRequired => _restartRequired;
   List<OutputChannel> get outputs => List.unmodifiable(_outputs);
 
   List<OutputChannel> outputsFor(OutputRole role) =>
@@ -56,9 +75,34 @@ class MenuState extends ChangeNotifier {
   int get masterCount =>
       _outputs.where((channel) => channel.role == OutputRole.master).length;
 
+  /// The stereo pairs offered for the selected device. `0,1` is always present so a host that
+  /// reports no channel count still gets a usable default.
+  List<(int, int)> get channelPairs {
+    final channels = deviceChoice == 0 ? 2 : devices[deviceChoice - 1].channels;
+    final count = channels < 2 ? 2 : (channels > 8 ? 8 : channels);
+    return [for (var i = 0; i < count ~/ 2; i++) (i * 2, i * 2 + 1)];
+  }
+
+  String? get selectedDevice =>
+      deviceChoice == 0 ? null : devices[deviceChoice - 1].name;
+
   void selectRole(OutputRole value) {
     if (role == value) return;
     role = value;
+    notifyListeners();
+  }
+
+  void selectDevice(int choice) {
+    if (deviceChoice == choice) return;
+    deviceChoice = choice.clamp(0, devices.length);
+    final pairs = channelPairs;
+    addChannels = pairs.first;
+    notifyListeners();
+  }
+
+  void selectChannels((int, int) pair) {
+    if (addChannels == pair) return;
+    addChannels = pair;
     notifyListeners();
   }
 
@@ -72,6 +116,7 @@ class MenuState extends ChangeNotifier {
       if (engine != null) {
         final dto = await engine!.menuState();
         _apply(dto);
+        await _loadDevices();
         await _loadMidi();
       }
       _loaded = true;
@@ -93,6 +138,7 @@ class MenuState extends ChangeNotifier {
     try {
       if (engine != null) {
         _apply(await engine!.outputRefresh());
+        await _loadDevices();
         await _loadMidi();
       } else {
         await Future<void>.delayed(const Duration(milliseconds: 320));
@@ -113,16 +159,22 @@ class MenuState extends ChangeNotifier {
     notifyListeners();
     try {
       if (engine != null) {
-        _apply(await engine!.outputAdd(role.configName));
+        _apply(
+          await engine!.outputAdd(
+            role.configName,
+            device: selectedDevice,
+            channels: [addChannels.$1, addChannels.$2],
+          ),
+        );
       } else {
-        final next = _nextChannels();
         _outputs = <OutputChannel>[
           ..._outputs,
           OutputChannel(
             index: _outputs.length,
             name: _nextName(role),
             role: role,
-            channels: next,
+            device: selectedDevice ?? '',
+            channels: addChannels,
           ),
         ];
       }
@@ -137,11 +189,6 @@ class MenuState extends ChangeNotifier {
 
   Future<void> removeOutput(OutputChannel channel) async {
     if (_busy) return;
-    if (channel.role == OutputRole.master && masterCount <= 1) {
-      _error = 'The last master output cannot be removed';
-      notifyListeners();
-      return;
-    }
     _busy = true;
     _error = null;
     notifyListeners();
@@ -215,6 +262,15 @@ class MenuState extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadDevices() async {
+    if (engine == null) return;
+    devices = await engine!.outputDevices();
+    if (deviceChoice > devices.length) {
+      deviceChoice = 0;
+      addChannels = (0, 1);
+    }
+  }
+
   Future<void> _loadMidi() async {
     if (engine == null) return;
     ports = (await engine!.midiPorts())
@@ -268,6 +324,7 @@ class MenuState extends ChangeNotifier {
     // An engine profile with no destinations is a real (if silent) state; the local preview has
     // already supplied its one master before this point, so do not invent a row here.
     _outputs = dto.outputs.map(OutputChannel.fromDto).toList(growable: false);
+    _restartRequired = dto.restartRequired;
   }
 
   String _nextName(OutputRole role) {
@@ -279,21 +336,5 @@ class MenuState extends ChangeNotifier {
       number += 1;
     }
     return '${role.label} $number';
-  }
-
-  (int, int) _nextChannels() {
-    final used = <int>{};
-    for (final channel in _outputs) {
-      final pair = channel.channels;
-      if (pair == null) continue;
-      used
-        ..add(pair.$1)
-        ..add(pair.$2);
-    }
-    var left = 0;
-    while (used.contains(left) || used.contains(left + 1)) {
-      left += 2;
-    }
-    return (left, left + 1);
   }
 }

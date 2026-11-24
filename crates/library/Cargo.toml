@@ -23,3 +23,8 @@ serde_json = "1"
 quick-xml = "0.41"
 base64 = "0.23"
 rekordbox-pdb = "0.1.0"
+
+# Android has no system OpenSSL headers; SQLCipher's crypto is static instead.
+# Desktops keep the lean `bundled-sqlcipher` build.
+[target.'cfg(target_os = "android")'.dependencies]
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }

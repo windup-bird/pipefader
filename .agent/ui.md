@@ -18,11 +18,11 @@ full 的纵向顺序是 header、deck info、waveform、control、browser；phon
 
 所有层级都在屏幕顶部贴边居中，子页共用同一个 frame 和同一块 logo，不另开悬浮层。面板宽度约 440（窄屏减 24），顶部取 safe area，内容过高时整体滚动。打开是 scrim 淡入 + 面板下移淡入，关闭反向；页面切换是 `AnimatedSize` + 内容单向淡入/位移，不做回退堆叠。
 
-根菜单是 layout 四选一、居中的 `2 Decks` / `4 Decks`、`Midi / Map`、`Output`、`Settings`。菜单 logo 从主界面 `LogoFaders` 的全局 rect 平移到顶部目标 rect，关闭飞回；尺寸用 `LogoFaders.widthFor`，拿不到 rect 时退回淡入。
+根菜单是 layout 四选一、居中的 `2 Decks` / `4 Decks`、`Midi / Map`、`Output`、`Settings`、`Logs`。菜单 logo 从主界面 `LogoFaders` 的全局 rect 平移到顶部目标 rect，关闭飞回；尺寸用 `LogoFaders.widthFor`，拿不到 rect 时退回淡入。
 
-子页面共用 `MenuPageHeader`、`MenuRefreshButton`、`MenuSelectRow`、`MenuChoice`、`MenuSectionLabel`、`MenuStatusLine`。Output 用左侧 Master/Precue 分类键和右侧通道列表，通道行显示名称、CH/设备、删除键，底部 Add；最后一个 master 禁用删除。MIDI 用同样的 header/刷新/选择行，端口和 map 都是列表，map 当前项打勾。Settings 是可编辑行列表，行控件继续用 `MenuChoice`，文案由页面传成标题大小写，不再二次转换。
+子页面共用 `MenuPageHeader`、`MenuRefreshButton`、`MenuSelectRow`、`MenuChoice`、`MenuSectionLabel`、`MenuStatusLine`。Output 用左侧 Master/Precue 分类键和右侧通道列表，通道行显示名称、CH/设备、删除键，底部先选 Device 和 Channels 再 Add；最后一路 master 也能删。Android 改拓扑只写配置，页脚用 `Restart app to apply output changes` 提示重启。MIDI 用同样的 header/刷新/选择行，端口和 map 都是列表，map 当前项打勾。Settings 是可编辑行列表，行控件继续用 `MenuChoice`，文案由页面传成标题大小写，不再二次转换。
 
-菜单的状态都在 `MenuState`：outputs、当前角色、端口、map 列表、settings、busy/error。页面只读它和回调 `EngineClient`，不在控件里写配置文件。
+菜单的状态都在 `MenuState`：outputs、devices、当前角色、待添加的 device/channels、端口、map 列表、settings、busy/error、`restartRequired`（来自后端 DTO）。页面只读它和回调 `EngineClient`，不在控件里写配置文件。
 
 ## 动画
 

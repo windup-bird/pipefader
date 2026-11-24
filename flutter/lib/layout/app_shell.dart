@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:pipefader_gui/core/storage_permission.dart';
+import 'package:pipefader_gui/core/volume_events.dart';
 import 'package:pipefader_gui/state/app_model.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/layout/all_in_one_layout.dart';
@@ -23,7 +27,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AppModel _model = widget.model ?? AppModel();
   late final bool _ownsModel = widget.model == null;
   late final Ticker _ticker;
@@ -32,7 +36,32 @@ class _AppShellState extends State<AppShell>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ticker = createTicker(_onTick)..start();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshStorage());
+    }
+  }
+
+  Future<void> _refreshStorage() async {
+    final wasGranted = _model.storageGranted;
+    final granted = await hasStoragePermission();
+    if (!mounted) return;
+    _model.setStorageGranted(granted);
+    if (granted && !wasGranted) {
+      unawaited(syncExistingVolumes());
+      unawaited(flushVolumeEvents());
+    }
+  }
+
+  Future<void> _grantStorage() async {
+    await requestStoragePermission();
+    if (!mounted) return;
+    await _refreshStorage();
   }
 
   void _onTick(Duration elapsed) {
@@ -43,6 +72,7 @@ class _AppShellState extends State<AppShell>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker.dispose();
     if (_ownsModel) _model.dispose();
     super.dispose();
@@ -77,8 +107,101 @@ class _AppShellState extends State<AppShell>
                   deckCount: count,
                 ),
               };
-              return Stack(children: [Positioned.fill(child: page)]);
+              final error = _model.engineError;
+              final status = error != null
+                  ? 'Engine offline: $error'
+                  : (_model.engineStarting ? 'Starting engine...' : null);
+              return Stack(
+                children: [
+                  Positioned.fill(child: page),
+                  if (status != null || !_model.storageGranted)
+                    Positioned(
+                      top: 6,
+                      left: 12,
+                      right: 12,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (status != null)
+                            IgnorePointer(
+                              child: Center(
+                                child: _EngineStatus(
+                                  text: status,
+                                  error: error != null,
+                                ),
+                              ),
+                            ),
+                          if (status != null && !_model.storageGranted)
+                            const SizedBox(height: 4),
+                          if (!_model.storageGranted)
+                            _StoragePrompt(onTap: _grantStorage),
+                        ],
+                      ),
+                    ),
+                ],
+              );
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small status chip above the page: booting, or why the engine is offline.
+class _EngineStatus extends StatelessWidget {
+  const _EngineStatus({required this.text, required this.error});
+
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 520),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      color: error ? T.error : T.bg,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: T.s10,
+          color: error ? T.bg : T.dim,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// The storage grant is separate from the engine: the library stays empty until the user allows
+/// the app to walk the media root, so the prompt stays visible on every page.
+class _StoragePrompt extends StatelessWidget {
+  const _StoragePrompt({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const ValueKey('storage-permission'),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        color: T.surface,
+        child: Text(
+          'Storage permission needed · Grant',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: T.s10,
+            color: T.warn,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),

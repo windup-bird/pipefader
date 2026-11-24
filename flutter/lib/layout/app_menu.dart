@@ -8,13 +8,14 @@ import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/layout_mode.dart';
 import 'package:pipefader_gui/core/logo.dart';
 import 'package:pipefader_gui/core/theme.dart';
+import 'package:pipefader_gui/layout/menu/logs_page.dart';
 import 'package:pipefader_gui/layout/menu/menu_widgets.dart';
 import 'package:pipefader_gui/layout/menu/midi_page.dart';
 import 'package:pipefader_gui/layout/menu/output_page.dart';
 import 'package:pipefader_gui/layout/menu/settings_page.dart';
 import 'package:pipefader_gui/state/app_model.dart';
 
-enum _MenuPage { root, midi, output, settings }
+enum _MenuPage { root, midi, output, settings, logs }
 
 /// The menu behind the logo. It is always attached to the top edge and centred; the mark flies
 /// from the header's actual rect into the panel, then back on close.
@@ -236,6 +237,7 @@ class _AppMenuOverlayState extends State<_AppMenuOverlay>
       menu: widget.model.menu,
       onBack: _back,
     ),
+    _MenuPage.logs => MenuLogsPage(onBack: _back),
   };
 }
 
@@ -314,6 +316,12 @@ class _RootMenu extends StatelessWidget {
           label: 'Settings',
           glyph: GlyphKind.settings,
           onTap: () => onOpen(_MenuPage.settings),
+        ),
+        MenuActionRow(
+          key: const ValueKey('menu-logs'),
+          label: 'Logs',
+          glyph: GlyphKind.panel,
+          onTap: () => onOpen(_MenuPage.logs),
         ),
         if (model.menu.loading)
           Padding(

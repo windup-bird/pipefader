@@ -189,18 +189,26 @@ void main() {
     expect(model.decks[0].unitA, UnitKind.padsJump);
   });
 
-  testWidgets('library collapses and search filters the list', (tester) async {
+  testWidgets('browser starts empty and the library panel collapses', (
+    tester,
+  ) async {
     await pumpAppAt(tester, const Size(1440, 900));
-    expect(find.text('USB'), findsOneWidget);
+    expect(find.text('0 首歌'), findsOneWidget);
+    expect(find.text('USB'), findsNothing);
+    expect(find.textContaining('Iron Yard'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('library-toggle')));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(find.text('USB'), findsNothing);
+    expect(find.text('0 首歌'), findsOneWidget);
+  });
 
-    await tester.tap(find.byKey(const ValueKey('search-toggle')));
-    await tester.pump(const Duration(milliseconds: 80));
-    await tester.enterText(find.byType(TextField), 'iron');
-    await tester.pump(const Duration(milliseconds: 120));
-    expect(find.textContaining('Iron Yard'), findsOneWidget);
+  testWidgets('storage prompt follows the grant state', (tester) async {
+    final model = AppModel()..setStorageGranted(false);
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    expect(find.byKey(const ValueKey('storage-permission')), findsOneWidget);
+
+    model.setStorageGranted(true);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('storage-permission')), findsNothing);
   });
 
   testWidgets('browser right column opens blank', (tester) async {
@@ -242,21 +250,21 @@ void main() {
   testWidgets('transport toggles play state', (tester) async {
     final model = AppModel();
     await pumpAppAt(tester, const Size(1440, 900), model: model);
-    expect(model.decks[0].playing, isTrue);
+    expect(model.decks[0].playing, isFalse);
     // The two transport halves share deck state, so tapping the left play key
-    // pauses deck one.
+    // starts deck one.
     await tester.tap(find.byKey(const ValueKey('play-0')));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(model.decks[0].playing, isFalse);
+    expect(model.decks[0].playing, isTrue);
   });
 
-  testWidgets('deck info tempo drag raises the bpm', (tester) async {
+  testWidgets('deck info tempo drag raises the rate', (tester) async {
     final model = AppModel(forcedLayout: LayoutMode.stacked, phoneDecks: 2);
-    final before = model.decks[0].bpm;
+    final before = model.decks[0].tempo;
     await pumpAppAt(tester, const Size(390, 844), model: model);
     await tester.drag(find.byType(TempoControl).first, const Offset(0, -24));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(model.decks[0].bpm, greaterThan(before));
+    expect(model.decks[0].tempo, greaterThan(before));
     expect(find.byType(TempoRuler), findsNothing);
   });
 
@@ -347,6 +355,22 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('output-add-precue')));
     await settleMenu(tester);
     expect(find.text('Precue 1'), findsOneWidget);
+  });
+
+  testWidgets('the last output can be removed and added again', (tester) async {
+    await pumpAppAt(tester, const Size(1440, 900));
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-output')));
+    await settleMenu(tester);
+
+    await tester.tap(find.byKey(const ValueKey('output-remove-0')));
+    await settleMenu(tester);
+    expect(find.text('No master channels'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('output-add-master')));
+    await settleMenu(tester);
+    expect(find.text('Master 1'), findsOneWidget);
   });
 
   testWidgets('midi and output refresh keys settle', (tester) async {

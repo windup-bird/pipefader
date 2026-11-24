@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Native libraries copied in before a Flutter build (bridge + libc++_shared).
+app/src/main/jniLibs/

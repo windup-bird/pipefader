@@ -51,6 +51,9 @@ abstract class PipefaderBridgeApiImplPlatform
   LevelTarget dco_decode_box_autoadd_level_target(dynamic raw);
 
   @protected
+  SessionPathsDto dco_decode_box_autoadd_session_paths_dto(dynamic raw);
+
+  @protected
   Tick dco_decode_box_autoadd_tick(dynamic raw);
 
   @protected
@@ -123,6 +126,9 @@ abstract class PipefaderBridgeApiImplPlatform
   LibraryRoot dco_decode_library_root(dynamic raw);
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
   List<ChannelTick> dco_decode_list_channel_tick(dynamic raw);
 
   @protected
@@ -151,6 +157,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   List<MidiPortDto> dco_decode_list_midi_port_dto(dynamic raw);
+
+  @protected
+  List<OutputDeviceDto> dco_decode_list_output_device_dto(dynamic raw);
 
   @protected
   List<OutputDto> dco_decode_list_output_dto(dynamic raw);
@@ -207,6 +216,9 @@ abstract class PipefaderBridgeApiImplPlatform
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
+  SessionPathsDto? dco_decode_opt_box_autoadd_session_paths_dto(dynamic raw);
+
+  @protected
   Tick? dco_decode_opt_box_autoadd_tick(dynamic raw);
 
   @protected
@@ -219,10 +231,19 @@ abstract class PipefaderBridgeApiImplPlatform
   WaveformData? dco_decode_opt_box_autoadd_waveform_data(dynamic raw);
 
   @protected
+  Uint16List? dco_decode_opt_list_prim_u_16_strict(dynamic raw);
+
+  @protected
+  OutputDeviceDto dco_decode_output_device_dto(dynamic raw);
+
+  @protected
   OutputDto dco_decode_output_dto(dynamic raw);
 
   @protected
   SessionEvent dco_decode_session_event(dynamic raw);
+
+  @protected
+  SessionPathsDto dco_decode_session_paths_dto(dynamic raw);
 
   @protected
   SyncAction dco_decode_sync_action(dynamic raw);
@@ -294,6 +315,11 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   LevelTarget sse_decode_box_autoadd_level_target(SseDeserializer deserializer);
+
+  @protected
+  SessionPathsDto sse_decode_box_autoadd_session_paths_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Tick sse_decode_box_autoadd_tick(SseDeserializer deserializer);
@@ -370,6 +396,9 @@ abstract class PipefaderBridgeApiImplPlatform
   LibraryRoot sse_decode_library_root(SseDeserializer deserializer);
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
   List<ChannelTick> sse_decode_list_channel_tick(SseDeserializer deserializer);
 
   @protected
@@ -398,6 +427,11 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   List<MidiPortDto> sse_decode_list_midi_port_dto(SseDeserializer deserializer);
+
+  @protected
+  List<OutputDeviceDto> sse_decode_list_output_device_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<OutputDto> sse_decode_list_output_dto(SseDeserializer deserializer);
@@ -456,6 +490,11 @@ abstract class PipefaderBridgeApiImplPlatform
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
+  SessionPathsDto? sse_decode_opt_box_autoadd_session_paths_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Tick? sse_decode_opt_box_autoadd_tick(SseDeserializer deserializer);
 
   @protected
@@ -472,10 +511,21 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  Uint16List? sse_decode_opt_list_prim_u_16_strict(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OutputDeviceDto sse_decode_output_device_dto(SseDeserializer deserializer);
+
+  @protected
   OutputDto sse_decode_output_dto(SseDeserializer deserializer);
 
   @protected
   SessionEvent sse_decode_session_event(SseDeserializer deserializer);
+
+  @protected
+  SessionPathsDto sse_decode_session_paths_dto(SseDeserializer deserializer);
 
   @protected
   SyncAction sse_decode_sync_action(SseDeserializer deserializer);
@@ -562,6 +612,12 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_session_paths_dto(
+    SessionPathsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_tick(Tick self, SseSerializer serializer);
 
   @protected
@@ -640,6 +696,9 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_library_root(LibraryRoot self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_channel_tick(
     List<ChannelTick> self,
     SseSerializer serializer,
@@ -690,6 +749,12 @@ abstract class PipefaderBridgeApiImplPlatform
   @protected
   void sse_encode_list_midi_port_dto(
     List<MidiPortDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_output_device_dto(
+    List<OutputDeviceDto> self,
     SseSerializer serializer,
   );
 
@@ -775,6 +840,12 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_session_paths_dto(
+    SessionPathsDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_tick(Tick? self, SseSerializer serializer);
 
   @protected
@@ -793,10 +864,28 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_list_prim_u_16_strict(
+    Uint16List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_output_device_dto(
+    OutputDeviceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_output_dto(OutputDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_session_event(SessionEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_session_paths_dto(
+    SessionPathsDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_sync_action(SyncAction self, SseSerializer serializer);

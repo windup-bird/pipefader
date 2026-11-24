@@ -21,8 +21,7 @@ class MenuOutputPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final role = menu.role;
     final channels = menu.outputsFor(role);
-    final canRemove =
-        !menu.builtin && !(role == OutputRole.master && menu.masterCount <= 1);
+    final canRemove = !menu.builtin;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -83,7 +82,33 @@ class MenuOutputPage extends StatelessWidget {
                           canRemove: canRemove,
                           onRemove: () => unawaited(menu.removeOutput(channel)),
                         ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      const MenuSectionLabel('Device'),
+                      MenuChoice(
+                        axis: Axis.vertical,
+                        height: 28,
+                        options: [
+                          'Default device',
+                          for (final device in menu.devices)
+                            device.description.isEmpty
+                                ? device.name
+                                : device.description,
+                        ],
+                        selected: menu.deviceChoice,
+                        onSelect: menu.selectDevice,
+                      ),
+                      const SizedBox(height: 10),
+                      const MenuSectionLabel('Channels'),
+                      MenuChoice(
+                        options: [
+                          for (final pair in menu.channelPairs)
+                            '${pair.$1},${pair.$2}',
+                        ],
+                        selected: menu.channelPairs.indexOf(menu.addChannels),
+                        onSelect: (index) =>
+                            menu.selectChannels(menu.channelPairs[index]),
+                      ),
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
                         child: PanelButton(
@@ -110,6 +135,8 @@ class MenuOutputPage extends StatelessWidget {
           error: menu.error,
           note: menu.builtin
               ? '${menu.profile} · built-in profile is read-only'
+              : menu.restartRequired
+              ? 'Restart app to apply output changes'
               : '${menu.outputs.length} destination(s)',
         ),
       ],

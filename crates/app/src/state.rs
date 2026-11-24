@@ -1048,6 +1048,10 @@ impl AppState {
 }
 
 pub fn home_dir() -> Option<PathBuf> {
+    // A front-end that knows its media root (Android) wins; desktop keeps the environment rules.
+    if let Some(home) = crate::paths::media_home() {
+        return Some(home);
+    }
     // Which variable wins is a platform question, not a matter of taste: on Windows `HOME` is
     // whatever the *shell* thinks (MSYS/Git Bash write `/c/Users/me`, WSL `/mnt/c/...`), and a native
     // process cannot open those spellings, while `USERPROFILE` is the real profile directory.

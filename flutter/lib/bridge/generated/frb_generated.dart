@@ -73,7 +73,7 @@ class PipefaderBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 753405696;
+  int get rustContentHash => 1669196793;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -142,6 +142,8 @@ abstract class PipefaderBridgeApi extends BaseApi {
 
   Future<void> crateApiLoadTrack({required int deck, required int locationId});
 
+  Future<void> crateApiLogClientError({required String text});
+
   Future<List<LogDto>> crateApiLogs();
 
   Future<void> crateApiLoopAction({
@@ -163,11 +165,25 @@ abstract class PipefaderBridgeApi extends BaseApi {
 
   Future<void> crateApiNudge({required int deck, required NudgeAction action});
 
-  Future<MenuStateDto> crateApiOutputAdd({required String role});
+  Future<MenuStateDto> crateApiOutputAdd({
+    required String role,
+    String? device,
+    Uint16List? channels,
+  });
+
+  Future<MenuStateDto> crateApiOutputBind({
+    required int index,
+    String? device,
+    Uint16List? channels,
+  });
+
+  Future<List<OutputDeviceDto>> crateApiOutputDevices();
 
   Future<MenuStateDto> crateApiOutputRefresh();
 
   Future<MenuStateDto> crateApiOutputRemove({required int index});
+
+  Future<List<String>> crateApiRecentLogs({required int limit});
 
   Future<void> crateApiScaleJump({required int deck, required bool halve});
 
@@ -218,7 +234,7 @@ abstract class PipefaderBridgeApi extends BaseApi {
 
   Future<void> crateApiShutdown();
 
-  Future<void> crateApiStart({String? configPath});
+  Future<void> crateApiStart({SessionPathsDto? paths});
 
   Stream<SessionEvent> crateApiSubscribe();
 
@@ -238,6 +254,10 @@ abstract class PipefaderBridgeApi extends BaseApi {
     required int ticks,
     required double framesPerTick,
   });
+
+  Future<void> crateApiVolumeMounted({required String root});
+
+  Future<void> crateApiVolumeUnmounted({required String root});
 
   Future<WavePaletteDto> crateApiWavePalette();
 
@@ -819,6 +839,34 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   );
 
   @override
+  Future<void> crateApiLogClientError({required String text}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(text, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLogClientErrorConstMeta,
+        argValues: [text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLogClientErrorConstMeta =>
+      const TaskConstMeta(debugName: "log_client_error", argNames: ["text"]);
+
+  @override
   Future<List<LogDto>> crateApiLogs() {
     return handler.executeNormal(
       NormalTask(
@@ -827,7 +875,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -859,7 +907,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -895,7 +943,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -924,7 +972,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -951,7 +999,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -978,7 +1026,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1007,7 +1055,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1026,16 +1074,22 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       const TaskConstMeta(debugName: "nudge", argNames: ["deck", "action"]);
 
   @override
-  Future<MenuStateDto> crateApiOutputAdd({required String role}) {
+  Future<MenuStateDto> crateApiOutputAdd({
+    required String role,
+    String? device,
+    Uint16List? channels,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(role, serializer);
+          sse_encode_opt_String(device, serializer);
+          sse_encode_opt_list_prim_u_16_strict(channels, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1044,14 +1098,79 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiOutputAddConstMeta,
-        argValues: [role],
+        argValues: [role, device, channels],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiOutputAddConstMeta =>
-      const TaskConstMeta(debugName: "output_add", argNames: ["role"]);
+  TaskConstMeta get kCrateApiOutputAddConstMeta => const TaskConstMeta(
+    debugName: "output_add",
+    argNames: ["role", "device", "channels"],
+  );
+
+  @override
+  Future<MenuStateDto> crateApiOutputBind({
+    required int index,
+    String? device,
+    Uint16List? channels,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(index, serializer);
+          sse_encode_opt_String(device, serializer);
+          sse_encode_opt_list_prim_u_16_strict(channels, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_menu_state_dto,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiOutputBindConstMeta,
+        argValues: [index, device, channels],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOutputBindConstMeta => const TaskConstMeta(
+    debugName: "output_bind",
+    argNames: ["index", "device", "channels"],
+  );
+
+  @override
+  Future<List<OutputDeviceDto>> crateApiOutputDevices() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_output_device_dto,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiOutputDevicesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOutputDevicesConstMeta =>
+      const TaskConstMeta(debugName: "output_devices", argNames: []);
 
   @override
   Future<MenuStateDto> crateApiOutputRefresh() {
@@ -1062,7 +1181,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1090,7 +1209,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1109,6 +1228,34 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       const TaskConstMeta(debugName: "output_remove", argNames: ["index"]);
 
   @override
+  Future<List<String>> crateApiRecentLogs({required int limit}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiRecentLogsConstMeta,
+        argValues: [limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiRecentLogsConstMeta =>
+      const TaskConstMeta(debugName: "recent_logs", argNames: ["limit"]);
+
+  @override
   Future<void> crateApiScaleJump({required int deck, required bool halve}) {
     return handler.executeNormal(
       NormalTask(
@@ -1119,7 +1266,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1148,7 +1295,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1176,7 +1323,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1210,7 +1357,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1241,7 +1388,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1272,7 +1419,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1304,7 +1451,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1334,7 +1481,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1362,7 +1509,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1394,7 +1541,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1423,7 +1570,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1455,7 +1602,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1489,7 +1636,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1523,7 +1670,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1552,7 +1699,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1571,16 +1718,16 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       const TaskConstMeta(debugName: "shutdown", argNames: []);
 
   @override
-  Future<void> crateApiStart({String? configPath}) {
+  Future<void> crateApiStart({SessionPathsDto? paths}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_opt_String(configPath, serializer);
+          sse_encode_opt_box_autoadd_session_paths_dto(paths, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 48,
             port: port_,
           );
         },
@@ -1589,14 +1736,14 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiStartConstMeta,
-        argValues: [configPath],
+        argValues: [paths],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta get kCrateApiStartConstMeta =>
-      const TaskConstMeta(debugName: "start", argNames: ["configPath"]);
+      const TaskConstMeta(debugName: "start", argNames: ["paths"]);
 
   @override
   Stream<SessionEvent> crateApiSubscribe() {
@@ -1610,7 +1757,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 45,
+              funcId: 49,
               port: port_,
             );
           },
@@ -1641,7 +1788,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 50,
             port: port_,
           );
         },
@@ -1669,7 +1816,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 51,
             port: port_,
           );
         },
@@ -1701,7 +1848,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 48,
+            funcId: 52,
             port: port_,
           );
         },
@@ -1730,7 +1877,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 53,
             port: port_,
           );
         },
@@ -1764,7 +1911,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 54,
             port: port_,
           );
         },
@@ -1785,6 +1932,62 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   );
 
   @override
+  Future<void> crateApiVolumeMounted({required String root}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(root, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 55,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVolumeMountedConstMeta,
+        argValues: [root],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVolumeMountedConstMeta =>
+      const TaskConstMeta(debugName: "volume_mounted", argNames: ["root"]);
+
+  @override
+  Future<void> crateApiVolumeUnmounted({required String root}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(root, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 56,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVolumeUnmountedConstMeta,
+        argValues: [root],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVolumeUnmountedConstMeta =>
+      const TaskConstMeta(debugName: "volume_unmounted", argNames: ["root"]);
+
+  @override
   Future<WavePaletteDto> crateApiWavePalette() {
     return handler.executeNormal(
       NormalTask(
@@ -1793,7 +1996,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 57,
             port: port_,
           );
         },
@@ -1821,7 +2024,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 58,
             port: port_,
           );
         },
@@ -1857,7 +2060,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 59,
             port: port_,
           );
         },
@@ -1925,6 +2128,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   LevelTarget dco_decode_box_autoadd_level_target(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_level_target(raw);
+  }
+
+  @protected
+  SessionPathsDto dco_decode_box_autoadd_session_paths_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_session_paths_dto(raw);
   }
 
   @protected
@@ -2181,6 +2390,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
   List<ChannelTick> dco_decode_list_channel_tick(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_channel_tick).toList();
@@ -2238,6 +2453,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   List<MidiPortDto> dco_decode_list_midi_port_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_midi_port_dto).toList();
+  }
+
+  @protected
+  List<OutputDeviceDto> dco_decode_list_output_device_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_output_device_dto).toList();
   }
 
   @protected
@@ -2323,8 +2544,8 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   MenuStateDto dco_decode_menu_state_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return MenuStateDto(
       profile: dco_decode_String(arr[0]),
       builtin: dco_decode_bool(arr[1]),
@@ -2335,6 +2556,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       crossfaderCurve: dco_decode_String(arr[6]),
       cueBlend: dco_decode_f_32(arr[7]),
       autogain: dco_decode_bool(arr[8]),
+      restartRequired: dco_decode_bool(arr[9]),
     );
   }
 
@@ -2381,6 +2603,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  SessionPathsDto? dco_decode_opt_box_autoadd_session_paths_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_session_paths_dto(raw);
+  }
+
+  @protected
   Tick? dco_decode_opt_box_autoadd_tick(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_tick(raw);
@@ -2402,6 +2630,27 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   WaveformData? dco_decode_opt_box_autoadd_waveform_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_waveform_data(raw);
+  }
+
+  @protected
+  Uint16List? dco_decode_opt_list_prim_u_16_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_prim_u_16_strict(raw);
+  }
+
+  @protected
+  OutputDeviceDto dco_decode_output_device_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return OutputDeviceDto(
+      index: dco_decode_u_32(arr[0]),
+      name: dco_decode_String(arr[1]),
+      description: dco_decode_String(arr[2]),
+      channels: dco_decode_u_16(arr[3]),
+      isDefault: dco_decode_bool(arr[4]),
+    );
   }
 
   @protected
@@ -2433,6 +2682,21 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       meta: dco_decode_opt_box_autoadd_deck_meta(arr[3]),
       error: dco_decode_bool(arr[4]),
       text: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
+  SessionPathsDto dco_decode_session_paths_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return SessionPathsDto(
+      config: dco_decode_opt_String(arr[0]),
+      cache: dco_decode_opt_String(arr[1]),
+      mediaHome: dco_decode_opt_String(arr[2]),
+      log: dco_decode_opt_String(arr[3]),
+      seed: dco_decode_bool(arr[4]),
     );
   }
 
@@ -2661,6 +2925,14 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_level_target(deserializer));
+  }
+
+  @protected
+  SessionPathsDto sse_decode_box_autoadd_session_paths_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_session_paths_dto(deserializer));
   }
 
   @protected
@@ -2949,6 +3221,18 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<ChannelTick> sse_decode_list_channel_tick(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3071,6 +3355,20 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  List<OutputDeviceDto> sse_decode_list_output_device_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <OutputDeviceDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_output_device_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<OutputDto> sse_decode_list_output_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3177,6 +3475,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     var var_crossfaderCurve = sse_decode_String(deserializer);
     var var_cueBlend = sse_decode_f_32(deserializer);
     var var_autogain = sse_decode_bool(deserializer);
+    var var_restartRequired = sse_decode_bool(deserializer);
     return MenuStateDto(
       profile: var_profile,
       builtin: var_builtin,
@@ -3187,6 +3486,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       crossfaderCurve: var_crossfaderCurve,
       cueBlend: var_cueBlend,
       autogain: var_autogain,
+      restartRequired: var_restartRequired,
     );
   }
 
@@ -3252,6 +3552,19 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  SessionPathsDto? sse_decode_opt_box_autoadd_session_paths_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_session_paths_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Tick? sse_decode_opt_box_autoadd_tick(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3300,6 +3613,36 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  Uint16List? sse_decode_opt_list_prim_u_16_strict(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_prim_u_16_strict(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  OutputDeviceDto sse_decode_output_device_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_index = sse_decode_u_32(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_channels = sse_decode_u_16(deserializer);
+    var var_isDefault = sse_decode_bool(deserializer);
+    return OutputDeviceDto(
+      index: var_index,
+      name: var_name,
+      description: var_description,
+      channels: var_channels,
+      isDefault: var_isDefault,
+    );
+  }
+
+  @protected
   OutputDto sse_decode_output_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_index = sse_decode_u_32(deserializer);
@@ -3334,6 +3677,23 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       meta: var_meta,
       error: var_error,
       text: var_text,
+    );
+  }
+
+  @protected
+  SessionPathsDto sse_decode_session_paths_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_config = sse_decode_opt_String(deserializer);
+    var var_cache = sse_decode_opt_String(deserializer);
+    var var_mediaHome = sse_decode_opt_String(deserializer);
+    var var_log = sse_decode_opt_String(deserializer);
+    var var_seed = sse_decode_bool(deserializer);
+    return SessionPathsDto(
+      config: var_config,
+      cache: var_cache,
+      mediaHome: var_mediaHome,
+      log: var_log,
+      seed: var_seed,
     );
   }
 
@@ -3614,6 +3974,15 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_session_paths_dto(
+    SessionPathsDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_session_paths_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_tick(Tick self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_tick(self, serializer);
@@ -3823,6 +4192,15 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_channel_tick(
     List<ChannelTick> self,
     SseSerializer serializer,
@@ -3936,6 +4314,18 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_midi_port_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_output_device_dto(
+    List<OutputDeviceDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_output_device_dto(item, serializer);
     }
   }
 
@@ -4058,6 +4448,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     sse_encode_String(self.crossfaderCurve, serializer);
     sse_encode_f_32(self.cueBlend, serializer);
     sse_encode_bool(self.autogain, serializer);
+    sse_encode_bool(self.restartRequired, serializer);
   }
 
   @protected
@@ -4120,6 +4511,19 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_session_paths_dto(
+    SessionPathsDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_session_paths_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_tick(Tick? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -4166,6 +4570,32 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_list_prim_u_16_strict(
+    Uint16List? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_prim_u_16_strict(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_output_device_dto(
+    OutputDeviceDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.index, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.description, serializer);
+    sse_encode_u_16(self.channels, serializer);
+    sse_encode_bool(self.isDefault, serializer);
+  }
+
+  @protected
   void sse_encode_output_dto(OutputDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.index, serializer);
@@ -4185,6 +4615,19 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     sse_encode_opt_box_autoadd_deck_meta(self.meta, serializer);
     sse_encode_bool(self.error, serializer);
     sse_encode_String(self.text, serializer);
+  }
+
+  @protected
+  void sse_encode_session_paths_dto(
+    SessionPathsDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.config, serializer);
+    sse_encode_opt_String(self.cache, serializer);
+    sse_encode_opt_String(self.mediaHome, serializer);
+    sse_encode_opt_String(self.log, serializer);
+    sse_encode_bool(self.seed, serializer);
   }
 
   @protected

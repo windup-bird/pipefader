@@ -2,7 +2,7 @@
 //! response → view conversion. FFI functions only send it requests or push actions
 //! straight into the engine's command queue.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -24,9 +24,10 @@ use protocol::{
 use crate::api::{
     ChannelTick, CoverData, CueAction, DeckFxTick, DeckMeta, DeckTick, EqBand, FxOp, FxParamDto,
     FxSlotDto, HotCueAction, LevelKind, LevelTarget, LibraryList, LibraryRoot, LogDto, LoopAction,
-    NudgeAction, SessionEvent, SyncAction, Tick, TrackDto, TransportAction, VinylAction, WaveHints,
-    WaveHotCue, WavePaletteDto, WaveStrip, WaveformData,
+    NudgeAction, SessionEvent, SessionPathsDto, SyncAction, Tick, TrackDto, TransportAction,
+    VinylAction, WaveHints, WaveHotCue, WavePaletteDto, WaveStrip, WaveformData,
 };
+use crate::logging;
 
 /// How often the state pump pushes a tick. 60 Hz matches the display and the TUI's tick.
 const TICK: Duration = Duration::from_millis(16);
@@ -110,6 +111,9 @@ impl Handle {
 
 static GLOBAL: Mutex<Option<Arc<Handle>>> = Mutex::new(None);
 
+/// An Android output change was written but not applied; the next start picks it up.
+static OUTPUT_RESTART_REQUIRED: AtomicBool = AtomicBool::new(false);
+
 pub(crate) fn global() -> Result<Arc<Handle>, String> {
     let guard = GLOBAL
         .lock()
@@ -142,12 +146,63 @@ fn ask<T>(request: impl FnOnce(Sender<T>) -> StateRequest) -> Result<T, String> 
         .map_err(|_| "the session thread did not answer".to_owned())
 }
 
-pub(crate) fn start(config_path: Option<String>) -> Result<(), String> {
+/// Installs the host paths and returns the config file the session should load, plus whether the
+/// built-in template may be copied there. A missing config falls back next to the cache dir so the
+/// database and config stay together on Android.
+fn install_paths(paths: Option<SessionPathsDto>) -> (Option<String>, bool) {
+    let Some(paths) = paths else {
+        return (None, false);
+    };
+    let config = match (paths.config.clone(), paths.cache.as_deref()) {
+        (Some(config), _) => Some(config),
+        (None, Some(cache)) => Some(
+            Path::new(cache)
+                .join("config.toml")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        (None, None) => None,
+    };
+    app::paths::install(app::paths::SessionPaths {
+        config: config.clone().map(PathBuf::from),
+        cache: paths.cache.map(PathBuf::from),
+        media_home: paths.media_home.map(PathBuf::from),
+        log_dir: paths.log.map(PathBuf::from),
+    });
+    (config, paths.seed)
+}
+
+pub(crate) fn start(paths: Option<SessionPathsDto>) -> Result<(), String> {
+    let (config_path, seed) = install_paths(paths);
+    logging::init(app::paths::log_dir().as_deref());
+    logging::info("start: requested");
+    if seed {
+        if let Some(config) = app::paths::config() {
+            let seeded = if cfg!(target_os = "android") {
+                profile::seed_android(&config)
+            } else {
+                profile::seed(&config)
+            };
+            match seeded {
+                Ok(map) => logging::info(format!(
+                    "seed: {} (map {})",
+                    config.display(),
+                    map.display()
+                )),
+                Err(err) => {
+                    logging::error(format!("seed: {err}"));
+                    return Err(err);
+                }
+            }
+        }
+    }
+
     let mut guard = GLOBAL
         .lock()
         .map_err(|_| "bridge lock poisoned".to_owned())?;
     if let Some(handle) = guard.as_ref() {
         if handle.is_alive() {
+            logging::info("start: session already alive");
             return Ok(());
         }
     }
@@ -168,6 +223,7 @@ pub(crate) fn start(config_path: Option<String>) -> Result<(), String> {
 
     match boot_rx.recv_timeout(Duration::from_secs(30)) {
         Ok(Ok(boot)) => {
+            logging::info(format!("start: ready on {}", boot.config_path));
             *guard = Some(Arc::new(Handle {
                 dispatcher: boot.dispatcher,
                 library: boot.library,
@@ -184,10 +240,12 @@ pub(crate) fn start(config_path: Option<String>) -> Result<(), String> {
             Ok(())
         }
         Ok(Err(err)) => {
+            logging::error(format!("start: failed: {err}"));
             alive.store(false, Ordering::SeqCst);
             Err(err)
         }
         Err(_) => {
+            logging::error("start: timed out after 30 s");
             alive.store(false, Ordering::SeqCst);
             Err("the engine did not start in 30 s".to_owned())
         }
@@ -295,8 +353,46 @@ pub(crate) fn deck_meta(deck: u8) -> Result<Option<DeckMeta>, String> {
     ask(|reply| StateRequest::Meta { deck, reply })
 }
 
+pub(crate) fn mark_output_restart() {
+    OUTPUT_RESTART_REQUIRED.store(true, Ordering::SeqCst);
+}
+
+pub(crate) fn output_restart_required() -> bool {
+    OUTPUT_RESTART_REQUIRED.load(Ordering::SeqCst)
+}
+
+pub(crate) fn sample_rate() -> Result<u32, String> {
+    Ok(global()?.sample_rate)
+}
+
 pub(crate) fn logs() -> Result<Vec<LogDto>, String> {
     ask(|reply| StateRequest::Logs { reply })
+}
+
+pub(crate) fn volume_mounted(root: String) -> Result<(), String> {
+    volume_event(root, true)
+}
+
+pub(crate) fn volume_unmounted(root: String) -> Result<(), String> {
+    volume_event(root, false)
+}
+
+fn volume_event(root: String, mounted: bool) -> Result<(), String> {
+    let scan = global()?.dispatcher.scan();
+    let mut scan = scan
+        .lock()
+        .map_err(|_| "the scan service lock is poisoned".to_owned())?;
+    let root = PathBuf::from(root);
+    let accepted = if mounted {
+        scan.volume_mounted(root)
+    } else {
+        scan.volume_unmounted(root)
+    };
+    if accepted {
+        Ok(())
+    } else {
+        Err("the scan service is not configured".to_owned())
+    }
 }
 
 /// The profile source this session runs on, for the menu's config pages.
@@ -892,6 +988,7 @@ fn run(
     let (pipeline, dispatcher, library, mut app, boot) = match booted {
         Ok(booted) => booted,
         Err(err) => {
+            logging::error(format!("boot: failed: {err}"));
             alive.store(false, Ordering::SeqCst);
             let _ = boot_tx.send(Err(err));
             return;
@@ -912,12 +1009,17 @@ type Booted = (
 );
 
 fn boot(config_path: Option<String>) -> Result<Booted, String> {
-    let mut config = profile::load_or_create(config_path.as_deref())?;
+    logging::info(format!("boot: config {config_path:?}"));
+    let mut config = profile::load_or_create(config_path.as_deref()).map_err(|err| {
+        logging::error(format!("boot: config: {err}"));
+        err
+    })?;
     // The Flutter shell offers two- and four-deck rigs; start four so a deck
     // picker change never points at a channel the engine does not own.
     let decks = 4;
     config.mixer.set_channel_count(decks);
     let config_path = config.path.to_string_lossy().into_owned();
+    logging::info(format!("boot: config loaded from {config_path}"));
     let live = config.live.clone();
     let midi_controllers = config.controllers.clone();
     let midi_legacy_map = config.controller.map.clone();
@@ -929,24 +1031,53 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     };
     let auto_analyse = config.analysis.auto_analyse;
 
-    let pipeline = AudioPipeline::start_with(
-        config.mixer,
-        live.audio.sample_rate,
-        AudioTuning {
-            ring_frames: live.audio.ring_frames,
-            prefill_frames: live.audio.prefill_frames,
-            device_buffer_frames: live.audio.device_buffer_frames,
-            keylock: live.keylock,
-        },
-    )
-    .map_err(|err| err.to_string())?;
+    logging::info(format!("boot: audio @ {} Hz", live.audio.sample_rate));
+    let tuning = AudioTuning {
+        ring_frames: live.audio.ring_frames,
+        prefill_frames: live.audio.prefill_frames,
+        device_buffer_frames: live.audio.device_buffer_frames,
+        keylock: live.keylock,
+    };
+    let pipeline =
+        match AudioPipeline::start_with(config.mixer.clone(), live.audio.sample_rate, tuning) {
+            Ok(pipeline) => pipeline,
+            Err(err) => {
+                // A phone with no usable output must still get menus, the browser and MIDI. Retry
+                // with no destinations: the mixer and command loop stay alive, just silent.
+                logging::error(format!(
+                    "boot: audio: {err}; retrying without outputs (the session will be silent)"
+                ));
+                let mut silent = config.mixer.clone();
+                silent.outputs.clear();
+                AudioPipeline::start_with(silent, live.audio.sample_rate, tuning).map_err(
+                    |err| {
+                        logging::error(format!("boot: audio retry: {err}"));
+                        err.to_string()
+                    },
+                )?
+            }
+        };
     let decks = pipeline.channel_count().unwrap_or(decks).max(1);
+    logging::info(format!("boot: audio ready ({decks} decks)"));
 
     // The GUI starts from a bundle, so a relative `.cache` (the TUI's default) would land
     // inside the app directory. Use the platform cache root unless the user overrides it.
-    let library = gui_cache_dir()
-        .and_then(|dir| LibraryDb::open(dir.join("library.sqlite3")).ok())
-        .map(Arc::new);
+    let library = match gui_cache_dir() {
+        Some(dir) => match LibraryDb::open(dir.join("library.sqlite3")) {
+            Ok(db) => {
+                logging::info(format!("boot: library {}", dir.display()));
+                Some(Arc::new(db))
+            }
+            Err(err) => {
+                logging::error(format!("boot: library {}: {err}", dir.display()));
+                None
+            }
+        },
+        None => {
+            logging::error("boot: library unavailable: no cache directory");
+            None
+        }
+    };
     let (notice_tx, notice_rx) = unbounded();
     let (event_tx, event_rx) = unbounded();
     let mut dispatcher = Dispatcher::new(pipeline.command_tx(), notice_tx).tap_events(event_tx);
@@ -975,7 +1106,13 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     } else {
         config_path.clone()
     };
-    let (pref, _notes) = preference::load(&preference_path).unwrap_or_default();
+    let (pref, _notes) = match preference::load(&preference_path) {
+        Ok(loaded) => loaded,
+        Err(err) => {
+            logging::error(format!("boot: preference {preference_path}: {err}"));
+            Default::default()
+        }
+    };
     let wave_palette = WavePalette::from_preference(&pref.waveform.colors);
     app.key_format = pref.display.key_format;
     app.waveform_low_hz = pref.waveform.low_hz;
@@ -999,6 +1136,7 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
         &pipeline,
         &mut app,
     );
+    logging::info("boot: ready");
 
     let dispatcher = Arc::new(dispatcher);
     let boot = BootData {
@@ -1328,6 +1466,9 @@ fn attach_controllers(
 }
 
 fn gui_cache_dir() -> Option<std::path::PathBuf> {
+    if let Some(dir) = app::paths::cache() {
+        return Some(dir);
+    }
     if let Some(dir) = std::env::var_os("PIPEFADER_CACHE").filter(|dir| !dir.is_empty()) {
         return Some(std::path::PathBuf::from(dir));
     }

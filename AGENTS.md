@@ -23,9 +23,12 @@
 工作区外的文件可读不要编辑，除非询问后我同意。
 
 ## 测试
-先 `cargo check` / `dart analyze`，再跑受影响用例；完整的 `cargo test -p app -p tui` 和 Flutter 两个 widget 测试放到收尾。菜单、文案这类局部改动优先用 `--plain-name` 过滤，不主动生成 golden 或截图。测试命令、本机 Flutter SDK 只读环境的处理、FRB 重生成见 `.agent/testing.md`。
+先 `cargo check` / `flutter analyze`，再跑受影响用例；完整的 `cargo test -p app -p tui -p library` 和 Flutter 两个 widget 测试放到收尾。菜单、文案这类局部改动优先用 `--plain-name` 过滤，不主动生成 golden 或截图。测试命令、Flutter SDK 环境、FRB 重生成见 `.agent/testing.md`。
+
+## 构建
+本机 Android 只走 arm64-v8a release，依赖、命令和已知坑在 `.agent/android-build.md`；termux chroot 的旧路径单独留在 `.agent/build-on-termux.md`，不要混用。
 
 ## 文档
-`.agent/` 只留三份现状文档：`architecture.md`、`ui.md`、`testing.md`。它们供 agent 自查，简明扼要，节省 token；旧的方案稿和过期计划直接删，不在这里堆历史。
+`.agent/` 留现状文档：`architecture.md`、`ui.md`、`testing.md`，加上构建专用的 `android-build.md`（本机 x86_64 release）和 `build-on-termux.md`（termux chroot 备用）。它们供 agent 自查，简明扼要，节省 token；旧的方案稿和过期计划直接删，不在这里堆历史。
 
 不要主动更新 README、docs、wiki，除非我明确要求。需要写时用自然段说清楚，简明扼要，别铺开分点列表和表格，加粗能不用就不用。读起来像人写的笔记，不要像模板生成的说明书。

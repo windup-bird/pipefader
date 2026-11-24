@@ -7,13 +7,29 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `midi_pair`, `parse_role`, `read_menu_state`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
+// These functions are ignored because they are not marked as `pub`: `apply_output_change`, `midi_pair`, `pair_from`, `parse_role`, `read_menu_state`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`
 
 /// Boots the engine, config, library and state pump. Idempotent: a second call while a
 /// session is alive is a no-op, which is what Flutter hot restart needs.
-Future<void> start({String? configPath}) =>
-    PipefaderBridge.instance.api.crateApiStart(configPath: configPath);
+Future<void> start({SessionPathsDto? paths}) =>
+    PipefaderBridge.instance.api.crateApiStart(paths: paths);
+
+/// Appends a Flutter-side error to the same log file, before or after the engine boots.
+Future<void> logClientError({required String text}) =>
+    PipefaderBridge.instance.api.crateApiLogClientError(text: text);
+
+/// The newest log lines, oldest first, for the in-app log page.
+Future<List<String>> recentLogs({required int limit}) =>
+    PipefaderBridge.instance.api.crateApiRecentLogs(limit: limit);
+
+/// A removable volume the Android host saw mount. Desktop feeds the same worker through
+/// `usb::watch`; this is only the host bridge for that path.
+Future<void> volumeMounted({required String root}) =>
+    PipefaderBridge.instance.api.crateApiVolumeMounted(root: root);
+
+Future<void> volumeUnmounted({required String root}) =>
+    PipefaderBridge.instance.api.crateApiVolumeUnmounted(root: root);
 
 /// Releases the engine and joins its threads. Safe to call when nothing is running.
 Future<void> shutdown() => PipefaderBridge.instance.api.crateApiShutdown();
@@ -67,11 +83,33 @@ Future<MenuStateDto> menuState() =>
 
 /// Adds a destination for a role. The GUI starts from one master and can add either role; the
 /// channel pair is the first free stereo pair so two destinations never share a socket by accident.
-Future<MenuStateDto> outputAdd({required String role}) =>
-    PipefaderBridge.instance.api.crateApiOutputAdd(role: role);
+Future<MenuStateDto> outputAdd({
+  required String role,
+  String? device,
+  Uint16List? channels,
+}) => PipefaderBridge.instance.api.crateApiOutputAdd(
+  role: role,
+  device: device,
+  channels: channels,
+);
 
-/// Removes a destination. A mixer with no master output is not a useful state, so the last master is
-/// kept; precue may be emptied.
+/// The host's output devices, with the engine's rate acceptance filled in.
+Future<List<OutputDeviceDto>> outputDevices() =>
+    PipefaderBridge.instance.api.crateApiOutputDevices();
+
+/// Re-binds one existing destination to a device and/or channel pair.
+Future<MenuStateDto> outputBind({
+  required int index,
+  String? device,
+  Uint16List? channels,
+}) => PipefaderBridge.instance.api.crateApiOutputBind(
+  index: index,
+  device: device,
+  channels: channels,
+);
+
+/// Removes a destination. The last master may be removed too: the mixer runs silently with no
+/// destinations until the next one is added.
 Future<MenuStateDto> outputRemove({required int index}) =>
     PipefaderBridge.instance.api.crateApiOutputRemove(index: index);
 
@@ -809,6 +847,9 @@ class MenuStateDto {
   final double cueBlend;
   final bool autogain;
 
+  /// Android output changes are written but not applied until the next start.
+  final bool restartRequired;
+
   const MenuStateDto({
     required this.profile,
     required this.builtin,
@@ -819,6 +860,7 @@ class MenuStateDto {
     required this.crossfaderCurve,
     required this.cueBlend,
     required this.autogain,
+    required this.restartRequired,
   });
 
   @override
@@ -831,7 +873,8 @@ class MenuStateDto {
       sampleRate.hashCode ^
       crossfaderCurve.hashCode ^
       cueBlend.hashCode ^
-      autogain.hashCode;
+      autogain.hashCode ^
+      restartRequired.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -846,7 +889,8 @@ class MenuStateDto {
           sampleRate == other.sampleRate &&
           crossfaderCurve == other.crossfaderCurve &&
           cueBlend == other.cueBlend &&
-          autogain == other.autogain;
+          autogain == other.autogain &&
+          restartRequired == other.restartRequired;
 }
 
 /// One MIDI input the host currently offers.
@@ -875,6 +919,42 @@ enum NudgeAction {
   /// Hold the bend in the positive direction.
   right,
   stop,
+}
+
+/// One host output device, for the Output page's device picker.
+class OutputDeviceDto {
+  final int index;
+  final String name;
+  final String description;
+  final int channels;
+  final bool isDefault;
+
+  const OutputDeviceDto({
+    required this.index,
+    required this.name,
+    required this.description,
+    required this.channels,
+    required this.isDefault,
+  });
+
+  @override
+  int get hashCode =>
+      index.hashCode ^
+      name.hashCode ^
+      description.hashCode ^
+      channels.hashCode ^
+      isDefault.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OutputDeviceDto &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          name == other.name &&
+          description == other.description &&
+          channels == other.channels &&
+          isDefault == other.isDefault;
 }
 
 /// One mixer destination, as the logo menu's Output page shows it.
@@ -964,6 +1044,44 @@ class SessionEvent {
           meta == other.meta &&
           error == other.error &&
           text == other.text;
+}
+
+/// The paths the host knows and Rust cannot discover on Android (no HOME or XDG).
+class SessionPathsDto {
+  final String? config;
+  final String? cache;
+  final String? mediaHome;
+  final String? log;
+
+  /// Copy the built-in config/map into `config` when the file is missing (app-private dirs).
+  final bool seed;
+
+  const SessionPathsDto({
+    this.config,
+    this.cache,
+    this.mediaHome,
+    this.log,
+    required this.seed,
+  });
+
+  @override
+  int get hashCode =>
+      config.hashCode ^
+      cache.hashCode ^
+      mediaHome.hashCode ^
+      log.hashCode ^
+      seed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionPathsDto &&
+          runtimeType == other.runtimeType &&
+          config == other.config &&
+          cache == other.cache &&
+          mediaHome == other.mediaHome &&
+          log == other.log &&
+          seed == other.seed;
 }
 
 enum SyncAction {

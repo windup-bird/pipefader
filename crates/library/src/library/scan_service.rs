@@ -66,6 +66,7 @@ enum ScanRequest {
 /// The front-end's handle on the scan subsystem.
 pub struct ScanService {
     request_tx: Option<Sender<ScanRequest>>,
+    usb_tx: Option<Sender<UsbEvent>>,
     progress_tx: Sender<ScanProgress>,
     progress_rx: Receiver<ScanProgress>,
     /// Terminal events (`SourceDone`/`Failed`) emitted but not yet polled. Every emission is
@@ -89,6 +90,7 @@ impl ScanService {
         let (progress_tx, progress_rx) = unbounded();
         Self {
             request_tx: None,
+            usb_tx: None,
             progress_tx,
             progress_rx,
             pending: Arc::new(AtomicUsize::new(0)),
@@ -121,6 +123,28 @@ impl ScanService {
 
     /// Queues sources (configured folders/libraries, or an explicit `browser refresh`). Returns
     /// whether they were accepted. Nothing is scanned on the calling thread.
+    /// Feeds a mount/unmount discovered by the host (Android's StorageManager). Desktop keeps
+    /// using [`usb::watch`]; both paths land in the same worker handler.
+    pub fn volume_mounted(&mut self, root: PathBuf) -> bool {
+        self.send_volume(UsbEvent::Mounted(root))
+    }
+
+    pub fn volume_unmounted(&mut self, root: PathBuf) -> bool {
+        self.send_volume(UsbEvent::Unmounted(root))
+    }
+
+    fn send_volume(&mut self, event: UsbEvent) -> bool {
+        if self.db_path.is_none() {
+            return false;
+        }
+        if self.request_tx.is_none() {
+            self.start_worker();
+        }
+        self.usb_tx
+            .as_ref()
+            .is_some_and(|tx| tx.send(event).is_ok())
+    }
+
     pub fn enqueue(&mut self, sources: Vec<Source>) -> bool {
         if sources.is_empty() {
             return false;
@@ -165,6 +189,7 @@ impl ScanService {
         };
         let (request_tx, request_rx) = unbounded::<ScanRequest>();
         let (usb_tx, usb_rx) = unbounded::<UsbEvent>();
+        self.usb_tx = Some(usb_tx.clone());
         let progress_tx = self.progress_tx.clone();
         let pending = Arc::clone(&self.pending);
         let calibration = self.calibration;
@@ -381,6 +406,13 @@ fn run_full_pass(
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn host_volume_events_need_a_configured_service() {
+        let mut service = ScanService::new();
+        assert!(!service.volume_mounted(PathBuf::from("/mnt/usb")));
+        assert!(!service.volume_unmounted(PathBuf::from("/mnt/usb")));
+    }
 
     fn temp_dir(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(

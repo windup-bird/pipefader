@@ -13,6 +13,7 @@ pub mod devices;
 pub mod intent;
 pub mod midi;
 pub mod notices;
+pub mod paths;
 pub mod response;
 pub mod session;
 pub mod state;

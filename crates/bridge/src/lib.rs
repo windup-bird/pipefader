@@ -5,5 +5,8 @@
 //! one session thread that may hold `!Send` objects such as `midir` connections.
 
 pub mod api;
+#[cfg(target_os = "android")]
+mod android;
 mod frb_generated;
+mod logging;
 mod session;

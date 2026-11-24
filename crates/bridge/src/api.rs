@@ -194,6 +194,15 @@ pub struct OutputDto {
     pub gain: f32,
 }
 
+/// One host output device, for the Output page's device picker.
+pub struct OutputDeviceDto {
+    pub index: u32,
+    pub name: String,
+    pub description: String,
+    pub channels: u16,
+    pub is_default: bool,
+}
+
 /// One MIDI input the host currently offers.
 pub struct MidiPortDto {
     pub index: u32,
@@ -218,6 +227,8 @@ pub struct MenuStateDto {
     pub crossfader_curve: String,
     pub cue_blend: f32,
     pub autogain: bool,
+    /// Android output changes are written but not applied until the next start.
+    pub restart_required: bool,
 }
 
 pub struct LibraryRoot {
@@ -376,10 +387,42 @@ pub enum FxOp {
 // Lifecycle and state stream
 // ---------------------------------------------------------------------------
 
+/// The paths the host knows and Rust cannot discover on Android (no HOME or XDG).
+#[derive(Clone, Debug)]
+pub struct SessionPathsDto {
+    pub config: Option<String>,
+    pub cache: Option<String>,
+    pub media_home: Option<String>,
+    pub log: Option<String>,
+    /// Copy the built-in config/map into `config` when the file is missing (app-private dirs).
+    pub seed: bool,
+}
+
 /// Boots the engine, config, library and state pump. Idempotent: a second call while a
 /// session is alive is a no-op, which is what Flutter hot restart needs.
-pub fn start(config_path: Option<String>) -> Result<(), String> {
-    session::start(config_path)
+pub fn start(paths: Option<SessionPathsDto>) -> Result<(), String> {
+    session::start(paths)
+}
+
+/// Appends a Flutter-side error to the same log file, before or after the engine boots.
+pub fn log_client_error(text: String) -> Result<(), String> {
+    crate::logging::error(format!("[flutter] {text}"));
+    Ok(())
+}
+
+/// The newest log lines, oldest first, for the in-app log page.
+pub fn recent_logs(limit: u32) -> Result<Vec<String>, String> {
+    crate::logging::tail(limit as usize)
+}
+
+/// A removable volume the Android host saw mount. Desktop feeds the same worker through
+/// `usb::watch`; this is only the host bridge for that path.
+pub fn volume_mounted(root: String) -> Result<(), String> {
+    session::volume_mounted(root)
+}
+
+pub fn volume_unmounted(root: String) -> Result<(), String> {
+    session::volume_unmounted(root)
 }
 
 /// Releases the engine and joins its threads. Safe to call when nothing is running.
@@ -468,12 +511,17 @@ fn read_menu_state() -> Result<MenuStateDto, String> {
         crossfader_curve: decoded.crossfader_curve,
         cue_blend: decoded.cue_blend,
         autogain: decoded.autogain,
+        restart_required: session::output_restart_required(),
     })
 }
 
 /// Adds a destination for a role. The GUI starts from one master and can add either role; the
 /// channel pair is the first free stereo pair so two destinations never share a socket by accident.
-pub fn output_add(role: String) -> Result<MenuStateDto, String> {
+pub fn output_add(
+    role: String,
+    device: Option<String>,
+    channels: Option<Vec<u16>>,
+) -> Result<MenuStateDto, String> {
     let profile_path = session::config_path()?;
     let role = parse_role(&role)?;
     let entries = output::read(&profile_path).unwrap_or_default();
@@ -490,52 +538,118 @@ pub fn output_add(role: String) -> Result<MenuStateDto, String> {
         number += 1;
     }
     let name = format!("{label} {number}");
-    let channels = output::next_channels(&entries);
-    output::add(&profile_path, &name, role, None, Some(channels))?;
-    session::reload_mixer()?;
+    let channels = pair_from(channels).unwrap_or_else(|| output::next_channels(&entries));
+    let device = device.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+    output::add(&profile_path, &name, role, device.as_deref(), Some(channels))?;
+    apply_output_change()?;
     read_menu_state()
 }
 
-/// Removes a destination. A mixer with no master output is not a useful state, so the last master is
-/// kept; precue may be emptied.
+/// The host's output devices, with the engine's rate acceptance filled in.
+pub fn output_devices() -> Result<Vec<OutputDeviceDto>, String> {
+    let rate = session::sample_rate()?;
+    let mut seen = std::collections::HashSet::new();
+    let devices: Vec<_> = audio::output_devices(Some(rate))
+        .into_iter()
+        // oboe reports the same phone PCM several times; the picker only needs one row.
+        .filter(|device| seen.insert(device.name.clone()))
+        .collect();
+    crate::logging::info(format!("output devices @ {rate}Hz: {}", devices.len()));
+    Ok(devices
+        .into_iter()
+        .enumerate()
+        .map(|(index, device)| OutputDeviceDto {
+            index: index as u32,
+            name: device.name,
+            description: device.description,
+            channels: device.channels,
+            is_default: device.is_default,
+        })
+        .collect())
+}
+
+/// Re-binds one existing destination to a device and/or channel pair.
+pub fn output_bind(
+    index: u32,
+    device: Option<String>,
+    channels: Option<Vec<u16>>,
+) -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    let device = device.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+    output::bind(
+        &profile_path,
+        index as usize,
+        device.as_deref(),
+        pair_from(channels),
+    )?;
+    apply_output_change()?;
+    read_menu_state()
+}
+
+fn pair_from(channels: Option<Vec<u16>>) -> Option<(u16, u16)> {
+    match channels.as_deref() {
+        Some([left, right]) => Some((*left, *right)),
+        _ => None,
+    }
+}
+
+/// Applies an output topology change. Android's oboe backend can block the audio callback while a
+/// stream is opened/closed on the producer thread, so there the config is written and the UI asks
+/// for a restart instead; desktop keeps the live reload.
+fn apply_output_change() -> Result<(), String> {
+    if cfg!(target_os = "android") {
+        session::mark_output_restart();
+        Ok(())
+    } else {
+        session::reload_mixer()
+    }
+}
+
+/// Removes a destination. The last master may be removed too: the mixer runs silently with no
+/// destinations until the next one is added.
 pub fn output_remove(index: u32) -> Result<MenuStateDto, String> {
     let profile_path = session::config_path()?;
     let entries = output::read(&profile_path)?;
-    let entry = entries
-        .get(index as usize)
-        .ok_or_else(|| format!("no output #{index}"))?;
-    let masters = entries
-        .iter()
-        .filter(|entry| entry.role == OutputRole::Master)
-        .count();
-    if entry.role == OutputRole::Master && masters <= 1 {
-        return Err("the last master output cannot be removed".to_owned());
+    if entries.get(index as usize).is_none() {
+        return Err(format!("no output #{index}"));
     }
     output::remove(&profile_path, index as usize)?;
-    session::reload_mixer()?;
+    apply_output_change()?;
     read_menu_state()
 }
 
 /// Re-probes every destination and returns the configured list. The live/missing state is not
 /// reported yet; the engine logs it and a later tick can carry it if the UI needs it.
 pub fn output_refresh() -> Result<MenuStateDto, String> {
+    if cfg!(target_os = "android") {
+        return read_menu_state();
+    }
     session::refresh_outputs()?;
     read_menu_state()
 }
 
 /// Every MIDI input the host currently reports. The menu compares the names with `midi_port`.
 pub fn midi_ports() -> Result<Vec<MidiPortDto>, String> {
-    controller::list_ports()
-        .map(|ports| {
-            ports
+    match controller::list_ports() {
+        Ok(ports) => {
+            crate::logging::info(format!(
+                "midi: {} port(s) {:?}",
+                ports.len(),
+                ports.iter().map(|port| port.name.as_str()).collect::<Vec<_>>()
+            ));
+            Ok(ports
                 .into_iter()
                 .map(|port| MidiPortDto {
                     index: port.index as u32,
                     name: port.name,
                 })
-                .collect()
-        })
-        .map_err(|err| format!("midi: {err}"))
+                .collect())
+        }
+        Err(err) => {
+            crate::logging::error(format!("midi: {err}"));
+            Err(format!("midi: {err}"))
+        }
+    }
 }
 
 /// Records a new input in the profile and opens it live. A built-in profile is read-only, so the
