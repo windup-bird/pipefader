@@ -48,6 +48,9 @@ abstract class PipefaderBridgeApiImplPlatform
   double dco_decode_box_autoadd_f_32(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
   LevelTarget dco_decode_box_autoadd_level_target(dynamic raw);
 
   @protected
@@ -126,6 +129,12 @@ abstract class PipefaderBridgeApiImplPlatform
   LibraryRoot dco_decode_library_root(dynamic raw);
 
   @protected
+  LibrarySettingsDto dco_decode_library_settings_dto(dynamic raw);
+
+  @protected
+  LibrarySourceDto dco_decode_library_source_dto(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -148,6 +157,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   List<LibraryRoot> dco_decode_list_library_root(dynamic raw);
+
+  @protected
+  List<LibrarySourceDto> dco_decode_list_library_source_dto(dynamic raw);
 
   @protected
   List<LogDto> dco_decode_list_log_dto(dynamic raw);
@@ -177,7 +189,22 @@ abstract class PipefaderBridgeApiImplPlatform
   Uint64List dco_decode_list_prim_u_64_strict(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<SettingsOptionDto> dco_decode_list_settings_option_dto(dynamic raw);
+
+  @protected
+  List<SettingsPageDto> dco_decode_list_settings_page_dto(dynamic raw);
+
+  @protected
+  List<SettingsRowDto> dco_decode_list_settings_row_dto(dynamic raw);
+
+  @protected
+  List<SettingsSectionDto> dco_decode_list_settings_section_dto(dynamic raw);
 
   @protected
   List<TrackDto> dco_decode_list_track_dto(dynamic raw);
@@ -216,6 +243,9 @@ abstract class PipefaderBridgeApiImplPlatform
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
   SessionPathsDto? dco_decode_opt_box_autoadd_session_paths_dto(dynamic raw);
 
   @protected
@@ -244,6 +274,18 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   SessionPathsDto dco_decode_session_paths_dto(dynamic raw);
+
+  @protected
+  SettingsOptionDto dco_decode_settings_option_dto(dynamic raw);
+
+  @protected
+  SettingsPageDto dco_decode_settings_page_dto(dynamic raw);
+
+  @protected
+  SettingsRowDto dco_decode_settings_row_dto(dynamic raw);
+
+  @protected
+  SettingsSectionDto dco_decode_settings_section_dto(dynamic raw);
 
   @protected
   SyncAction dco_decode_sync_action(dynamic raw);
@@ -312,6 +354,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   double sse_decode_box_autoadd_f_32(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   LevelTarget sse_decode_box_autoadd_level_target(SseDeserializer deserializer);
@@ -396,6 +441,14 @@ abstract class PipefaderBridgeApiImplPlatform
   LibraryRoot sse_decode_library_root(SseDeserializer deserializer);
 
   @protected
+  LibrarySettingsDto sse_decode_library_settings_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LibrarySourceDto sse_decode_library_source_dto(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -418,6 +471,11 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   List<LibraryRoot> sse_decode_list_library_root(SseDeserializer deserializer);
+
+  @protected
+  List<LibrarySourceDto> sse_decode_list_library_source_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<LogDto> sse_decode_list_log_dto(SseDeserializer deserializer);
@@ -449,7 +507,30 @@ abstract class PipefaderBridgeApiImplPlatform
   Uint64List sse_decode_list_prim_u_64_strict(SseDeserializer deserializer);
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<SettingsOptionDto> sse_decode_list_settings_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SettingsPageDto> sse_decode_list_settings_page_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SettingsRowDto> sse_decode_list_settings_row_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SettingsSectionDto> sse_decode_list_settings_section_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<TrackDto> sse_decode_list_track_dto(SseDeserializer deserializer);
@@ -490,6 +571,9 @@ abstract class PipefaderBridgeApiImplPlatform
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
   SessionPathsDto? sse_decode_opt_box_autoadd_session_paths_dto(
     SseDeserializer deserializer,
   );
@@ -526,6 +610,22 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   SessionPathsDto sse_decode_session_paths_dto(SseDeserializer deserializer);
+
+  @protected
+  SettingsOptionDto sse_decode_settings_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SettingsPageDto sse_decode_settings_page_dto(SseDeserializer deserializer);
+
+  @protected
+  SettingsRowDto sse_decode_settings_row_dto(SseDeserializer deserializer);
+
+  @protected
+  SettingsSectionDto sse_decode_settings_section_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SyncAction sse_decode_sync_action(SseDeserializer deserializer);
@@ -604,6 +704,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_level_target(
@@ -696,6 +799,18 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_library_root(LibraryRoot self, SseSerializer serializer);
 
   @protected
+  void sse_encode_library_settings_dto(
+    LibrarySettingsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_library_source_dto(
+    LibrarySourceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
@@ -734,6 +849,12 @@ abstract class PipefaderBridgeApiImplPlatform
   @protected
   void sse_encode_list_library_root(
     List<LibraryRoot> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_library_source_dto(
+    List<LibrarySourceDto> self,
     SseSerializer serializer,
   );
 
@@ -789,8 +910,35 @@ abstract class PipefaderBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_settings_option_dto(
+    List<SettingsOptionDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_settings_page_dto(
+    List<SettingsPageDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_settings_row_dto(
+    List<SettingsRowDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_settings_section_dto(
+    List<SettingsSectionDto> self,
     SseSerializer serializer,
   );
 
@@ -840,6 +988,9 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_session_paths_dto(
     SessionPathsDto? self,
     SseSerializer serializer,
@@ -884,6 +1035,30 @@ abstract class PipefaderBridgeApiImplPlatform
   @protected
   void sse_encode_session_paths_dto(
     SessionPathsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_settings_option_dto(
+    SettingsOptionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_settings_page_dto(
+    SettingsPageDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_settings_row_dto(
+    SettingsRowDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_settings_section_dto(
+    SettingsSectionDto self,
     SseSerializer serializer,
   );
 

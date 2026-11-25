@@ -236,6 +236,9 @@ pub enum MidiRetry {
 pub struct AppState {
     pub version: &'static str,
     pub backends: Backends,
+    /// The same analyser choice the bridge's helpers read. The terminal leaves this `None`; the
+    /// bridge installs one so a menu change reaches both the session and worker calls.
+    pub shared_backends: Option<Arc<Mutex<Backends>>>,
     pub sample_rate: u32,
     /// Output ring capacity in frames, from the live config (the sliders can change it).
     pub ring_frames: usize,
@@ -356,6 +359,7 @@ impl AppState {
         Self {
             version: env!("CARGO_PKG_VERSION"),
             backends,
+            shared_backends: None,
             sample_rate: protocol::SAMPLE_RATE,
             ring_frames: audio::OUTPUT_RING_CAPACITY,
             decks,
@@ -853,6 +857,7 @@ impl AppState {
                         *grid = Some(analysis.beatgrid);
                     }
                 }
+                UiEvent::LibraryChanged => self.library_dirty = true,
             }
             changed = true;
         }

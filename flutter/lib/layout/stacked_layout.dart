@@ -66,6 +66,14 @@ class StackedLayout extends StatelessWidget {
         // Browsing keeps the deck identities stacked at the top and gives the
         // rest to the single-column browser; waveforms and controls hide.
         if (model.browserOverlayOpen) {
+          // Keep the same info height the normal (control-bearing) layout would give each
+          // section. The browser then takes the space the waveforms and control band had; the
+          // deck identity rows never change their internal scale.
+          final sectionH = (available / deckCount).clamp(
+            stackedMinSectionH,
+            double.infinity,
+          );
+          final infoH = stackedInfoForSection(sectionH.toDouble());
           return ColoredBox(
             color: T.band,
             child: Column(
@@ -73,7 +81,7 @@ class StackedLayout extends StatelessWidget {
                 header,
                 for (final deck in decks)
                   SizedBox(
-                    height: stackedMaxInfoH + stackedInfoPadY * 2,
+                    height: infoH + stackedInfoPadY * 2,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         hpad,
@@ -84,7 +92,7 @@ class StackedLayout extends StatelessWidget {
                       child: DeckInfo(
                         model: model,
                         deck: deck,
-                        height: stackedMaxInfoH,
+                        height: infoH,
                         secondsOnly: deckCount > 2,
                         onCoverTap: model.closeBrowserOverlay,
                       ),
@@ -162,9 +170,7 @@ class _DeckSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final infoH = (constraints.maxHeight * stackedInfoShare)
-            .clamp(stackedMinInfoH, stackedMaxInfoH)
-            .toDouble();
+        final infoH = stackedInfoForSection(constraints.maxHeight);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

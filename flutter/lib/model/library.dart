@@ -9,11 +9,19 @@ class LibEntry {
 
 /// One playlist (or saved folder) below a library.
 class ListEntry {
-  const ListEntry(this.name, {this.id = -1, this.sourceId = -1});
+  const ListEntry(
+    this.name, {
+    this.id = -1,
+    this.sourceId = -1,
+    this.parentId,
+    this.hasChildren = false,
+  });
 
   final String name;
   final int id;
   final int sourceId;
+  final int? parentId;
+  final bool hasChildren;
 }
 
 /// One row of the tracks pane.

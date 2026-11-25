@@ -253,3 +253,46 @@ impl Browser {
         Ok(())
     }
 }
+
+/// One node of a source's list tree, in pre-order. The parent id lets a front-end draw the same
+/// hierarchy the TUI walks column by column; there is no flattened "a / b / c" name here.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlaylistRow {
+    pub playlist: Playlist,
+    pub parent_id: Option<i64>,
+    pub has_children: bool,
+}
+
+/// Walks every playlist below one source. Empty folders are kept: a folder with no tracks can
+/// still contain children, and both the tree and the terminal column need to show it.
+pub fn playlist_tree(db: &LibraryDb, source_id: i64) -> library::Result<Vec<PlaylistRow>> {
+    let mut out = Vec::new();
+    for playlist in db.root_playlists(source_id)? {
+        walk_playlist(db, source_id, playlist, 0, &mut out)?;
+    }
+    Ok(out)
+}
+
+fn walk_playlist(
+    db: &LibraryDb,
+    source_id: i64,
+    playlist: Playlist,
+    depth: usize,
+    out: &mut Vec<PlaylistRow>,
+) -> library::Result<()> {
+    if depth > 32 {
+        return Ok(());
+    }
+    let children = db.child_playlists(source_id, playlist.id)?;
+    let parent_id = playlist.parent_id;
+    let has_children = !children.is_empty();
+    out.push(PlaylistRow {
+        playlist,
+        parent_id,
+        has_children,
+    });
+    for child in children {
+        walk_playlist(db, source_id, child, depth + 1, out)?;
+    }
+    Ok(())
+}

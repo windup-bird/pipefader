@@ -6,7 +6,13 @@ import 'package:pipefader_gui/core/theme.dart';
 
 /// The few glyphs the sketch needs. Drawn rather than font icons so the weight
 /// matches the hairlines and no icon font has to be shipped.
+///
+/// Every shape is authored on a 24×24 grid with one stroke weight, round caps and
+/// round joins; the painter scales that grid to the requested size. Mixing a new
+/// glyph in means drawing it on the same grid, not nudging coordinates until it
+/// looks right at one size.
 enum GlyphKind {
+  // Window and navigation.
   panel,
   panelRight,
   search,
@@ -14,20 +20,43 @@ enum GlyphKind {
   minus,
   close,
   dropdown,
-  loop,
-  jump,
-  manualLoop,
-  keylock,
   chevronRight,
   chevronLeft,
   chevronUp,
   chevronDown,
-  settings,
   check,
-  play,
+  refresh,
+
+  // Menu and settings.
+  settings,
   controller,
   output,
-  refresh,
+  mixer,
+  library,
+  folder,
+  usb,
+  analyse,
+  list,
+  track,
+  logs,
+  audio,
+  trash,
+
+  // Layout and deck count.
+  layoutFull,
+  layoutLandscape,
+  layoutStacked,
+  layoutAllInOne,
+  decks2,
+  decks3,
+  decks4,
+
+  // Deck controls.
+  loop,
+  jump,
+  manualLoop,
+  keylock,
+  play,
 }
 
 class Glyph extends StatelessWidget {
@@ -54,246 +83,385 @@ class _GlyphPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final unit = size.shortestSide / 24;
+    if (unit <= 0) return;
+    canvas.save();
+    canvas.scale(unit, unit);
+    final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.square;
-    final center = Offset(size.width / 2, size.height / 2);
-    final half = size.shortestSide / 2;
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
 
     switch (kind) {
       case GlyphKind.panel:
-        final rect = Rect.fromLTRB(2, 2, size.width - 2, size.height - 2);
-        canvas.drawRect(rect, paint);
-        canvas.drawLine(
-          Offset(rect.left + rect.width * 0.34, rect.top),
-          Offset(rect.left + rect.width * 0.34, rect.bottom),
-          paint,
-        );
+        _rect(canvas, 3, 4, 21, 20, stroke, radius: 2);
+        _line(canvas, 9, 4, 9, 20, stroke);
       case GlyphKind.panelRight:
-        final rect = Rect.fromLTRB(2, 2, size.width - 2, size.height - 2);
-        canvas.drawRect(rect, paint);
-        canvas.drawLine(
-          Offset(rect.left + rect.width * 0.66, rect.top),
-          Offset(rect.left + rect.width * 0.66, rect.bottom),
-          paint,
-        );
+        _rect(canvas, 3, 4, 21, 20, stroke, radius: 2);
+        _line(canvas, 15, 4, 15, 20, stroke);
       case GlyphKind.search:
-        canvas.drawCircle(center.translate(-1, -1), half * 0.62, paint);
-        canvas.drawLine(
-          center.translate(half * 0.34, half * 0.34),
-          center.translate(half * 0.72, half * 0.72),
-          paint,
-        );
+        canvas.drawCircle(const Offset(10.5, 10.5), 5.5, stroke);
+        _line(canvas, 14.8, 14.8, 20, 20, stroke);
       case GlyphKind.plus:
-        canvas.drawLine(
-          Offset(center.dx - half * 0.55, center.dy),
-          Offset(center.dx + half * 0.55, center.dy),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(center.dx, center.dy - half * 0.55),
-          Offset(center.dx, center.dy + half * 0.55),
-          paint,
-        );
+        _line(canvas, 12, 5, 12, 19, stroke);
+        _line(canvas, 5, 12, 19, 12, stroke);
       case GlyphKind.minus:
-        canvas.drawLine(
-          Offset(center.dx - half * 0.55, center.dy),
-          Offset(center.dx + half * 0.55, center.dy),
-          paint,
-        );
+        _line(canvas, 5, 12, 19, 12, stroke);
       case GlyphKind.close:
-        canvas.drawLine(
-          center.translate(-half * 0.5, -half * 0.5),
-          center.translate(half * 0.5, half * 0.5),
-          paint,
-        );
-        canvas.drawLine(
-          center.translate(half * 0.5, -half * 0.5),
-          center.translate(-half * 0.5, half * 0.5),
-          paint,
-        );
+        _line(canvas, 7, 7, 17, 17, stroke);
+        _line(canvas, 17, 7, 7, 17, stroke);
       case GlyphKind.dropdown:
-        final path = Path()
-          ..moveTo(center.dx - half * 0.72, center.dy - half * 0.36)
-          ..lineTo(center.dx + half * 0.72, center.dy - half * 0.36)
-          ..lineTo(center.dx, center.dy + half * 0.5)
-          ..close();
-        canvas.drawPath(path, Paint()..color = color);
-      case GlyphKind.loop:
-        final r = half * 0.62;
-        final rect = Rect.fromCircle(center: center, radius: r);
-        canvas.drawArc(rect, math.pi * 0.18, math.pi * 1.58, false, paint);
-        final tip = center.translate(r * 0.86, -r * 0.50);
-        canvas.drawLine(tip, tip.translate(-r * 0.30, -r * 0.08), paint);
-        canvas.drawLine(tip, tip.translate(r * 0.08, -r * 0.30), paint);
-      case GlyphKind.jump:
-        for (var side = -1; side <= 1; side += 2) {
-          final x = center.dx + side * half * 0.30;
-          canvas.drawLine(
-            Offset(x - half * 0.18, center.dy - half * 0.42),
-            Offset(x + half * 0.18, center.dy),
-            paint,
-          );
-          canvas.drawLine(
-            Offset(x + half * 0.18, center.dy),
-            Offset(x - half * 0.18, center.dy + half * 0.42),
-            paint,
-          );
-        }
-      case GlyphKind.manualLoop:
-        final r = half * 0.42;
-        final left = center.dx - r * 1.55;
-        final right = center.dx + r * 1.55;
-        canvas.drawLine(
-          Offset(left, center.dy - r),
-          Offset(left, center.dy + r),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(left, center.dy - r),
-          Offset(left + r * 0.7, center.dy - r),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(left, center.dy + r),
-          Offset(left + r * 0.7, center.dy + r),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(right, center.dy - r),
-          Offset(right, center.dy + r),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(right, center.dy - r),
-          Offset(right - r * 0.7, center.dy - r),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(right, center.dy + r),
-          Offset(right - r * 0.7, center.dy + r),
-          paint,
-        );
-      case GlyphKind.keylock:
-        final body = Rect.fromLTRB(
-          center.dx - half * 0.42,
-          center.dy - half * 0.10,
-          center.dx + half * 0.42,
-          center.dy + half * 0.62,
-        );
-        canvas.drawRect(body, paint);
-        canvas.drawArc(
-          Rect.fromLTRB(
-            center.dx - half * 0.30,
-            center.dy - half * 0.62,
-            center.dx + half * 0.30,
-            center.dy + half * 0.06,
-          ),
-          math.pi,
-          math.pi,
-          false,
-          paint,
-        );
-        canvas.drawLine(
-          Offset(center.dx, body.top),
-          Offset(center.dx, body.top + body.height * 0.5),
-          paint,
-        );
+        _polygon(canvas, const [
+          Offset(6.5, 9.5),
+          Offset(17.5, 9.5),
+          Offset(12, 16),
+        ], fill);
       case GlyphKind.chevronRight:
-        _chevron(canvas, paint, center, half, 1, 0);
+        _chevron(canvas, stroke, 1, 0);
       case GlyphKind.chevronLeft:
-        _chevron(canvas, paint, center, half, -1, 0);
+        // A real back arrow, not a chevron: shaft plus a heavier head.
+        final back = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+        _line(canvas, 19.5, 12, 5.5, 12, back);
+        _polyline(canvas, const [
+          Offset(11.5, 5.5),
+          Offset(5, 12),
+          Offset(11.5, 18.5),
+        ], back);
       case GlyphKind.chevronUp:
-        _chevron(canvas, paint, center, half, 0, -1);
+        _chevron(canvas, stroke, 0, -1);
       case GlyphKind.chevronDown:
-        _chevron(canvas, paint, center, half, 0, 1);
-      case GlyphKind.settings:
-        for (var i = 0; i < 3; i++) {
-          final y = size.height * (0.28 + 0.22 * i);
-          canvas.drawLine(Offset(2, y), Offset(size.width - 2, y), paint);
-          final x = size.width * (i == 1 ? 0.64 : 0.38);
-          canvas.drawLine(Offset(x, y - 2.5), Offset(x, y + 2.5), paint);
-        }
+        _chevron(canvas, stroke, 0, 1);
       case GlyphKind.check:
-        final check = Path()
-          ..moveTo(size.width * 0.22, size.height * 0.52)
-          ..lineTo(size.width * 0.42, size.height * 0.72)
-          ..lineTo(size.width * 0.78, size.height * 0.30);
-        canvas.drawPath(check, paint);
-      case GlyphKind.play:
-        final play = Path()
-          ..moveTo(center.dx - half * 0.38, center.dy - half * 0.60)
-          ..lineTo(center.dx + half * 0.56, center.dy)
-          ..lineTo(center.dx - half * 0.38, center.dy + half * 0.60)
-          ..close();
-        canvas.drawPath(play, Paint()..color = color);
+        final bold = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.6
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+        _polyline(canvas, const [
+          Offset(4.5, 12.5),
+          Offset(9.5, 18),
+          Offset(19.5, 6),
+        ], bold);
+      case GlyphKind.refresh:
+        final rect = Rect.fromCircle(center: const Offset(12, 12), radius: 6.6);
+        final start = math.pi * 0.35;
+        final sweep = math.pi * 1.5;
+        final end = start + sweep;
+        final refreshStroke = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round;
+        canvas.drawArc(rect, start, sweep, false, refreshStroke);
+        final point =
+            const Offset(12, 12) + Offset(math.cos(end), math.sin(end)) * 6.6;
+        final tangent = Offset(-math.sin(end), math.cos(end));
+        final normal = Offset(math.cos(end), math.sin(end));
+        _polygon(canvas, [
+          point + tangent * 1.8,
+          point - tangent * 1.2 + normal * 2.0,
+          point - tangent * 1.2 - normal * 2.0,
+        ], fill);
+      case GlyphKind.settings:
+        _line(canvas, 3.5, 7, 20.5, 7, stroke);
+        _line(canvas, 3.5, 12, 20.5, 12, stroke);
+        _line(canvas, 3.5, 17, 20.5, 17, stroke);
+        canvas.drawCircle(const Offset(9, 7), 1.7, fill);
+        canvas.drawCircle(const Offset(15, 12), 1.7, fill);
+        canvas.drawCircle(const Offset(10, 17), 1.7, fill);
       case GlyphKind.controller:
-        final body = Rect.fromLTRB(
-          center.dx - half * 0.72,
-          center.dy - half * 0.40,
-          center.dx + half * 0.72,
-          center.dy + half * 0.40,
-        );
-        canvas.drawRect(body, paint);
-        canvas.drawCircle(
-          Offset(center.dx - half * 0.30, center.dy),
-          half * 0.18,
-          paint,
-        );
-        canvas.drawCircle(
-          Offset(center.dx + half * 0.30, center.dy),
-          half * 0.18,
-          paint,
-        );
+        _rect(canvas, 3, 7, 21, 17, stroke, radius: 4);
+        _line(canvas, 7.5, 12, 10.5, 12, stroke);
+        _line(canvas, 9, 10.5, 9, 13.5, stroke);
+        canvas.drawCircle(const Offset(15.5, 11), 1.2, fill);
+        canvas.drawCircle(const Offset(18, 13.5), 1.2, fill);
       case GlyphKind.output:
-        for (var i = 0; i < 3; i++) {
-          final x = center.dx - half * 0.42 + i * half * 0.42;
-          canvas.drawLine(
-            Offset(x, center.dy - half * 0.52),
-            Offset(x, center.dy + half * 0.52),
-            paint,
-          );
-        }
+        _polyline(canvas, const [
+          Offset(4, 10.5),
+          Offset(8, 10.5),
+          Offset(12, 6),
+          Offset(12, 18),
+          Offset(8, 13.5),
+          Offset(4, 13.5),
+          Offset(4, 10.5),
+        ], stroke);
         canvas.drawArc(
-          Rect.fromLTRB(
-            center.dx + half * 0.12,
-            center.dy - half * 0.60,
-            center.dx + half * 0.72,
-            center.dy + half * 0.60,
-          ),
-          -math.pi / 2,
+          const Rect.fromLTRB(12, 7.5, 18, 16.5),
+          -math.pi / 2.8,
+          math.pi / 1.4,
+          false,
+          stroke,
+        );
+        canvas.drawArc(
+          const Rect.fromLTRB(13.5, 5, 22, 19),
+          -math.pi / 2.8,
+          math.pi / 1.4,
+          false,
+          stroke,
+        );
+      case GlyphKind.mixer:
+        _line(canvas, 7.5, 5, 7.5, 19, stroke);
+        _rect(canvas, 5, 8, 10, 11, fill, radius: 1);
+        _line(canvas, 16.5, 5, 16.5, 19, stroke);
+        _rect(canvas, 14, 13, 19, 16, fill, radius: 1);
+        _line(canvas, 3.5, 19, 20.5, 19, stroke);
+      case GlyphKind.library:
+        _rect(canvas, 5, 7, 8.5, 20, stroke, radius: 1);
+        _rect(canvas, 10.25, 4, 13.75, 20, stroke, radius: 1);
+        _rect(canvas, 15.5, 9, 19, 20, stroke, radius: 1);
+      case GlyphKind.folder:
+        _polyline(canvas, const [
+          Offset(3, 7),
+          Offset(9.5, 7),
+          Offset(12, 9.5),
+          Offset(21, 9.5),
+          Offset(21, 19),
+          Offset(3, 19),
+          Offset(3, 7),
+        ], stroke);
+      case GlyphKind.usb:
+        _rect(canvas, 9, 3.5, 15, 7, stroke, radius: 1);
+        _line(canvas, 12, 7, 12, 12, stroke);
+        _rect(canvas, 7.5, 12, 16.5, 20, stroke, radius: 2);
+        canvas.drawCircle(const Offset(12, 16.5), 1.2, fill);
+      case GlyphKind.analyse:
+        _star(canvas, const Offset(11, 11.5), 6.5, stroke);
+        _star(canvas, const Offset(18.5, 6), 2.4, stroke);
+      case GlyphKind.list:
+        canvas.drawCircle(const Offset(5, 7), 1.2, fill);
+        canvas.drawCircle(const Offset(5, 12), 1.2, fill);
+        canvas.drawCircle(const Offset(5, 17), 1.2, fill);
+        _line(canvas, 8.5, 7, 20, 7, stroke);
+        _line(canvas, 8.5, 12, 20, 12, stroke);
+        _line(canvas, 8.5, 17, 20, 17, stroke);
+      case GlyphKind.track:
+        canvas.drawCircle(const Offset(8.5, 17.5), 3, stroke);
+        _line(canvas, 11.5, 17.5, 11.5, 5.5, stroke);
+        _polyline(canvas, const [
+          Offset(11.5, 5.5),
+          Offset(19, 7.5),
+          Offset(19, 11.5),
+        ], stroke);
+      case GlyphKind.logs:
+        _rect(canvas, 3.5, 4.5, 20.5, 19.5, stroke, radius: 2);
+        _polyline(canvas, const [
+          Offset(7, 9),
+          Offset(10.5, 12),
+          Offset(7, 15),
+        ], stroke);
+        _line(canvas, 13, 15, 17.5, 15, stroke);
+      case GlyphKind.audio:
+        _line(canvas, 3, 12, 5.5, 12, stroke);
+        _line(canvas, 5.5, 12, 8, 6.5, stroke);
+        _line(canvas, 8, 6.5, 11, 17.5, stroke);
+        _line(canvas, 11, 17.5, 14, 9, stroke);
+        _line(canvas, 14, 9, 17, 15, stroke);
+        _line(canvas, 17, 15, 19.5, 12, stroke);
+        _line(canvas, 19.5, 12, 21, 12, stroke);
+      case GlyphKind.trash:
+        _line(canvas, 4.5, 7, 19.5, 7, stroke);
+        _line(canvas, 9, 4.5, 15, 4.5, stroke);
+        _polyline(canvas, const [
+          Offset(6.5, 7),
+          Offset(7.5, 20),
+          Offset(16.5, 20),
+          Offset(17.5, 7),
+        ], stroke);
+        _line(canvas, 10, 10.5, 10, 16.5, stroke);
+        _line(canvas, 14, 10.5, 14, 16.5, stroke);
+      case GlyphKind.layoutFull:
+        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
+        _line(canvas, 3, 9, 21, 9, stroke);
+        _line(canvas, 12, 3, 12, 9, stroke);
+        _line(canvas, 3, 14.5, 21, 14.5, stroke);
+        _line(canvas, 9.5, 14.5, 9.5, 21, stroke);
+        _line(canvas, 14.5, 14.5, 14.5, 21, stroke);
+        _polyline(canvas, const [
+          Offset(5, 12.5),
+          Offset(8, 10.5),
+          Offset(11, 12.5),
+          Offset(14, 10.5),
+          Offset(17, 12.5),
+          Offset(19, 11),
+        ], stroke);
+      case GlyphKind.layoutLandscape:
+        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
+        _line(canvas, 10, 3, 10, 21, stroke);
+        _line(canvas, 10, 11, 21, 11, stroke);
+        _line(canvas, 15.5, 11, 15.5, 21, stroke);
+        _polyline(canvas, const [
+          Offset(5, 14),
+          Offset(7, 12),
+          Offset(9, 14),
+        ], stroke);
+        _line(canvas, 5, 7, 8, 7, stroke);
+      case GlyphKind.layoutStacked:
+        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
+        _line(canvas, 3, 8, 21, 8, stroke);
+        _line(canvas, 3, 13.5, 21, 13.5, stroke);
+        _line(canvas, 3, 18, 21, 18, stroke);
+        _polyline(canvas, const [
+          Offset(6, 11),
+          Offset(9, 9.5),
+          Offset(12, 11),
+          Offset(15, 9.5),
+          Offset(18, 11),
+        ], stroke);
+      case GlyphKind.layoutAllInOne:
+        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
+        _line(canvas, 3, 7.5, 21, 7.5, stroke);
+        _line(canvas, 3, 12, 21, 12, stroke);
+        _line(canvas, 3, 16.5, 21, 16.5, stroke);
+        _line(canvas, 9, 7.5, 9, 16.5, stroke);
+        _line(canvas, 15, 7.5, 15, 16.5, stroke);
+      case GlyphKind.decks2:
+        _faders(canvas, 2, stroke, fill);
+      case GlyphKind.decks3:
+        _faders(canvas, 3, stroke, fill);
+      case GlyphKind.decks4:
+        _faders(canvas, 4, stroke, fill);
+      case GlyphKind.loop:
+        canvas.drawArc(
+          const Rect.fromLTRB(4.5, 4.5, 19.5, 19.5),
+          math.pi * 0.18,
+          math.pi * 1.58,
+          false,
+          stroke,
+        );
+        _polyline(canvas, const [
+          Offset(17.4, 3.4),
+          Offset(20.2, 5.2),
+          Offset(17.2, 6.8),
+        ], stroke);
+      case GlyphKind.jump:
+        _polyline(canvas, const [
+          Offset(5, 7),
+          Offset(10, 12),
+          Offset(5, 17),
+        ], stroke);
+        _polyline(canvas, const [
+          Offset(12, 7),
+          Offset(17, 12),
+          Offset(12, 17),
+        ], stroke);
+      case GlyphKind.manualLoop:
+        _polyline(canvas, const [
+          Offset(8, 7),
+          Offset(5, 7),
+          Offset(5, 17),
+          Offset(8, 17),
+        ], stroke);
+        _polyline(canvas, const [
+          Offset(16, 7),
+          Offset(19, 7),
+          Offset(19, 17),
+          Offset(16, 17),
+        ], stroke);
+      case GlyphKind.keylock:
+        _rect(canvas, 7.5, 11, 16.5, 19.5, stroke, radius: 1.5);
+        canvas.drawArc(
+          const Rect.fromLTRB(9, 3.5, 15, 11.5),
+          math.pi,
           math.pi,
           false,
-          paint,
+          stroke,
         );
-      case GlyphKind.refresh:
-        final r = half * 0.58;
-        final rect = Rect.fromCircle(center: center, radius: r);
-        canvas.drawArc(rect, -math.pi * 0.82, math.pi * 1.55, false, paint);
-        // Two short strokes at the open end, forming the arrow head.
-        final tip = center.translate(r * 0.92, -r * 0.40);
-        canvas.drawLine(tip, tip.translate(-r * 0.34, -r * 0.10), paint);
-        canvas.drawLine(tip, tip.translate(r * 0.02, -r * 0.36), paint);
+        _line(canvas, 12, 14, 12, 16.5, stroke);
+      case GlyphKind.play:
+        _polygon(canvas, const [
+          Offset(8, 5),
+          Offset(19, 12),
+          Offset(8, 19),
+        ], fill);
+    }
+    canvas.restore();
+  }
+
+  void _line(Canvas canvas, double x1, double y1, double x2, double y2, Paint p) =>
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), p);
+
+  void _rect(
+    Canvas canvas,
+    double left,
+    double top,
+    double right,
+    double bottom,
+    Paint p, {
+    double radius = 0,
+  }) {
+    final rect = Rect.fromLTRB(left, top, right, bottom);
+    if (radius > 0) {
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)), p);
+    } else {
+      canvas.drawRect(rect, p);
     }
   }
 
-  void _chevron(
-    Canvas canvas,
-    Paint paint,
-    Offset center,
-    double half,
-    int dx,
-    int dy,
-  ) {
-    final dir = Offset(dx.toDouble(), dy.toDouble());
-    final perp = Offset(-dir.dy, dir.dx);
-    final tip = center + dir * (half * 0.34);
-    final back = center - dir * (half * 0.26);
-    final wing = perp * (half * 0.40);
-    canvas.drawLine(back + wing, tip, paint);
-    canvas.drawLine(back - wing, tip, paint);
+  void _polyline(Canvas canvas, List<Offset> points, Paint p) {
+    if (points.isEmpty) return;
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    canvas.drawPath(path, p);
+  }
+
+  void _polygon(Canvas canvas, List<Offset> points, Paint p) {
+    if (points.isEmpty) return;
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    path.close();
+    canvas.drawPath(path, p);
+  }
+
+  void _chevron(Canvas canvas, Paint p, int dx, int dy, {double size = 6.5}) {
+    final tip = Offset(12 + dx * size, 12 + dy * size);
+    final back = Offset(12 - dx * size * 0.55, 12 - dy * size * 0.55);
+    final wing = Offset(-dy * size * 0.7, dx * size * 0.7);
+    canvas.drawLine(back + wing, tip, p);
+    canvas.drawLine(back - wing, tip, p);
+  }
+
+  /// Four-point sparkle used for the browser's analyse action.
+  void _star(Canvas canvas, Offset center, double radius, Paint p) {
+    final inner = radius * 0.28;
+    final path = Path()
+      ..moveTo(center.dx, center.dy - radius)
+      ..lineTo(center.dx + inner, center.dy - inner)
+      ..lineTo(center.dx + radius, center.dy)
+      ..lineTo(center.dx + inner, center.dy + inner)
+      ..lineTo(center.dx, center.dy + radius)
+      ..lineTo(center.dx - inner, center.dy + inner)
+      ..lineTo(center.dx - radius, center.dy)
+      ..lineTo(center.dx - inner, center.dy - inner)
+      ..close();
+    canvas.drawPath(path, p);
+  }
+
+  /// Two to four fader stems, the same shape as the brand mark.
+  void _faders(Canvas canvas, int count, Paint stroke, Paint fill) {
+    const left = 4.0;
+    const right = 20.0;
+    final gap = count <= 1 ? 0.0 : (right - left) / (count * 2 - 1);
+    final width = gap;
+    for (var index = 0; index < count; index++) {
+      final x = left + index * width * 2 + width / 2;
+      _line(canvas, x, 5.5, x, 18.5, stroke);
+      _rect(canvas, x - width * 0.55, 8.5, x + width * 0.55, 11, fill);
+    }
   }
 
   @override

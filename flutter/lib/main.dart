@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/bridge/engine.dart';
 import 'package:pipefader_gui/core/device_paths.dart';
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/core/storage_permission.dart';
 import 'package:pipefader_gui/core/volume_events.dart';
 import 'package:pipefader_gui/core/theme.dart';
@@ -64,24 +65,58 @@ void _installErrorHandlers() {
   };
 }
 
-class PipefaderApp extends StatelessWidget {
+class PipefaderApp extends StatefulWidget {
   const PipefaderApp({this.model, super.key});
 
   final AppModel? model;
 
   @override
+  State<PipefaderApp> createState() => _PipefaderAppState();
+}
+
+class _PipefaderAppState extends State<PipefaderApp> with WidgetsBindingObserver {
+  Locale _locale = const Locale('en');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _locale = WidgetsBinding.instance.platformDispatcher.locale;
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    final locale = locales != null && locales.isNotEmpty
+        ? locales.first
+        : WidgetsBinding.instance.platformDispatcher.locale;
+    if (locale.languageCode != _locale.languageCode) {
+      setState(() => _locale = locale);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final l10n = L10n(appLangOf(_locale));
     return MaterialApp(
       title: 'Pipefader',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      builder: (context, child) => DefaultTextStyle.merge(
-        style: const TextStyle(fontSize: T.s13, height: 1.2, color: T.text),
-        child: child!,
+      builder: (context, child) => L10nScope(
+        l10n: l10n,
+        child: DefaultTextStyle.merge(
+          style: Ty.body.copyWith(decoration: TextDecoration.none),
+          child: child!,
+        ),
       ),
       home: Material(
         type: MaterialType.transparency,
-        child: AppShell(model: model),
+        child: AppShell(model: widget.model),
       ),
     );
   }

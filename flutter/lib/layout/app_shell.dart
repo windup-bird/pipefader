@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/core/storage_permission.dart';
 import 'package:pipefader_gui/core/volume_events.dart';
 import 'package:pipefader_gui/state/app_model.dart';
@@ -92,6 +93,7 @@ class _AppShellState extends State<AppShell>
                   _model.forcedLayout ??
                   autoLayout(size, fullDecks: _model.fullDecks);
               final count = _model.deckCountFor(mode);
+              _model.currentLayout = mode;
               final page = switch (mode) {
                 LayoutMode.full => FullLayout(model: _model, deckCount: count),
                 LayoutMode.landscape => LandscapeLayout(
@@ -107,10 +109,11 @@ class _AppShellState extends State<AppShell>
                   deckCount: count,
                 ),
               };
+              final l10n = L10nScope.of(context);
               final error = _model.engineError;
               final status = error != null
-                  ? 'Engine offline: $error'
-                  : (_model.engineStarting ? 'Starting engine...' : null);
+                  ? l10n.engineOffline(error)
+                  : (_model.engineStarting ? l10n.startingEngine : null);
               return Stack(
                 children: [
                   Positioned.fill(child: page),
@@ -134,7 +137,10 @@ class _AppShellState extends State<AppShell>
                           if (status != null && !_model.storageGranted)
                             const SizedBox(height: 4),
                           if (!_model.storageGranted)
-                            _StoragePrompt(onTap: _grantStorage),
+                            _StoragePrompt(
+                              text: l10n.storagePermission,
+                              onTap: _grantStorage,
+                            ),
                         ],
                       ),
                     ),
@@ -179,8 +185,9 @@ class _EngineStatus extends StatelessWidget {
 /// The storage grant is separate from the engine: the library stays empty until the user allows
 /// the app to walk the media root, so the prompt stays visible on every page.
 class _StoragePrompt extends StatelessWidget {
-  const _StoragePrompt({required this.onTap});
+  const _StoragePrompt({required this.text, required this.onTap});
 
+  final String text;
   final VoidCallback onTap;
 
   @override
@@ -193,7 +200,7 @@ class _StoragePrompt extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         color: T.surface,
         child: Text(
-          'Storage permission needed · Grant',
+          text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,

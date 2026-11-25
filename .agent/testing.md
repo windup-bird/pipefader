@@ -25,7 +25,7 @@ flutter test test/interaction_test.dart --plain-name "output"
 flutter test test/interaction_test.dart --plain-name "settings"
 ```
 
-当前完整 Flutter 套是 26 个 widget 用例；输出页增加了设备/通道选择和删最后一路的用例，改 Output 相关代码至少要跑 `--plain-name "output"`。
+当前完整 Flutter 套是 33 个 widget 用例；输出页有设备/通道选择和删最后一路的用例，Controller 有禁用端口和详情页的用例，Preferences 有曲库文件夹和语言切换的用例。改 Output 相关代码至少要跑 `--plain-name "output"`，改菜单文案至少跑 `--plain-name "Chinese"`。
 
 菜单、文案、单个布局这种改动只看对应 `testWidgets`，不要跑截图/golden。测试用例里的 AppShell 有持续 ticker，`pumpAndSettle` 会超时；菜单动画用固定 `pump`，`interaction_test.dart` 的 `settleMenu` 就是干这个的。
 

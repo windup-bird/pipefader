@@ -219,11 +219,17 @@ class AppModel extends ChangeNotifier {
   /// Guards against an older async library query overwriting a newer one.
   int _libraryEpoch = 0;
   int? _playlistId;
+  int? searchSourceId;
+  int? searchListId;
+  bool analysing = false;
   double _waveWidth = 0;
   double _waveFpp = 0;
   WavePaletteData? wavePalette;
 
   LayoutMode? _forcedLayout;
+  /// The layout the shell is painting right now. The header menu and the browser's settings jump
+  /// use it so a page does not have to guess between full and the phone faces.
+  LayoutMode currentLayout = LayoutMode.full;
   int _fullDecks;
   int _phoneDecks;
 
@@ -236,6 +242,7 @@ class AppModel extends ChangeNotifier {
 
   int selectedLibrary = 0;
   int selectedList = 0;
+  final Set<int> _expandedLists = <int>{};
   int selectedTrack = 0;
   bool libraryOpen = true;
   bool rightOpen = false;
@@ -454,7 +461,7 @@ class AppModel extends ChangeNotifier {
         // one on the model so a future status strip can show it.
         _lastLog = event.text;
       case frb.EventKind.libraryChanged:
-        unawaited(refreshLibrary());
+        unawaited(_afterLibraryChanged());
       case frb.EventKind.stopped:
         break;
     }
@@ -830,18 +837,31 @@ class AppModel extends ChangeNotifier {
       ..clear()
       ..addAll(
         fetchedLists.map(
-          (list) => ListEntry(list.name, id: list.id, sourceId: list.sourceId),
+          (list) => ListEntry(
+            list.name,
+            id: list.id,
+            sourceId: list.sourceId,
+            parentId: list.parentId,
+            hasChildren: list.hasChildren,
+          ),
         ),
       );
     selectedList = fetchedLists.isEmpty
         ? 0
         : previousList.clamp(0, fetchedLists.length - 1);
+    _expandedLists.removeWhere(
+      (id) => !fetchedLists.any((entry) => entry.id == id),
+    );
     if (fetchedLists.isEmpty) {
       allTracks.clear();
       notifyListeners();
       return;
     }
     await _loadTracks(fetchedLists[selectedList].id, epoch);
+    if (analysing) {
+      analysing = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _loadLists(int sourceId, int epoch) async {
@@ -851,13 +871,22 @@ class AppModel extends ChangeNotifier {
       ..clear()
       ..addAll(
         lists.map(
-          (list) => ListEntry(list.name, id: list.id, sourceId: list.sourceId),
+          (list) => ListEntry(
+            list.name,
+            id: list.id,
+            sourceId: list.sourceId,
+            parentId: list.parentId,
+            hasChildren: list.hasChildren,
+          ),
         ),
       );
-    selectedList = 0;
+    selectedList = _defaultListIndex(this.lists);
+    _expandedLists.removeWhere(
+      (id) => !this.lists.any((entry) => entry.id == id),
+    );
     notifyListeners();
-    if (lists.isNotEmpty) {
-      await _loadTracks(lists.first.id, epoch);
+    if (this.lists.isNotEmpty) {
+      await _loadTracks(this.lists[selectedList].id, epoch);
     } else {
       allTracks.clear();
       notifyListeners();
@@ -875,6 +904,11 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  static int _defaultListIndex(List<ListEntry> lists) {
+    final leaf = lists.indexWhere((entry) => !entry.hasChildren);
+    return leaf < 0 ? 0 : leaf;
+  }
+
   static TrackRow _trackFrom(frb.TrackDto track) => TrackRow(
     title: track.title,
     artist: track.artist,
@@ -885,22 +919,58 @@ class AppModel extends ChangeNotifier {
     locationId: track.locationId,
   );
 
+  Future<void> _afterLibraryChanged() async {
+    await refreshLibrary();
+    if (analysing) {
+      analysing = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _search(String query) async {
     final epoch = ++_libraryEpoch;
-    if (query.trim().isEmpty) {
+    final term = query.trim();
+    if (term.isEmpty) {
       final playlist = _playlistId;
       if (playlist != null) {
         await _loadTracks(playlist, epoch);
       }
       return;
     }
-    final tracks = await engine!.librarySearch(query);
+    final engine = this.engine;
+    if (engine == null) return;
+    var tracks = <frb.TrackDto>[];
+    if (searchListId != null) {
+      tracks = await engine.libraryTracks(searchListId!);
+      tracks = _matching(tracks, term);
+    } else if (searchSourceId != null) {
+      final lists = await engine.libraryLists(searchSourceId!);
+      final seen = <int>{};
+      for (final list in lists) {
+        for (final track in await engine.libraryTracks(list.id)) {
+          if (seen.add(track.locationId)) tracks.add(track);
+        }
+      }
+      tracks = _matching(tracks, term);
+    } else {
+      tracks = await engine.librarySearch(term);
+    }
     if (epoch != _libraryEpoch) return;
     allTracks
       ..clear()
       ..addAll(tracks.map(_trackFrom));
     selectedTrack = 0;
     notifyListeners();
+  }
+
+  static List<frb.TrackDto> _matching(List<frb.TrackDto> tracks, String query) {
+    final needle = query.toLowerCase();
+    return [
+      for (final track in tracks)
+        if (track.title.toLowerCase().contains(needle) ||
+            track.artist.toLowerCase().contains(needle))
+          track,
+    ];
   }
 
   // ---- transport -----------------------------------------------------------
@@ -1275,6 +1345,61 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// True while the backend's list analyser is running; cleared by the `LibraryChanged` refresh.
+  bool get canAnalyse => _engine != null && _playlistId != null;
+
+  /// Starts analysing the current list. The backend runs it on one worker and emits
+  /// `LibraryChanged` when the cache is done, which reloads this browser.
+  Future<void> analyseList() async {
+    final playlist = _playlistId;
+    if (_engine == null || playlist == null || analysing) return;
+    analysing = true;
+    notifyListeners();
+    try {
+      await _engine!.analyseList(playlist);
+    } catch (error) {
+      analysing = false;
+      _lastLog = '[analyse] $error';
+      notifyListeners();
+    }
+  }
+
+  Future<void> addLibraryFolder(String path) async {
+    if (_engine == null) return;
+    try {
+      await _engine!.libraryAddFolder(path);
+      await refreshLibrary();
+    } catch (error) {
+      _lastLog = '[library] $error';
+      notifyListeners();
+    }
+  }
+
+  Future<void> rescanLibrary() async {
+    if (_engine == null) return;
+    try {
+      await _engine!.libraryRescan();
+      await refreshLibrary();
+    } catch (error) {
+      _lastLog = '[library] $error';
+      notifyListeners();
+    }
+  }
+
+  void setSearchSource(int? id) {
+    if (searchSourceId == id) return;
+    searchSourceId = id;
+    if (_engine != null) unawaited(_search(searchText));
+    notifyListeners();
+  }
+
+  void setSearchList(int? id) {
+    if (searchListId == id) return;
+    searchListId = id;
+    if (_engine != null) unawaited(_search(searchText));
+    notifyListeners();
+  }
+
   // ---- browser -------------------------------------------------------------
 
   void toggleLibrary() {
@@ -1303,6 +1428,7 @@ class AppModel extends ChangeNotifier {
   void selectLibrary(int index) {
     selectedLibrary = index;
     selectedList = 0;
+    _expandedLists.clear();
     selectedTrack = 0;
     if (engine != null && index >= 0 && index < libraryRoots.length) {
       final epoch = ++_libraryEpoch;
@@ -1317,6 +1443,35 @@ class AppModel extends ChangeNotifier {
     if (engine != null && index >= 0 && index < lists.length) {
       final epoch = ++_libraryEpoch;
       unawaited(_loadTracks(lists[index].id, epoch));
+    }
+    notifyListeners();
+  }
+
+  int get selectedListId =>
+      selectedList >= 0 && selectedList < lists.length
+      ? lists[selectedList].id
+      : -1;
+
+  bool isListExpanded(int id) => _expandedLists.contains(id);
+
+  void toggleList(int id) {
+    if (!_expandedLists.add(id)) _expandedLists.remove(id);
+    notifyListeners();
+  }
+
+  /// Opens a tree row: a folder expands, a list with tracks becomes the preview. A node can be
+  /// both, so selecting it always refreshes the track pane and expanding is an additional step.
+  void openList(ListEntry entry) {
+    if (entry.hasChildren && !_expandedLists.contains(entry.id)) {
+      _expandedLists.add(entry.id);
+    }
+    if (entry.id >= 0) {
+      final index = lists.indexWhere((item) => item.id == entry.id);
+      if (index >= 0) selectedList = index;
+      if (engine != null) {
+        final epoch = ++_libraryEpoch;
+        unawaited(_loadTracks(entry.id, epoch));
+      }
     }
     notifyListeners();
   }

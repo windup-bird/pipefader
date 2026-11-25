@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pipefader_gui/layout/app_shell.dart';
 import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/core/theme.dart';
 
 /// Loads the SDK's Roboto into the test engine so goldens show real glyphs
@@ -43,20 +44,27 @@ Future<void> loadTestFonts() async {
 
 /// The app under test, with a repaint boundary at the root so an overlay is part
 /// of the captured image too.
-Widget buildTestApp({Key? boundaryKey, AppModel? model}) {
+Widget buildTestApp({
+  Key? boundaryKey,
+  AppModel? model,
+  AppLang lang = AppLang.en,
+}) {
   return RepaintBoundary(
     key: boundaryKey,
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      builder: (context, child) => DefaultTextStyle.merge(
-        style: const TextStyle(
-          fontFamily: 'Roboto',
-          fontSize: 13,
-          height: 1.2,
-          color: T.text,
+      builder: (context, child) => L10nScope(
+        l10n: L10n(lang),
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(
+            fontFamily: 'Roboto',
+            fontSize: 13,
+            height: 1.2,
+            color: T.text,
+          ),
+          child: child!,
         ),
-        child: child!,
       ),
       home: Material(
         type: MaterialType.transparency,
@@ -71,11 +79,14 @@ Future<void> pumpAppAt(
   Size size, {
   Key? boundaryKey,
   AppModel? model,
+  AppLang lang = AppLang.en,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(buildTestApp(boundaryKey: boundaryKey, model: model));
+  await tester.pumpWidget(
+    buildTestApp(boundaryKey: boundaryKey, model: model, lang: lang),
+  );
   await tester.pump(const Duration(milliseconds: 16));
   await tester.pump(const Duration(milliseconds: 400));
 }

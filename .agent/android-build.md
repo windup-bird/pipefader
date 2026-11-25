@@ -47,7 +47,7 @@ cd flutter && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_
 
 `main()` 已经改成先 `runApp`、再异步 boot：`AppModel.beginEngineStart()` 先显示空 deck，`attachEngine` 成功后换成引擎 deck 并重放订阅、菜单和库加载，失败走 `markEngineFailed`，`AppShell` 顶部显示“Starting engine...”或“Engine offline: ...”。测试注入的 `AppModel` 不置这两个状态，横幅不出现。
 
-Rust 侧已经做了：`bridge/src/logging.rs` 把 boot 阶段（config/audio/library/preference/ready）、panic 和 Flutter 上报的错误写到 `filesDir/pipefader/logs/bridge.log`，每行带毫秒时间戳并立即 flush；`start` 的失败和超时也落盘。打开日志后 stderr 被 `dup2` 到同一文件，cpal/audio 的 `eprintln` 和 panic backtrace 也会进来。Flutter 的 `FlutterError.onError` / `PlatformDispatcher.onError` 通过 `log_client_error` 进同一份文件。根菜单的 Logs 页通过 `recent_logs` 读最近 400 行，引擎没起来也能读。
+Rust 侧已经做了：`bridge/src/logging.rs` 把 boot 阶段（config/audio/library/preference/ready）、panic 和 Flutter 上报的错误写到 `filesDir/pipefader/logs/bridge.log`，每行带毫秒时间戳并立即 flush；`start` 的失败和超时也落盘。打开日志后 stderr 被 `dup2` 到同一文件，cpal/audio 的 `eprintln` 和 panic backtrace 也会进来。Flutter 的 `FlutterError.onError` / `PlatformDispatcher.onError` 通过 `log_client_error` 进同一份文件。菜单 Preferences 底部的 Logs 页通过 `recent_logs` 读最近 400 行，引擎没起来也能读。
 
 `menu.ensureLoaded()` 在 `AppModel` 构造时就会调 `midiPorts()`；ndk-context 初始化后它正常枚举，之前那个 `android_context` panic 已经不在了。真机上的 `adb logcat -s Pipefader` 能看到 boot 和 midi 行。
 
@@ -67,11 +67,11 @@ USB 已经接上同一个扫描入口：`ScanService` 有 `volume_mounted(root)`
 
 cpal 0.15.3 自带 oboe 后端，编出来的 `.so` 已链 `libOpenSLES`。oboe 和 midir 一样要读 `ndk_context`，Flutter embedding 不填它时，音频 producer 会在 cpal 里 panic，producer 线程在回报前退出，表现就是 `the audio thread exited before reporting`。MainActivity 现在先 `System.loadLibrary("bridge")`，再调 `nativeInit(applicationContext)`，由 `crates/bridge/src/android.rs` 把 JavaVM 和全局 Context 交给 ndk-context。JNI 函数名要按 JNI 规则把包名里的 `_` 写成 `_1`（`Java_com_example_pipefader_1gui_MainActivity_nativeInit`）；写成字面下划线会 `No implementation found`，ndk-context 起不来，音频和 MIDI 都会挂；这一步同时让 midir 的端口枚举可用。如果音频仍打不开，bridge 会清空 `[[mixer.output]]` 再启动一次，让菜单、浏览器和 MIDI 可用，只是没声；失败原因留在 logs。内建模板是 44.1k、master `[0,1]` 加 cue `[2,3]`；手机只有立体声时不是“cue 那一路 disable”这么温和：`preferred_config` 按 4 声道找配置，找不到整个 cue output 进 `Disabled`；如果设备只报 48k，44.1k 的 master 也会 `Disabled`，结果完全没声。`profile::seed_android` 已经从同一份模板生成 48k、单 master 的 config，首次启动才写，已有 config 不会覆盖（开发期要删 `filesDir/pipefader/config.toml` 再启动）。手机插上 Party Mix 后 Android 的 media 默认路由会变成它的 USB audio；要听手机扬声器，Output 页把 master 绑到 `OPD2407`（或上机身的设备名）并重启，或者把音箱接在控制器的 master 输出上。
 
-Output 页现在能选 device 和 channel pair，最后一路 master 也能删。Android 上改输出拓扑不会立刻 reload：oboe 在 producer 线程开关 stream 会卡住音频回调，所以只写配置，后端在 `MenuStateDto.restart_required` 里标出来，页脚提示重启；桌面仍然即时 reload。`output_devices` 会按名字去重，Party Mix 下面那个 `OPD2407` 就是手机扬声器。`channel_pair` 的兜底是 `(0,1)`，留着 cue 还可能在 4 声道设备上让两路写同一对通道。cue 在手机上要么放弃，要么以后做 split cue，那要给 mixer 加输出模式。前台服务、音频焦点、后台播放放后面。
+Output 页现在是 Master/Precue 两个大键加输出行，Add 走设备 → 通道 → 确认三级，最后一路 master 也能删。Android 上改输出拓扑不会立刻 reload：oboe 在 producer 线程开关 stream 会卡住音频回调，所以只写配置，后端在 `MenuStateDto.restart_required` 里标出来；关闭菜单时弹确认，点“立即重启”走 MainActivity 的 PendingIntent 重启，点“稍后”保留配置。桌面仍然即时 reload。`output_devices` 会按名字去重，Party Mix 下面那个 `OPD2407` 就是手机扬声器。`channel_pair` 的兜底是 `(0,1)`，留着 cue 还可能在 4 声道设备上让两路写同一对通道。cue 在手机上要么放弃，要么以后做 split cue，那要给 mixer 加输出模式。前台服务、音频焦点、后台播放放后面。
 
 ## MIDI
 
-最终目标是 B：Android 全部交给 Kotlin 的 `MidiManager`，桌面继续 midir。当前先用 A 验证：ndk-context 由 MainActivity 的 `nativeInit` 初始化，`controller::list_ports()` 能跑；midir 自己不请求 USB 权限，MainActivity 在启动/USB attach 时对带 MIDI streaming 接口的 `UsbDevice` 调 `UsbManager.requestPermission`，授权后 midir 的 `openDevice` 才有机会成功。真机日志已经能看到 `midi: 1 port(s) ["Numark ..."]`。
+最终目标是 B：Android 全部交给 Kotlin 的 `MidiManager`，桌面继续 midir。当前先用 A 验证：ndk-context 由 MainActivity 的 `nativeInit` 初始化，`controller::list_ports()` 能跑；midir 自己不请求 USB 权限，MainActivity 在启动/USB attach 时对带 MIDI streaming 接口的 `UsbDevice` 调 `UsbManager.requestPermission`，授权后 midir 的 `openDevice` 才有机会成功。真机日志已经能看到 `midi: 1 port(s) ["Numark ..."]`。菜单里的 Controller 页现在能列出端口、进入详情后 Disable，或用 SAF 选一个用户 map；map 以 bytes 交给 Rust 校验并复制进 `filesDir/pipefader`，不依赖 SAF 的路径。
 
 A 还缺热插拔回调、蓝牙 MIDI 和可读的错误信息；这些要 B。B 要把列端口、开端口、收字节、关端口一起抽成 backend（只在 bridge/controller 选实现），字节经 JNI 喂给 `controller::msg::Decoder`；`app::midi` 现在直连 midir 的 `Input`，不能只加一个 `ingest(bytes)`。走 B 后如果 midir 从 Android 依赖里摘掉，`controller::ports` 要按平台条件编译，别让 `libamidi` 继续被链进来。Kotlin↔Rust 的 JavaVM/Application 初始化已经就是 `nativeInit`，别删。
 
@@ -79,9 +79,11 @@ A 还缺热插拔回调、蓝牙 MIDI 和可读的错误信息；这些要 B。B
 
 `fixtures.dart` 已经删除，`buildPeaks` 和 `AppModel` 里的 `_time`/`_updateMeter`/fixture deck 分支一起清掉了：deck 初值就是 `No Track`，浏览器初始为空，引擎失败显示离线状态，不再退回示例数据。`libraries`/`tracks`/`playlists` 改成空列表；`interaction_test` 的 library 用例改成空库断言，transport 从暂停开始，tempo 拖拽断言改成 `tempo` 而不是 bpm。web 预览现在也是空壳。
 
+曲库文件夹可以在 Preferences › Library 或 browser 的 Add 里加。Android 用 `ACTION_OPEN_DOCUMENT_TREE` 选目录，Kotlin 把 `primary:...` / 卷 ID 转成 `/storage/...` 路径再交给后端；第三方 provider 转不了路径时会提示换本地或可移动卷。Add source 的 Library settings 会直接打开菜单的 Preferences 页。Analyse 分析当前 list，后端单 worker 顺序跑，完成后发 `LibraryChanged`。
+
 ## 建议顺序
 
-构建链、`SessionPaths`、首启 seed、bridge 日志、异步 attach、Logs 页、权限引导、删 fixtures、Android 48k 单 master 的 seed、USB 卷事件和输出设备/通道选择都做了（minSdk 29、target-specific openssl、atexit shim、`-z defs`、APK、符号审计、`bridge.log`、离线横幅、空状态）。下一步是 UI 重整、没有声时的音频路由/stream 恢复、完整 MIDI B。
+构建链、`SessionPaths`、首启 seed、bridge 日志、异步 attach、Logs 页、权限引导、删 fixtures、Android 48k 单 master 的 seed、USB 卷事件和输出设备/通道选择都做了（minSdk 29、target-specific openssl、atexit shim、`-z defs`、APK、符号审计、`bridge.log`、离线横幅、空状态）。UI 已按大按钮/四栏 browser/后端设置分组的方案重整；剩下的是没有声时的音频路由/stream 恢复、完整 MIDI B，以及 Android 输出热重建。
 
 ## 设备测试
 

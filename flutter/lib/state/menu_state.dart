@@ -55,7 +55,9 @@ class MenuState extends ChangeNotifier {
   List<MapFileInfo> maps = const <MapFileInfo>[
     MapFileInfo(path: 'mapping.toml', name: 'mapping.toml'),
   ];
-  MenuSettings settings = const MenuSettings();
+  List<SettingsPageData> settingsPages = defaultSettingsPages();
+  List<String> libraryFolders = const <String>[];
+  List<LibrarySourceInfo> librarySources = const <LibrarySourceInfo>[];
 
   bool refreshing = false;
   DateTime? refreshedAt;
@@ -63,6 +65,13 @@ class MenuState extends ChangeNotifier {
   bool get loading => _loading;
   bool get busy => _busy;
   String? get error => _error;
+
+  SettingsPageData? settingsPage(String id) {
+    for (final page in settingsPages) {
+      if (page.id == id) return page;
+    }
+    return null;
+  }
 
   /// Android does not reload output streams live (oboe can block the audio callback); the config is
   /// written and the output page asks for a restart.
@@ -125,6 +134,28 @@ class MenuState extends ChangeNotifier {
       _error = '$err';
     } finally {
       _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Re-reads the profile without re-probing devices. Pages that can change the same config from
+  /// another place (the browser's Add folder writes the library section) call this when they open.
+  Future<void> reloadProfile() async {
+    if (_busy) return;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.menuState());
+        await _loadDevices();
+        await _loadMidi();
+      }
+      _loaded = true;
+    } catch (err) {
+      _error = '$err';
+    } finally {
+      _busy = false;
       notifyListeners();
     }
   }
@@ -262,6 +293,57 @@ class MenuState extends ChangeNotifier {
     }
   }
 
+  /// Clears the controller's device so no input is attached. The map is kept: picking another
+  /// controller should not make the user choose the map again.
+  Future<void> disableController() async {
+    if (_busy) return;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.disableController());
+      } else {
+        midiPort = '';
+      }
+    } catch (err) {
+      _error = '$err';
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Installs a map file chosen from the host's file dialog. The bridge validates the bytes and
+  /// copies them beside the profile; the local preview only remembers the name.
+  Future<bool> importMidiMap(String name, Uint8List bytes) async {
+    if (_busy) return false;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.importMidiMap(name, bytes));
+        await _loadMidi();
+      } else {
+        final map = MapFileInfo(path: name, name: name);
+        maps = [
+          for (final entry in maps)
+            if (entry.path != map.path) entry,
+          map,
+        ];
+        midiMap = map.path;
+      }
+      return true;
+    } catch (err) {
+      _error = '$err';
+      return false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadDevices() async {
     if (engine == null) return;
     devices = await engine!.outputDevices();
@@ -291,21 +373,67 @@ class MenuState extends ChangeNotifier {
       if (engine != null) {
         _apply(await engine!.setSetting(key, value));
       } else {
-        settings = switch (key) {
-          'sample_rate' => settings.copyWith(
-            sampleRate: int.tryParse(value) ?? settings.sampleRate,
-          ),
-          'crossfader_curve' => settings.copyWith(crossfaderCurve: value),
-          'cue_blend' => settings.copyWith(
-            cueBlend: switch (value) {
-              'cue' => -1,
-              'master' => 1,
-              _ => 0,
-            },
-          ),
-          'autogain' => settings.copyWith(autogain: value == 'on'),
-          _ => settings,
-        };
+        settingsPages = [
+          for (final page in settingsPages) page.withValue(key, value),
+        ];
+      }
+    } catch (err) {
+      _error = '$err';
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> addLibraryFolder(String path) async {
+    if (_busy) return;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.libraryAddFolder(path));
+      } else if (!libraryFolders.contains(path)) {
+        libraryFolders = [...libraryFolders, path];
+      }
+    } catch (err) {
+      _error = '$err';
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeLibraryFolder(String path) async {
+    if (_busy) return;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.libraryRemoveFolder(path));
+      } else {
+        libraryFolders = [
+          for (final folder in libraryFolders)
+            if (folder != path) folder,
+        ];
+      }
+    } catch (err) {
+      _error = '$err';
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> rescanLibrary() async {
+    if (_busy) return;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      if (engine != null) {
+        _apply(await engine!.libraryRescan());
       }
     } catch (err) {
       _error = '$err';
@@ -320,11 +448,17 @@ class MenuState extends ChangeNotifier {
     builtin = dto.builtin;
     midiPort = dto.midiPort;
     midiMap = dto.midiMap;
-    settings = MenuSettings.fromDto(dto);
+    settingsPages = dto.settings
+        .map(SettingsPageData.fromDto)
+        .toList(growable: false);
     // An engine profile with no destinations is a real (if silent) state; the local preview has
     // already supplied its one master before this point, so do not invent a row here.
     _outputs = dto.outputs.map(OutputChannel.fromDto).toList(growable: false);
     _restartRequired = dto.restartRequired;
+    libraryFolders = List<String>.of(dto.library_.folders);
+    librarySources = dto.library_.sources
+        .map(LibrarySourceInfo.fromDto)
+        .toList(growable: false);
   }
 
   String _nextName(OutputRole role) {

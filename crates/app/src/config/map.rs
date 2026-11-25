@@ -61,6 +61,61 @@ pub fn candidates(source: &str) -> Vec<MapFile> {
     out
 }
 
+/// Validates `bytes` as a controller map and copies them beside the profile, returning the path
+/// the profile should point at. The menu's file picker hands bytes rather than a path so Android's
+/// SAF and the desktop's GTK dialog share one flow.
+pub fn install(source: &str, name: &str, bytes: &[u8]) -> Result<String, String> {
+    if profile::is_builtin(source) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| "the map is not UTF-8 text".to_owned())?;
+    let config = Path::new(source);
+    let dir = config
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    controller::Map::from_toml_str_at(text, dir)
+        .map_err(|err| format!("{name}: {err}"))?;
+
+    let stem = sanitize_name(name);
+    let mut target = dir.join(&stem);
+    let mut number = 2;
+    while target.exists() {
+        let stem = Path::new(&stem)
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "map".to_owned());
+        target = dir.join(format!("{stem}-{number}.toml"));
+        number += 1;
+    }
+    fs::write(&target, bytes).map_err(|err| format!("{}: {err}", target.display()))?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
+fn sanitize_name(name: &str) -> String {
+    let base = Path::new(name)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let mut out = String::with_capacity(base.len());
+    for ch in base.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('.').to_owned();
+    if out.is_empty() {
+        return "map.toml".to_owned();
+    }
+    if out.ends_with(".toml") {
+        out
+    } else {
+        format!("{out}.toml")
+    }
+}
+
 /// Whether `path` parses as a map. A random TOML file (the profile, live settings, an analysis
 /// cache) is not offered as a map.
 fn is_map(path: &str) -> bool {
@@ -83,6 +138,12 @@ mod tests {
         ));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    fn profile_at(dir: &Path) -> String {
+        let path = dir.join("config.toml");
+        fs::write(&path, "[mixer]\n").unwrap();
+        path.display().to_string()
     }
 
     #[test]
@@ -109,5 +170,29 @@ mod tests {
         let maps = candidates(profile::BUILTIN_PROFILE);
         assert_eq!(maps.len(), 1);
         assert!(maps[0].builtin);
+    }
+
+    #[test]
+    fn install_validates_and_copies_beside_the_profile() {
+        let dir = temp("install");
+        let profile = profile_at(&dir);
+        assert!(install(&profile, "bad.toml", b"not a map").is_err());
+        assert!(install(profile::BUILTIN_PROFILE, "map.toml", b"[]").is_err());
+
+        let first = install(&profile, "../chosen.toml", profile::MAP_TEMPLATE.as_bytes()).unwrap();
+        assert!(Path::new(&first).is_file());
+        assert_eq!(
+            Path::new(&first).file_name().unwrap().to_string_lossy(),
+            "chosen.toml"
+        );
+        let second = install(&profile, "chosen.toml", profile::MAP_TEMPLATE.as_bytes()).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(
+            Path::new(&second).file_name().unwrap().to_string_lossy(),
+            "chosen-2.toml"
+        );
+        assert!(candidates(&profile)
+            .iter()
+            .any(|entry| entry.path == first && !entry.builtin));
     }
 }

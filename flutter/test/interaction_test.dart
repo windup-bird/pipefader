@@ -2,10 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pipefader_gui/layout/deck_info.dart';
 import 'package:pipefader_gui/core/layout_mode.dart';
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/model/deck.dart';
 import 'package:pipefader_gui/controls/param_bar.dart';
 import 'package:pipefader_gui/layout/stacked_layout.dart';
 import 'package:pipefader_gui/state/app_model.dart';
+import 'package:pipefader_gui/model/menu.dart';
+import 'package:pipefader_gui/model/library.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/controls/buttons.dart';
 import 'package:pipefader_gui/controls/cover.dart';
@@ -193,12 +196,49 @@ void main() {
     tester,
   ) async {
     await pumpAppAt(tester, const Size(1440, 900));
-    expect(find.text('0 首歌'), findsOneWidget);
-    expect(find.text('USB'), findsNothing);
+    expect(find.text('0 tracks'), findsOneWidget);
+    expect(find.byKey(const ValueKey('library-add')), findsOneWidget);
     expect(find.textContaining('Iron Yard'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('library-toggle')));
+    await tester.pump(const Duration(milliseconds: 240));
+    expect(find.byKey(const ValueKey('library-pane')), findsNothing);
+    expect(find.text('0 tracks'), findsOneWidget);
+  });
+
+  testWidgets('library add offers a folder and the settings page', (
+    tester,
+  ) async {
+    await pumpAppAt(tester, const Size(1440, 900));
+    await tester.tap(find.byKey(const ValueKey('library-add')));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(const ValueKey('source-folder')), findsOneWidget);
+    expect(find.byKey(const ValueKey('source-usb')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('source-settings')));
+    await settleMenu(tester);
+    expect(find.text('Preferences'), findsOneWidget);
+  });
+
+  testWidgets('the list column renders a tree and toggles children', (
+    tester,
+  ) async {
+    final model = AppModel();
+    model.lists.addAll(const [
+      ListEntry('Root', id: 1, sourceId: 1, hasChildren: true),
+      ListEntry('Child', id: 2, sourceId: 1, parentId: 1),
+      ListEntry('Leaf', id: 3, sourceId: 1, parentId: 1),
+    ]);
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    expect(find.text('Root'), findsOneWidget);
+    expect(find.text('Child'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('list-toggle-1')));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(find.text('0 首歌'), findsOneWidget);
+    expect(find.text('Child'), findsOneWidget);
+    expect(find.text('Leaf'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('list-2')));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(model.selectedListId, 2);
   });
 
   testWidgets('storage prompt follows the grant state', (tester) async {
@@ -317,19 +357,69 @@ void main() {
     expect(model.phoneSlotDeck(0), 2);
   });
 
-  testWidgets('settings row opens a panel', (tester) async {
-    await pumpAppAt(tester, const Size(1440, 900));
+  testWidgets('mixer page writes a setting', (tester) async {
+    final model = AppModel();
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
     await tester.tap(find.byType(LogoButton).first);
     await settleMenu(tester);
-    await tester.tap(find.byKey(const ValueKey('menu-settings')));
+    await tester.tap(find.byKey(const ValueKey('menu-mixer')));
     await settleMenu(tester);
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Sample Rate'), findsOneWidget);
+    expect(find.text('Mixer'), findsOneWidget);
     expect(find.text('Crossfader'), findsOneWidget);
+    expect(find.text('Curve'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('setting-crossfader_curve-constant_power')),
+    );
+    await settleMenu(tester);
+    final page = model.menu.settingsPage('mixer')!;
+    final row = page.sections
+        .expand((section) => section.rows)
+        .firstWhere((row) => row.key == 'crossfader_curve');
+    expect(row.value, 'constant_power');
+  });
+
+  testWidgets('preferences page writes the sample rate', (tester) async {
+    final model = AppModel();
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-preferences')));
+    await settleMenu(tester);
+    expect(find.text('Preferences'), findsOneWidget);
+    expect(find.text('Sample Rate'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('setting-sample_rate-48000')));
     await settleMenu(tester);
-    expect(find.text('Settings'), findsOneWidget);
+    final page = model.menu.settingsPage('audio')!;
+    final row = page.sections
+        .expand((section) => section.rows)
+        .firstWhere((row) => row.key == 'sample_rate');
+    expect(row.value, '48000');
+  });
+
+  testWidgets('menu keeps its header while the body scrolls', (
+    tester,
+  ) async {
+    final model = AppModel(forcedLayout: LayoutMode.landscape);
+    await pumpAppAt(tester, const Size(844, 390), model: model);
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.drag(
+      find.byKey(const ValueKey('menu-root-scroll')),
+      const Offset(0, -320),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.tap(find.byKey(const ValueKey('menu-preferences')));
+    await settleMenu(tester);
+    expect(find.text('Preferences'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('menu-page-scroll')),
+      const Offset(0, -260),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.text('Preferences'), findsOneWidget);
   });
 
   testWidgets('output adds and removes channels', (tester) async {
@@ -341,19 +431,17 @@ void main() {
     expect(find.text('Output'), findsOneWidget);
     expect(find.text('Master 1'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('output-add-master')));
-    await settleMenu(tester);
+    await _addOutput(tester);
     expect(find.text('Master 2'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('output-remove-1')));
     await settleMenu(tester);
     expect(find.text('Master 2'), findsNothing);
 
-    await tester.tap(find.text('Precue'));
+    await tester.tap(find.byKey(const ValueKey('output-role-precue')));
     await settleMenu(tester);
-    expect(find.text('No precue channels'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('output-add-precue')));
-    await settleMenu(tester);
+    expect(find.text('No Precue channels'), findsOneWidget);
+    await _addOutput(tester);
     expect(find.text('Precue 1'), findsOneWidget);
   });
 
@@ -366,24 +454,90 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('output-remove-0')));
     await settleMenu(tester);
-    expect(find.text('No master channels'), findsOneWidget);
+    expect(find.text('No Master channels'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('output-add-master')));
-    await settleMenu(tester);
+    await _addOutput(tester);
     expect(find.text('Master 1'), findsOneWidget);
   });
 
-  testWidgets('midi and output refresh keys settle', (tester) async {
-    await pumpAppAt(tester, const Size(1440, 900));
+  testWidgets('interface switches to Chinese through the scope', (tester) async {
+    await pumpAppAt(
+      tester,
+      const Size(1440, 900),
+      lang: AppLang.zh,
+    );
     await tester.tap(find.byType(LogoButton).first);
     await settleMenu(tester);
-    await tester.tap(find.byKey(const ValueKey('menu-midi')));
-    await settleMenu(tester);
-    expect(find.text('Midi / Map'), findsOneWidget);
-    expect(find.text('No controller connected'), findsOneWidget);
-    expect(find.text('mapping.toml'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('midi-refresh')));
-    await settleMenu(tester);
-    expect(find.text('Midi / Map'), findsOneWidget);
+    expect(find.text('控制器'), findsOneWidget);
+    expect(find.text('混音'), findsOneWidget);
+    expect(find.text('偏好'), findsOneWidget);
   });
+
+  testWidgets('controller disable clears the active port', (tester) async {
+    final model = AppModel();
+    model.menu.ports = const [
+      MidiPortInfo(index: 0, name: 'Test Controller'),
+    ];
+    model.menu.midiPort = 'Test Controller';
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-controller')));
+    await settleMenu(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('controller-port-0:Test Controller')),
+    );
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('controller-disable')));
+    await settleMenu(tester);
+    expect(model.menu.midiPort, isEmpty);
+    expect(find.byKey(const ValueKey('controller-disable')), findsNothing);
+  });
+
+  testWidgets('library settings add and remove a folder', (tester) async {
+    final model = AppModel();
+    model.menu.libraryFolders = const ['/music'];
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-preferences')));
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('preferences-library')));
+    await settleMenu(tester);
+    expect(find.text('/music'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('library-remove-/music')));
+    await settleMenu(tester);
+    expect(model.menu.libraryFolders, isEmpty);
+  });
+
+  testWidgets('controller list and detail share the refresh key', (tester) async {
+    final model = AppModel();
+    model.menu.ports = const [MidiPortInfo(index: 0, name: 'Test Controller')];
+    await pumpAppAt(tester, const Size(1440, 900), model: model);
+    await tester.tap(find.byType(LogoButton).first);
+    await settleMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-controller')));
+    await settleMenu(tester);
+    expect(find.text('Controller'), findsOneWidget);
+    expect(find.text('No MIDI input ports found'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('controller-port-0:Test Controller')),
+    );
+    await settleMenu(tester);
+    expect(find.byKey(const ValueKey('controller-disable')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('controller-choose-map')),
+      findsOneWidget,
+    );
+  });
+}
+
+Future<void> _addOutput(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('output-add')));
+  await tester.pump(const Duration(milliseconds: 200));
+  await tester.tap(find.byKey(const ValueKey('output-device-0')));
+  await tester.pump(const Duration(milliseconds: 200));
+  await tester.tap(find.byKey(const ValueKey('output-confirm')));
+  await tester.pump(const Duration(milliseconds: 200));
 }

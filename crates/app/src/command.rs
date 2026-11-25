@@ -52,6 +52,8 @@ pub enum UiEvent {
         deck_id: u8,
         analysis: TrackAnalysis,
     },
+    /// A background library job finished; the browser should re-read the cache.
+    LibraryChanged,
 }
 
 /// One slot as the front-end remembers it: the stable **role** of the position, and what is in it
@@ -260,6 +262,17 @@ impl Dispatcher {
         }
         if let Ok(mut slot) = self.midi_state.lock() {
             *slot = Some(state);
+        }
+    }
+
+    /// Drops the live MIDI control/state pair. The next attach replaces them; between the two the
+    /// menu's mode readouts are simply absent.
+    pub fn clear_midi(&self) {
+        if let Ok(mut slot) = self.midi_control.lock() {
+            *slot = None;
+        }
+        if let Ok(mut slot) = self.midi_state.lock() {
+            *slot = None;
         }
     }
 
@@ -2599,43 +2612,85 @@ pub fn spawn_analyse_track(
 ) {
     let notices_tx = dispatcher.notices.clone();
     let sample_rate = dispatcher.live().audio.sample_rate;
-    notices::info(
-        &notices_tx,
-        format!("[analyse] {}: running {backends:?}...", track.title),
-    );
     std::thread::Builder::new()
         .name("library-analyse".to_owned())
+        .spawn(move || analyse_one(&track, &db, backends, &notices_tx, sample_rate))
+        .ok();
+}
+
+/// Analyses a whole list on one worker so a browser "analyse" does not start one decoder/analyser
+/// thread per track. The session is told when the cache has changed.
+pub fn spawn_analyse_list(
+    tracks: Vec<library::TrackLoad>,
+    db: Arc<LibraryDb>,
+    backends: Backends,
+    dispatcher: &Dispatcher,
+) {
+    if tracks.is_empty() {
+        if let Some(events) = &dispatcher.events {
+            let _ = events.send(UiEvent::LibraryChanged);
+        }
+        return;
+    }
+    let notices_tx = dispatcher.notices.clone();
+    let events = dispatcher.events.clone();
+    let sample_rate = dispatcher.live().audio.sample_rate;
+    let count = tracks.len();
+    notices::info(
+        &notices_tx,
+        format!("[analyse] {count} track(s): running {backends:?}..."),
+    );
+    std::thread::Builder::new()
+        .name("library-analyse-list".to_owned())
         .spawn(move || {
-            let path = track.path.display().to_string();
-            let decoded = match media::decode_file_at(&path, sample_rate) {
-                Ok(decoded) => decoded,
-                Err(err) => {
-                    notices::error(&notices_tx, format!("[analyse] {path}: {err}"));
-                    return;
-                }
-            };
-            let source: Shared = Arc::new(media::PcmPool::from_decoded(decoded));
-            match library::analyser::analyze(source, sample_rate, backends) {
-                Ok(analysis) => {
-                    let bpm = analysis.bpm();
-                    let key = analysis
-                        .key
-                        .map(|key| key.traditional())
-                        .unwrap_or_else(|| "--".into());
-                    if let Err(err) = db.save_analysis(track.track_id, &analysis) {
-                        notices::error(&notices_tx, format!("[analyse] cache: {err}"));
-                    }
-                    notices::info(
-                        &notices_tx,
-                        format!("[analyse] {}: {bpm:.1} BPM, {key}", track.title),
-                    );
-                }
-                Err(err) => {
-                    notices::error(&notices_tx, format!("[analyse] {}: {err}", track.title))
-                }
+            for track in tracks {
+                analyse_one(&track, &db, backends, &notices_tx, sample_rate);
+            }
+            notices::info(&notices_tx, format!("[analyse] list done: {count} track(s)"));
+            if let Some(events) = events {
+                let _ = events.send(UiEvent::LibraryChanged);
             }
         })
         .ok();
+}
+
+fn analyse_one(
+    track: &library::TrackLoad,
+    db: &Arc<LibraryDb>,
+    backends: Backends,
+    notices_tx: &NoticeTx,
+    sample_rate: u32,
+) {
+    notices::info(
+        notices_tx,
+        format!("[analyse] {}: running {backends:?}...", track.title),
+    );
+    let path = track.path.display().to_string();
+    let decoded = match media::decode_file_at(&path, sample_rate) {
+        Ok(decoded) => decoded,
+        Err(err) => {
+            notices::error(notices_tx, format!("[analyse] {path}: {err}"));
+            return;
+        }
+    };
+    let source: Shared = Arc::new(media::PcmPool::from_decoded(decoded));
+    match library::analyser::analyze(source, sample_rate, backends) {
+        Ok(analysis) => {
+            let bpm = analysis.bpm();
+            let key = analysis
+                .key
+                .map(|key| key.traditional())
+                .unwrap_or_else(|| "--".into());
+            if let Err(err) = db.save_analysis(track.track_id, &analysis) {
+                notices::error(notices_tx, format!("[analyse] cache: {err}"));
+            }
+            notices::info(
+                notices_tx,
+                format!("[analyse] {}: {bpm:.1} BPM, {key}", track.title),
+            );
+        }
+        Err(err) => notices::error(notices_tx, format!("[analyse] {}: {err}", track.title)),
+    }
 }
 
 /// Runs the library analyser on a worker thread, then publishes a compiled grid.

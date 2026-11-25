@@ -1,6 +1,7 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <string.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
@@ -10,6 +11,7 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  FlMethodChannel* file_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -17,6 +19,91 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+}
+
+// The controller-map picker: GTK reads the file and returns its bytes so Dart and the Rust importer
+// use the same path as Android. A folder picker returns a real path because the scanner walks it.
+static void respond_file(FlMethodCall* call, const gchar* name, const gchar* contents,
+                         gsize length) {
+  FlValue* result = fl_value_new_map();
+  fl_value_set_string_take(result, "name", fl_value_new_string(name));
+  fl_value_set_string_take(result, "bytes",
+                           fl_value_new_uint8_list((const uint8_t*)contents, length));
+  fl_method_call_respond_success(call, result, nullptr);
+  fl_value_unref(result);
+}
+
+static void file_call_cb(FlMethodChannel* channel, FlMethodCall* method_call,
+                         gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "pickMapFile") == 0) {
+    GtkFileChooserNative* chooser = gtk_file_chooser_native_new(
+        "Choose a controller map", window, GTK_FILE_CHOOSER_ACTION_OPEN, "_Open",
+        "_Cancel");
+    GtkFileFilter* filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "Controller maps (*.toml)");
+    gtk_file_filter_add_pattern(filter, "*.toml");
+    gtk_file_filter_add_pattern(filter, "*.TOML");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(chooser), filter);
+    GtkFileFilter* all = gtk_file_filter_new();
+    gtk_file_filter_set_name(all, "All files");
+    gtk_file_filter_add_pattern(all, "*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(chooser), all);
+
+    gint response = gtk_native_dialog_run(GTK_NATIVE_DIALOG(chooser));
+    if (response != GTK_RESPONSE_ACCEPT) {
+      fl_method_call_respond_success(method_call, nullptr, nullptr);
+      g_object_unref(chooser);
+      return;
+    }
+    GFile* file = gtk_file_chooser_get_file(GTK_FILE_CHOOSER(chooser));
+    gchar* contents = nullptr;
+    gsize length = 0;
+    GError* error = nullptr;
+    if (!g_file_load_contents(file, nullptr, &contents, &length, nullptr, &error)) {
+      fl_method_call_respond_error(method_call, "read-failed",
+                                   error != nullptr ? error->message : "could not read the file",
+                                   nullptr, nullptr);
+      if (error != nullptr) g_error_free(error);
+      g_object_unref(file);
+      g_object_unref(chooser);
+      return;
+    }
+    gchar* name = g_file_get_basename(file);
+    respond_file(method_call, name != nullptr ? name : "map.toml", contents, length);
+    g_free(name);
+    g_free(contents);
+    g_object_unref(file);
+    g_object_unref(chooser);
+    return;
+  }
+  if (g_strcmp0(method, "pickDirectory") == 0) {
+    GtkFileChooserNative* chooser = gtk_file_chooser_native_new(
+        "Choose a library folder", window, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+        "_Open", "_Cancel");
+    gint response = gtk_native_dialog_run(GTK_NATIVE_DIALOG(chooser));
+    if (response != GTK_RESPONSE_ACCEPT) {
+      fl_method_call_respond_success(method_call, nullptr, nullptr);
+      g_object_unref(chooser);
+      return;
+    }
+    GFile* file = gtk_file_chooser_get_file(GTK_FILE_CHOOSER(chooser));
+    gchar* path = g_file_get_path(file);
+    if (path == nullptr) {
+      fl_method_call_respond_error(method_call, "unsupported-location",
+                                   "choose a local folder", nullptr, nullptr);
+    } else {
+      FlValue* result = fl_value_new_string(path);
+      fl_method_call_respond_success(method_call, result, nullptr);
+      fl_value_unref(result);
+    }
+    g_free(path);
+    g_object_unref(file);
+    g_object_unref(chooser);
+    return;
+  }
+  fl_method_call_respond_not_implemented(method_call, nullptr);
 }
 
 // Implements GApplication::activate.
@@ -75,6 +162,14 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  FlBinaryMessenger* messenger =
+      fl_engine_get_binary_messenger(fl_view_get_engine(view));
+  self->file_channel = fl_method_channel_new(
+      messenger, "pipefader/file",
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  fl_method_channel_set_method_call_handler(self->file_channel, file_call_cb, window,
+                                            nullptr);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -121,6 +216,7 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->file_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 

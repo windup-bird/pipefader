@@ -114,29 +114,60 @@ abstract final class T {
 }
 
 /// Type tokens. Sizes are deliberately few: a label, a value, a title and a clock.
+///
+/// The app uses the platform's UI font. Tracking is kept tight on body text so it does not read as
+/// a monospaced face; only small section labels keep the wide, hardware-legend spacing.
 abstract final class Ty {
   static const _tab = T._tabular;
 
+  static const body = TextStyle(
+    fontSize: T.s13,
+    height: 1.25,
+    color: T.text,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+  );
+  static const bodySmall = TextStyle(
+    fontSize: T.s11,
+    height: 1.2,
+    color: T.dim,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+  );
+  static const section = TextStyle(
+    fontSize: T.s10,
+    height: 1.0,
+    color: T.dim,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.8,
+  );
+  static const pageTitle = TextStyle(
+    fontSize: T.s16,
+    height: 1.0,
+    color: T.text,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.1,
+  );
   static const label = TextStyle(
     fontSize: T.s10,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w600,
-    letterSpacing: 1.1,
+    letterSpacing: 0.8,
   );
   static const labelSmall = TextStyle(
     fontSize: T.s9,
     height: 1.0,
     color: T.faint,
     fontWeight: FontWeight.w600,
-    letterSpacing: 1.0,
+    letterSpacing: 0.8,
   );
   static const artist = TextStyle(
     fontSize: T.s8,
     height: 1.0,
     color: T.dim,
     fontWeight: FontWeight.w500,
-    letterSpacing: 1.2,
+    letterSpacing: 0.6,
   );
   static const title = TextStyle(
     fontSize: T.s16,
@@ -151,6 +182,15 @@ abstract final class Ty {
     color: T.text,
     fontWeight: FontWeight.w600,
     fontFeatures: _tab,
+    letterSpacing: 0,
+  );
+  static const numericBig = TextStyle(
+    fontSize: T.s16,
+    height: 1.0,
+    color: T.text,
+    fontWeight: FontWeight.w600,
+    fontFeatures: _tab,
+    letterSpacing: 0,
   );
   static const meta = TextStyle(
     fontSize: T.s9,
@@ -192,7 +232,7 @@ abstract final class Ty {
     fontSize: T.s10,
     height: 1.0,
     fontWeight: FontWeight.w600,
-    letterSpacing: 1.0,
+    letterSpacing: 0.5,
   );
   static const phoneBpm = TextStyle(
     fontSize: T.s20,
@@ -214,7 +254,7 @@ abstract final class Ty {
     height: 1.0,
     color: T.text,
     fontWeight: FontWeight.w600,
-    letterSpacing: 1.0,
+    letterSpacing: 0.2,
   );
 }
 
@@ -233,12 +273,7 @@ ThemeData buildTheme() {
     hoverColor: Colors.transparent,
     focusColor: Colors.transparent,
     textTheme: const TextTheme(
-      bodyMedium: TextStyle(
-        fontSize: T.s13,
-        height: 1.2,
-        color: T.text,
-        decoration: TextDecoration.none,
-      ),
+      bodyMedium: Ty.body,
     ),
     visualDensity: VisualDensity.standard,
   );

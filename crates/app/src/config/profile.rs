@@ -474,6 +474,28 @@ pub fn write_controller(
     write_document(config, &doc)
 }
 
+/// Forgets the controller's device (`[controller].device`) while keeping its map. Used by the
+/// menu's Disable key; the live session is disconnected separately.
+pub fn clear_controller_device(config: &Path) -> Result<(), String> {
+    let text = fs::read_to_string(config).map_err(|err| format!("{}: {err}", config.display()))?;
+    let mut doc: DocumentMut = text
+        .parse()
+        .map_err(|err| format!("{}: {err}", config.display()))?;
+    match doc.get_mut("controller") {
+        Some(Item::Table(table)) => {
+            table.remove("device");
+        }
+        Some(Item::ArrayOfTables(entries)) => {
+            if let Some(first) = entries.iter_mut().next() {
+                first.remove("device");
+            }
+        }
+        Some(_) => return Err("`controller` must be a table or an array of tables".to_owned()),
+        None => return Ok(()),
+    }
+    write_document(config, &doc)
+}
+
 /// The first controller table in the document: an existing `[controller]`, the first
 /// `[[controller]]`, or a freshly inserted `[controller]`.
 fn controller_table(doc: &mut DocumentMut) -> Result<&mut Table, String> {
@@ -1056,6 +1078,23 @@ device = "DDJ-400"
             "the persisted id must keep the source mapping alive"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn clear_controller_device_keeps_the_map() {
+        let dir = temp("clear-controller");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        fs::write(
+            &path,
+            "# keep\n[controller]\nid = \"ctl1\"\ndevice = \"Port\"\nmap = \"mapping.toml\"\n",
+        )
+        .unwrap();
+        clear_controller_device(&path).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("map = \"mapping.toml\""), "{text}");
+        assert!(!text.contains("device ="), "{text}");
+        assert!(text.contains("# keep"), "{text}");
     }
 
     #[test]

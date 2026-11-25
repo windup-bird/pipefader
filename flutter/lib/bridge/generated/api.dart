@@ -7,7 +7,7 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_output_change`, `midi_pair`, `pair_from`, `parse_role`, `read_menu_state`
+// These functions are ignored because they are not marked as `pub`: `apply_output_change`, `midi_pair`, `pair_from`, `parse_role`, `read_menu_state`, `settings_page_dto`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`
 
 /// Boots the engine, config, library and state pump. Idempotent: a second call while a
@@ -137,8 +137,36 @@ Future<List<MapFileDto>> midiMaps() =>
 Future<MenuStateDto> setMidiMap({required String mapPath}) =>
     PipefaderBridge.instance.api.crateApiSetMidiMap(mapPath: mapPath);
 
-/// Changes one machine setting and, when the engine can take it live, reloads the topology. The
-/// sample rate is written but needs a restart, which the menu marks separately.
+/// Clears the controller's device and closes the live input. The map is kept.
+Future<MenuStateDto> disableController() =>
+    PipefaderBridge.instance.api.crateApiDisableController();
+
+/// Validates a map chosen from the host's file dialog, copies it beside the profile and points the
+/// controller at it. The bytes come from the platform picker, so this works the same on Android
+/// (SAF has no usable path) and the desktop.
+Future<MenuStateDto> importMidiMap({
+  required String name,
+  required List<int> bytes,
+}) => PipefaderBridge.instance.api.crateApiImportMidiMap(
+  name: name,
+  bytes: bytes,
+);
+
+/// Adds a folder to `[preference.library].folders` and rescans the browser. The path comes from
+/// the host's folder picker; Android converts its SAF tree to a real path first.
+Future<MenuStateDto> libraryAddFolder({required String path}) =>
+    PipefaderBridge.instance.api.crateApiLibraryAddFolder(path: path);
+
+/// Removes a folder from the library sources and rescans.
+Future<MenuStateDto> libraryRemoveFolder({required String path}) =>
+    PipefaderBridge.instance.api.crateApiLibraryRemoveFolder(path: path);
+
+/// Re-reads the library configuration and asks the scan service to refresh.
+Future<MenuStateDto> libraryRescan() =>
+    PipefaderBridge.instance.api.crateApiLibraryRescan();
+
+/// Changes one machine setting. Mixer topology is reloaded live; the session-side preferences are
+/// handed to the session thread; the values that need a new process mark the restart flag.
 Future<MenuStateDto> setSetting({required String key, required String value}) =>
     PipefaderBridge.instance.api.crateApiSetSetting(key: key, value: value);
 
@@ -296,6 +324,10 @@ Future<void> loadTrack({required int deck, required int locationId}) =>
 
 Future<void> analyseTrack({required int locationId}) =>
     PipefaderBridge.instance.api.crateApiAnalyseTrack(locationId: locationId);
+
+/// Runs the analyser over every track in one playlist on a single background worker.
+Future<void> analyseList({required int playlistId}) =>
+    PipefaderBridge.instance.api.crateApiAnalyseList(playlistId: playlistId);
 
 Future<List<LibraryRoot>> libraryRoots() =>
     PipefaderBridge.instance.api.crateApiLibraryRoots();
@@ -735,19 +767,28 @@ class LevelTarget {
 class LibraryList {
   final int id;
   final int sourceId;
+  final int? parentId;
   final String name;
   final String kind;
+  final bool hasChildren;
 
   const LibraryList({
     required this.id,
     required this.sourceId,
+    this.parentId,
     required this.name,
     required this.kind,
+    required this.hasChildren,
   });
 
   @override
   int get hashCode =>
-      id.hashCode ^ sourceId.hashCode ^ name.hashCode ^ kind.hashCode;
+      id.hashCode ^
+      sourceId.hashCode ^
+      parentId.hashCode ^
+      name.hashCode ^
+      kind.hashCode ^
+      hasChildren.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -756,8 +797,10 @@ class LibraryList {
           runtimeType == other.runtimeType &&
           id == other.id &&
           sourceId == other.sourceId &&
+          parentId == other.parentId &&
           name == other.name &&
-          kind == other.kind;
+          kind == other.kind &&
+          hasChildren == other.hasChildren;
 }
 
 class LibraryRoot {
@@ -778,6 +821,54 @@ class LibraryRoot {
           id == other.id &&
           name == other.name &&
           kind == other.kind;
+}
+
+/// The Preferences › Library page's data.
+class LibrarySettingsDto {
+  final List<String> folders;
+  final List<LibrarySourceDto> sources;
+
+  const LibrarySettingsDto({required this.folders, required this.sources});
+
+  @override
+  int get hashCode => folders.hashCode ^ sources.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LibrarySettingsDto &&
+          runtimeType == other.runtimeType &&
+          folders == other.folders &&
+          sources == other.sources;
+}
+
+/// One source the library cache knows about.
+class LibrarySourceDto {
+  final int id;
+  final String name;
+  final String path;
+  final String origin;
+
+  const LibrarySourceDto({
+    required this.id,
+    required this.name,
+    required this.path,
+    required this.origin,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ path.hashCode ^ origin.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LibrarySourceDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          path == other.path &&
+          origin == other.origin;
 }
 
 class LogDto {
@@ -842,12 +933,10 @@ class MenuStateDto {
   final String midiPort;
   final String midiMap;
   final List<OutputDto> outputs;
-  final int sampleRate;
-  final String crossfaderCurve;
-  final double cueBlend;
-  final bool autogain;
+  final List<SettingsPageDto> settings;
+  final LibrarySettingsDto library_;
 
-  /// Android output changes are written but not applied until the next start.
+  /// Android output and live-value changes are written but not applied until the next start.
   final bool restartRequired;
 
   const MenuStateDto({
@@ -856,10 +945,8 @@ class MenuStateDto {
     required this.midiPort,
     required this.midiMap,
     required this.outputs,
-    required this.sampleRate,
-    required this.crossfaderCurve,
-    required this.cueBlend,
-    required this.autogain,
+    required this.settings,
+    required this.library_,
     required this.restartRequired,
   });
 
@@ -870,10 +957,8 @@ class MenuStateDto {
       midiPort.hashCode ^
       midiMap.hashCode ^
       outputs.hashCode ^
-      sampleRate.hashCode ^
-      crossfaderCurve.hashCode ^
-      cueBlend.hashCode ^
-      autogain.hashCode ^
+      settings.hashCode ^
+      library_.hashCode ^
       restartRequired.hashCode;
 
   @override
@@ -886,10 +971,8 @@ class MenuStateDto {
           midiPort == other.midiPort &&
           midiMap == other.midiMap &&
           outputs == other.outputs &&
-          sampleRate == other.sampleRate &&
-          crossfaderCurve == other.crossfaderCurve &&
-          cueBlend == other.cueBlend &&
-          autogain == other.autogain &&
+          settings == other.settings &&
+          library_ == other.library_ &&
           restartRequired == other.restartRequired;
 }
 
@@ -1082,6 +1165,115 @@ class SessionPathsDto {
           mediaHome == other.mediaHome &&
           log == other.log &&
           seed == other.seed;
+}
+
+/// One selectable value on a settings row.
+class SettingsOptionDto {
+  final String label;
+  final String value;
+
+  const SettingsOptionDto({required this.label, required this.value});
+
+  @override
+  int get hashCode => label.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettingsOptionDto &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          value == other.value;
+}
+
+class SettingsPageDto {
+  final String id;
+  final String title;
+  final List<SettingsSectionDto> sections;
+
+  const SettingsPageDto({
+    required this.id,
+    required this.title,
+    required this.sections,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ title.hashCode ^ sections.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettingsPageDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          sections == other.sections;
+}
+
+/// One editable row. The Flutter layer localises known keys and falls back to `label`.
+class SettingsRowDto {
+  final String key;
+  final String label;
+  final String note;
+  final String kind;
+  final String value;
+  final List<SettingsOptionDto> options;
+  final bool needsRestart;
+  final bool enabled;
+
+  const SettingsRowDto({
+    required this.key,
+    required this.label,
+    required this.note,
+    required this.kind,
+    required this.value,
+    required this.options,
+    required this.needsRestart,
+    required this.enabled,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^
+      label.hashCode ^
+      note.hashCode ^
+      kind.hashCode ^
+      value.hashCode ^
+      options.hashCode ^
+      needsRestart.hashCode ^
+      enabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettingsRowDto &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          label == other.label &&
+          note == other.note &&
+          kind == other.kind &&
+          value == other.value &&
+          options == other.options &&
+          needsRestart == other.needsRestart &&
+          enabled == other.enabled;
+}
+
+class SettingsSectionDto {
+  final String title;
+  final List<SettingsRowDto> rows;
+
+  const SettingsSectionDto({required this.title, required this.rows});
+
+  @override
+  int get hashCode => title.hashCode ^ rows.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettingsSectionDto &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          rows == other.rows;
 }
 
 enum SyncAction {

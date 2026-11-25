@@ -143,6 +143,9 @@ class EngineClient {
   Future<void> analyseTrack(int locationId) =>
       frb.analyseTrack(locationId: locationId);
 
+  Future<void> analyseList(int playlistId) =>
+      frb.analyseList(playlistId: playlistId);
+
   Future<List<frb.LibraryRoot>> libraryRoots() => frb.libraryRoots();
 
   Future<List<frb.LibraryList>> libraryLists(int sourceId) =>
@@ -218,6 +221,19 @@ class EngineClient {
   Future<frb.MenuStateDto> setMidiMap(String path) =>
       frb.setMidiMap(mapPath: path);
 
+  Future<frb.MenuStateDto> disableController() => frb.disableController();
+
+  Future<frb.MenuStateDto> importMidiMap(String name, Uint8List bytes) =>
+      frb.importMidiMap(name: name, bytes: bytes);
+
   Future<frb.MenuStateDto> setSetting(String key, String value) =>
       frb.setSetting(key: key, value: value);
+
+  Future<frb.MenuStateDto> libraryAddFolder(String path) =>
+      frb.libraryAddFolder(path: path);
+
+  Future<frb.MenuStateDto> libraryRemoveFolder(String path) =>
+      frb.libraryRemoveFolder(path: path);
+
+  Future<frb.MenuStateDto> libraryRescan() => frb.libraryRescan();
 }

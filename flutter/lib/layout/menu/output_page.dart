@@ -3,148 +3,205 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/device.dart';
 import 'package:pipefader_gui/core/glyph.dart';
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/layout/menu/menu_widgets.dart';
 import 'package:pipefader_gui/model/menu.dart';
 import 'package:pipefader_gui/state/menu_state.dart';
 
-/// `Output › Master|Precue › channels`. The left column is the category, the right one is the
-/// destination list; adding and removing stay in the second column so the shape never changes.
-class MenuOutputPage extends StatelessWidget {
+/// `Output › Master|Precue › destinations`, with a second flow for adding: device, then channel
+/// pair, then confirm. Every step is a full-width key so the panel reads the same as the root.
+class MenuOutputPage extends StatefulWidget {
   const MenuOutputPage({required this.menu, required this.onBack, super.key});
 
   final MenuState menu;
   final VoidCallback onBack;
 
   @override
+  State<MenuOutputPage> createState() => _MenuOutputPageState();
+}
+
+enum _AddStep { none, device, channels }
+
+class _MenuOutputPageState extends State<MenuOutputPage> {
+  _AddStep _step = _AddStep.none;
+
+  MenuState get menu => widget.menu;
+
+  @override
   Widget build(BuildContext context) {
+    final l10n = L10nScope.of(context);
+    return switch (_step) {
+      _AddStep.none => _list(context, l10n),
+      _AddStep.device => _devices(context, l10n),
+      _AddStep.channels => _channels(context, l10n),
+    };
+  }
+
+  Widget _list(BuildContext context, L10n l10n) {
     final role = menu.role;
     final channels = menu.outputsFor(role);
     final canRemove = !menu.builtin;
-    return Column(
+    return MenuPageFrame(
+      header: MenuPageHeader(
+        title: l10n.output,
+        onBack: widget.onBack,
+        trailing: MenuRefreshButton(
+          key: const ValueKey('output-refresh'),
+          menu: menu,
+          onTap: () => unawaited(menu.refresh()),
+        ),
+      ),
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        MenuPageHeader(
-          title: 'Output',
-          onBack: onBack,
-          trailing: MenuRefreshButton(
-            key: const ValueKey('output-refresh'),
-            menu: menu,
-            onTap: () => unawaited(menu.refresh()),
-          ),
-        ),
-        const SizedBox(height: 14),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 92,
-              child: MenuChoice(
-                axis: Axis.vertical,
-                height: 32,
-                options: [for (final role in OutputRole.values) role.label],
-                selected: role.index,
-                onSelect: (index) => menu.selectRole(OutputRole.values[index]),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 160),
-                alignment: Alignment.topCenter,
-                curve: Curves.easeOutCubic,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 140),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: Column(
-                    key: ValueKey(role),
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      MenuSectionLabel('${role.label} channels'),
-                      if (channels.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Text(
-                            'No ${role.label.toLowerCase()} channels',
-                            style: Ty.meta.copyWith(color: T.faint),
-                          ),
-                        ),
-                      for (final channel in channels)
-                        _ChannelRow(
-                          key: ValueKey(
-                            'output-${channel.role.name}-${channel.index}',
-                          ),
-                          channel: channel,
-                          canRemove: canRemove,
-                          onRemove: () => unawaited(menu.removeOutput(channel)),
-                        ),
-                      const SizedBox(height: 12),
-                      const MenuSectionLabel('Device'),
-                      MenuChoice(
-                        axis: Axis.vertical,
-                        height: 28,
-                        options: [
-                          'Default device',
-                          for (final device in menu.devices)
-                            device.description.isEmpty
-                                ? device.name
-                                : device.description,
-                        ],
-                        selected: menu.deviceChoice,
-                        onSelect: menu.selectDevice,
-                      ),
-                      const SizedBox(height: 10),
-                      const MenuSectionLabel('Channels'),
-                      MenuChoice(
-                        options: [
-                          for (final pair in menu.channelPairs)
-                            '${pair.$1},${pair.$2}',
-                        ],
-                        selected: menu.channelPairs.indexOf(menu.addChannels),
-                        onSelect: (index) =>
-                            menu.selectChannels(menu.channelPairs[index]),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PanelButton(
-                          key: ValueKey('output-add-${role.name}'),
-                          label: 'Add ${role.label.toLowerCase()} channel',
-                          height: 30,
-                          onTap: menu.builtin
-                              ? null
-                              : () => unawaited(menu.addOutput(role)),
-                          style: Ty.button.copyWith(
-                            fontSize: T.s9,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            for (final item in OutputRole.values) ...[
+              if (item != OutputRole.values.first) const SizedBox(width: T.gap),
+              Expanded(
+                child: PanelButton(
+                  key: ValueKey('output-role-${item.name}'),
+                  label: l10n.role(item.configName),
+                  rawLabel: true,
+                  height: 42,
+                  active: item == role,
+                  onTap: () => menu.selectRole(item),
+                  style: Ty.menuRow.copyWith(fontSize: T.s12),
                 ),
               ),
-            ),
+            ],
           ],
         ),
-        MenuStatusLine(
-          error: menu.error,
-          note: menu.builtin
-              ? '${menu.profile} · built-in profile is read-only'
-              : menu.restartRequired
-              ? 'Restart app to apply output changes'
-              : '${menu.outputs.length} destination(s)',
+        const SizedBox(height: 14),
+        if (channels.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(
+              l10n.noChannels(l10n.role(role.configName)),
+              style: Ty.bodySmall.copyWith(color: T.faint),
+            ),
+          )
+        else
+          for (final channel in channels) ...[
+            _ChannelRow(
+              key: ValueKey('output-${channel.role.name}-${channel.index}'),
+              channel: channel,
+              canRemove: canRemove,
+              onRemove: () => unawaited(menu.removeOutput(channel)),
+            ),
+            const SizedBox(height: T.gapS),
+          ],
+        const SizedBox(height: 10),
+        PanelButton(
+          key: const ValueKey('output-add'),
+          label: l10n.addOutput,
+          rawLabel: true,
+          glyph: GlyphKind.plus,
+          height: 46,
+          onTap: menu.builtin
+              ? null
+              : () => setState(() => _step = _AddStep.device),
+          style: Ty.menuRow.copyWith(fontSize: T.s12),
         ),
       ],
+      ),
     );
+  }
+
+  Widget _devices(BuildContext context, L10n l10n) {
+    return MenuPageFrame(
+      header: MenuPageHeader(
+        title: l10n.addOutput,
+        onBack: () => setState(() => _step = _AddStep.none),
+        trailing: MenuRefreshButton(
+          key: const ValueKey('output-device-refresh'),
+          menu: menu,
+          onTap: () => unawaited(menu.refresh()),
+        ),
+      ),
+      child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MenuSectionLabel(l10n.device),
+        MenuListRow(
+          key: const ValueKey('output-device-0'),
+          label: l10n.defaultDevice,
+          selected: menu.deviceChoice == 0,
+          onTap: () {
+            menu.selectDevice(0);
+            setState(() => _step = _AddStep.channels);
+          },
+        ),
+        const SizedBox(height: T.gapS),
+        for (var index = 0; index < menu.devices.length; index++) ...[
+          MenuListRow(
+            key: ValueKey('output-device-${index + 1}'),
+            label: menu.devices[index].description.isEmpty
+                ? menu.devices[index].name
+                : menu.devices[index].description,
+            note: menu.devices[index].name,
+            selected: menu.deviceChoice == index + 1,
+            onTap: () {
+              menu.selectDevice(index + 1);
+              setState(() => _step = _AddStep.channels);
+            },
+          ),
+          const SizedBox(height: T.gapS),
+        ],
+      ],
+      ),
+    );
+  }
+
+  Widget _channels(BuildContext context, L10n l10n) {
+    final pairs = menu.channelPairs;
+    return MenuPageFrame(
+      header: MenuPageHeader(
+        title: l10n.channels,
+        onBack: () => setState(() => _step = _AddStep.device),
+      ),
+      child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MenuSectionLabel(l10n.channels),
+        for (var index = 0; index < pairs.length; index++) ...[
+          MenuListRow(
+            key: ValueKey('output-channels-$index'),
+            label: '${pairs[index].$1},${pairs[index].$2}',
+            selected: menu.addChannels == pairs[index],
+            onTap: () => menu.selectChannels(pairs[index]),
+          ),
+          const SizedBox(height: T.gapS),
+        ],
+        const SizedBox(height: 6),
+        PanelButton(
+          key: const ValueKey('output-confirm'),
+          label: l10n.addOutput,
+          rawLabel: true,
+          glyph: GlyphKind.plus,
+          height: 46,
+          onTap: () => unawaited(_add()),
+          style: Ty.menuRow.copyWith(fontSize: T.s12),
+        ),
+      ],
+      ),
+    );
+  }
+
+  Future<void> _add() async {
+    await menu.addOutput(menu.role);
+    if (!mounted) return;
+    if (menu.error == null) setState(() => _step = _AddStep.none);
   }
 }
 
-class _ChannelRow extends StatefulWidget {
+class _ChannelRow extends StatelessWidget {
   const _ChannelRow({
     required this.channel,
     required this.canRemove,
@@ -157,55 +214,45 @@ class _ChannelRow extends StatefulWidget {
   final VoidCallback onRemove;
 
   @override
-  State<_ChannelRow> createState() => _ChannelRowState();
-}
-
-class _ChannelRowState extends State<_ChannelRow> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 90),
-        height: 48,
-        color: _hover ? T.surface : Colors.transparent,
-        padding: const EdgeInsets.only(left: 8, right: 2),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.channel.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Ty.menuRow.copyWith(fontSize: T.s10),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${widget.channel.channelLabel} · ${widget.channel.deviceLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Ty.meta.copyWith(color: T.faint),
-                  ),
-                ],
-              ),
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 46,
+            decoration: keyFace(),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.centerLeft,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  channel.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Ty.menuRow.copyWith(fontSize: T.s12),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${channel.channelLabel} · ${channel.deviceLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Ty.meta.copyWith(color: T.faint),
+                ),
+              ],
             ),
-            const SizedBox(width: 5),
-            GlyphButton(
-              key: ValueKey('output-remove-${widget.channel.index}'),
-              glyph: GlyphKind.close,
-              size: 20,
-              onTap: widget.canRemove ? widget.onRemove : null,
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(width: T.gapS),
+        GlyphButton(
+          key: ValueKey('output-remove-${channel.index}'),
+          glyph: GlyphKind.trash,
+          size: 46,
+          iconSize: 18,
+          onTap: canRemove ? onRemove : null,
+        ),
+      ],
     );
   }
 }

@@ -3,7 +3,7 @@
 //! straight into the engine's command queue.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -17,13 +17,14 @@ use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use library::analyser::Backends;
 use library::LibraryDb;
 use protocol::{
-    BeatLen, Command, CueOp, FaderTarget, FxChainId, FxSlotRef, HotCueOp, KeylockMode, LoopOp,
-    NudgeOp, OutputOp, Stem, SyncOp, VinylOp,
+    Backend, BeatLen, Command, CueOp, FaderTarget, FxChainId, FxSlotRef, HotCueOp, KeyFormat,
+    KeylockMode, LoopOp, NudgeOp, OutputOp, Stem, SyncOp, VinylOp,
 };
 
 use crate::api::{
     ChannelTick, CoverData, CueAction, DeckFxTick, DeckMeta, DeckTick, EqBand, FxOp, FxParamDto,
-    FxSlotDto, HotCueAction, LevelKind, LevelTarget, LibraryList, LibraryRoot, LogDto, LoopAction,
+    FxSlotDto, HotCueAction, LevelKind, LevelTarget, LibraryList, LibraryRoot, LibrarySourceDto,
+    LogDto, LoopAction,
     NudgeAction, SessionEvent, SessionPathsDto, SyncAction, Tick, TrackDto, TransportAction,
     VinylAction, WaveHints, WaveHotCue, WavePaletteDto, WaveStrip, WaveformData,
 };
@@ -71,6 +72,21 @@ pub(crate) enum StateRequest {
         map: Option<String>,
         reply: Sender<Result<(), String>>,
     },
+    /// Clear the controller's device and close the open input.
+    DisableMidi {
+        reply: Sender<Result<(), String>>,
+    },
+    /// A preference the session thread owns (analysis backends, display, ...).
+    ApplyPreference {
+        key: String,
+        value: String,
+        reply: Sender<Result<(), String>>,
+    },
+    /// Re-read the library section and rescan/refresh the browser.
+    SyncLibrary {
+        path: String,
+        reply: Sender<Result<(), String>>,
+    },
     Shutdown {
         reply: Sender<()>,
     },
@@ -82,9 +98,8 @@ pub(crate) struct BootData {
     pub library: Option<Arc<LibraryDb>>,
     pub sample_rate: u32,
     pub wave_palette: WavePalette,
-    pub backends: Backends,
+    pub backends: Arc<Mutex<Backends>>,
     pub decoder_start_ms: Option<f64>,
-    pub grid_offset_ms: f64,
     /// The profile source this session runs on, for the menu's config pages.
     pub config_path: String,
 }
@@ -97,9 +112,8 @@ pub(crate) struct Handle {
     pub alive: Arc<AtomicBool>,
     pub sample_rate: u32,
     pub wave_palette: WavePalette,
-    pub backends: Backends,
+    pub backends: Arc<Mutex<Backends>>,
     pub decoder_start_ms: Option<f64>,
-    pub grid_offset_ms: f64,
     pub config_path: String,
 }
 
@@ -111,8 +125,13 @@ impl Handle {
 
 static GLOBAL: Mutex<Option<Arc<Handle>>> = Mutex::new(None);
 
-/// An Android output change was written but not applied; the next start picks it up.
-static OUTPUT_RESTART_REQUIRED: AtomicBool = AtomicBool::new(false);
+/// A value was written but not applied; the next start picks it up.
+static RESTART_REQUIRED: AtomicBool = AtomicBool::new(false);
+
+/// Display/key-format choices read by worker calls that do not hold `AppState`.
+static KEY_FORMAT: AtomicU8 = AtomicU8::new(0);
+static AUTO_ANALYSE: AtomicBool = AtomicBool::new(false);
+static GRID_OFFSET_MS: Mutex<f64> = Mutex::new(0.0);
 
 pub(crate) fn global() -> Result<Arc<Handle>, String> {
     let guard = GLOBAL
@@ -234,7 +253,6 @@ pub(crate) fn start(paths: Option<SessionPathsDto>) -> Result<(), String> {
                 wave_palette: boot.wave_palette,
                 backends: boot.backends,
                 decoder_start_ms: boot.decoder_start_ms,
-                grid_offset_ms: boot.grid_offset_ms,
                 config_path: boot.config_path,
             }));
             Ok(())
@@ -353,12 +371,12 @@ pub(crate) fn deck_meta(deck: u8) -> Result<Option<DeckMeta>, String> {
     ask(|reply| StateRequest::Meta { deck, reply })
 }
 
-pub(crate) fn mark_output_restart() {
-    OUTPUT_RESTART_REQUIRED.store(true, Ordering::SeqCst);
+pub(crate) fn mark_restart() {
+    RESTART_REQUIRED.store(true, Ordering::SeqCst);
 }
 
-pub(crate) fn output_restart_required() -> bool {
-    OUTPUT_RESTART_REQUIRED.load(Ordering::SeqCst)
+pub(crate) fn restart_required() -> bool {
+    RESTART_REQUIRED.load(Ordering::SeqCst)
 }
 
 pub(crate) fn sample_rate() -> Result<u32, String> {
@@ -428,6 +446,73 @@ pub(crate) fn reconnect_midi(port: Option<String>, map: Option<String>) -> Resul
     handle
         .state_tx
         .send(StateRequest::ReconnectMidi { port, map, reply })
+        .map_err(|_| "the session thread is gone".to_owned())?;
+    answer
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "the session thread did not answer".to_owned())?
+}
+
+/// Closes the controller input and forgets the device in the running session. The profile is
+/// edited by the caller; this only applies it to the live session.
+pub(crate) fn disable_midi() -> Result<(), String> {
+    let handle = global()?;
+    let (reply, answer) = bounded(1);
+    handle
+        .state_tx
+        .send(StateRequest::DisableMidi { reply })
+        .map_err(|_| "the session thread is gone".to_owned())?;
+    answer
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "the session thread did not answer".to_owned())?
+}
+
+/// Re-reads `[preference.library]` from the profile and refreshes the browser/scan service.
+pub(crate) fn sync_library(path: &str) -> Result<(), String> {
+    let handle = global()?;
+    let (reply, answer) = bounded(1);
+    handle
+        .state_tx
+        .send(StateRequest::SyncLibrary {
+            path: path.to_owned(),
+            reply,
+        })
+        .map_err(|_| "the session thread is gone".to_owned())?;
+    answer
+        .recv_timeout(Duration::from_secs(10))
+        .map_err(|_| "the session thread did not answer".to_owned())?
+}
+
+/// Every source the library cache knows about, for the Preferences page.
+pub(crate) fn library_sources() -> Result<Vec<LibrarySourceDto>, String> {
+    let handle = global()?;
+    let db = handle
+        .library
+        .clone()
+        .ok_or_else(|| "the library is not available".to_owned())?;
+    let sources = db.sources().map_err(|err| err.to_string())?;
+    Ok(sources
+        .into_iter()
+        .map(|source| LibrarySourceDto {
+            id: source.id as i32,
+            name: source.display_name(),
+            path: source.root.to_string_lossy().into_owned(),
+            origin: format!("{:?}", source.origin),
+        })
+        .collect())
+}
+
+/// Applies a preference the session thread owns (analysis backends, display behaviour). The
+/// profile was written by the caller.
+pub(crate) fn apply_preference(key: &str, value: &str) -> Result<(), String> {
+    let handle = global()?;
+    let (reply, answer) = bounded(1);
+    handle
+        .state_tx
+        .send(StateRequest::ApplyPreference {
+            key: key.to_owned(),
+            value: value.to_owned(),
+            reply,
+        })
         .map_err(|_| "the session thread is gone".to_owned())?;
     answer
         .recv_timeout(Duration::from_secs(5))
@@ -795,7 +880,9 @@ pub(crate) fn load_track(deck: u8, location_id: i32) -> Result<(), String> {
     let decoder_start_ms = handle
         .decoder_start_ms
         .unwrap_or_else(|| media::decoder_start_ms(&path).unwrap_or(0.0));
-    let grid_offset_ms = handle.grid_offset_ms;
+    let grid_offset_ms = *GRID_OFFSET_MS
+        .lock()
+        .map_err(|_| "the grid offset lock is poisoned".to_owned())?;
     let (analysis, cues) = (
         db.imported_analysis(location_id, sample_rate, decoder_start_ms, grid_offset_ms)
             .ok()
@@ -812,7 +899,16 @@ pub(crate) fn load_track(deck: u8, location_id: i32) -> Result<(), String> {
         title: track.title.clone(),
         artist: track.artist.clone().unwrap_or_default(),
         album: track.album.clone().unwrap_or_default(),
-        key: track.key.map(|key| key.camelot()).unwrap_or_default(),
+        key: track
+            .key
+            .map(|key| {
+                if KEY_FORMAT.load(Ordering::Relaxed) == 1 {
+                    key.traditional()
+                } else {
+                    key.camelot()
+                }
+            })
+            .unwrap_or_default(),
         bpm: track.bpm.unwrap_or(0.0),
         sample_rate,
         total_frames,
@@ -822,8 +918,12 @@ pub(crate) fn load_track(deck: u8, location_id: i32) -> Result<(), String> {
     let _ = handle.state_tx.send(StateRequest::SetMeta { deck, meta });
     // The sketch has no analyse button; a GUI load with no imported or cached
     // grid runs the configured analyser in the background so BPM/key arrive.
-    let auto = analysis.is_none().then(|| AutoAnalysis {
-        backends: handle.backends,
+    let analysis_backends = *handle
+        .backends
+        .lock()
+        .map_err(|_| "the analysis backend lock is poisoned".to_owned())?;
+    let auto = (analysis.is_none() && AUTO_ANALYSE.load(Ordering::Relaxed)).then(|| AutoAnalysis {
+        backends: analysis_backends,
         cache: Some((Arc::clone(&db), track.track_id)),
     });
     command::spawn_load_with(
@@ -849,7 +949,39 @@ pub(crate) fn analyse_track(location_id: i32) -> Result<(), String> {
         .track_load(location_id)
         .map_err(|err| err.to_string())?
         .ok_or_else(|| format!("no location {location_id}"))?;
-    command::spawn_analyse_track(track, db, handle.backends, &handle.dispatcher);
+    let backends = *handle
+        .backends
+        .lock()
+        .map_err(|_| "the analysis backend lock is poisoned".to_owned())?;
+    command::spawn_analyse_track(track, db, backends, &handle.dispatcher);
+    Ok(())
+}
+
+/// Analyses every track in one playlist on a single worker. The session emits `LibraryChanged`
+/// when the cache is complete.
+pub(crate) fn analyse_list(playlist_id: i32) -> Result<(), String> {
+    let handle = global()?;
+    let db = handle
+        .library
+        .clone()
+        .ok_or_else(|| "the library is not available".to_owned())?;
+    let rows = db
+        .tracks_in_playlist(i64::from(playlist_id))
+        .map_err(|err| err.to_string())?;
+    let mut tracks = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(track) = db
+            .track_load(row.location_id)
+            .map_err(|err| err.to_string())?
+        {
+            tracks.push(track);
+        }
+    }
+    let backends = *handle
+        .backends
+        .lock()
+        .map_err(|_| "the analysis backend lock is poisoned".to_owned())?;
+    command::spawn_analyse_list(tracks, db, backends, &handle.dispatcher);
     Ok(())
 }
 
@@ -901,18 +1033,18 @@ pub(crate) fn library_lists(source_id: i32) -> Result<Vec<LibraryList>, String> 
         .library
         .clone()
         .ok_or_else(|| "the library is not available".to_owned())?;
-    let roots = db
-        .root_playlists(source_id)
-        .map_err(|err| err.to_string())?;
-    let mut out = Vec::new();
-    for mut list in roots {
-        // The sketch's browser has one list column, but a folder source can be
-        // several levels deep. Flatten the descendants so every folder holding
-        // tracks is reachable; the indentation comes from the path in `name`.
-        collect_lists(&db, source_id, list.id, &list.name, 0, &mut out)?;
-        list.kind.clear();
-    }
-    Ok(out)
+    let rows = app::browser::playlist_tree(&db, source_id).map_err(|err| err.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|row| LibraryList {
+            id: row.playlist.id as i32,
+            source_id: source_id as i32,
+            parent_id: row.parent_id.map(|id| id as i32),
+            name: row.playlist.name,
+            kind: row.playlist.kind,
+            has_children: row.has_children,
+        })
+        .collect())
 }
 
 pub(crate) fn library_tracks(playlist_id: i32) -> Result<Vec<TrackDto>, String> {
@@ -925,41 +1057,6 @@ pub(crate) fn library_tracks(playlist_id: i32) -> Result<Vec<TrackDto>, String> 
     db.tracks_in_playlist(playlist_id)
         .map(|tracks| tracks.iter().map(track_dto).collect())
         .map_err(|err| err.to_string())
-}
-
-pub(crate) fn collect_lists(
-    db: &LibraryDb,
-    source_id: i64,
-    playlist_id: i64,
-    name: &str,
-    depth: usize,
-    out: &mut Vec<LibraryList>,
-) -> Result<(), String> {
-    // A parent folder with no tracks of its own would be a dead end in the
-    // sketch's single list column; only show lists that actually open onto tracks.
-    if db
-        .tracks_in_playlist(playlist_id)
-        .map(|tracks| !tracks.is_empty())
-        .unwrap_or(false)
-    {
-        out.push(LibraryList {
-            id: playlist_id as i32,
-            source_id: source_id as i32,
-            name: name.to_owned(),
-            kind: "folder".to_owned(),
-        });
-    }
-    if depth >= 6 {
-        return Ok(());
-    }
-    let children = db
-        .child_playlists(source_id, playlist_id)
-        .map_err(|err| err.to_string())?;
-    for child in children {
-        let child_name = format!("{name} / {}", child.name);
-        collect_lists(db, source_id, child.id, &child_name, depth + 1, out)?;
-    }
-    Ok(())
 }
 
 pub(crate) fn library_search(query: String, limit: u32) -> Result<Vec<TrackDto>, String> {
@@ -976,6 +1073,70 @@ pub(crate) fn library_search(query: String, limit: u32) -> Result<Vec<TrackDto>,
 // ---------------------------------------------------------------------------
 // The session thread
 // ---------------------------------------------------------------------------
+
+/// Applies a preference that the session, not the audio engine, owns. The profile has already been
+/// written by the caller; this keeps the live session consistent with it.
+fn apply_preference_to_app(app: &mut AppState, key: &str, value: &str) -> Result<(), String> {
+    match key {
+        "beats_backend" | "key_backend" => {
+            let backend = Backend::parse(value)
+                .ok_or_else(|| format!("{key}: `{value}` is not stratum | timestretch"))?;
+            if key == "beats_backend" {
+                app.backends.beats = backend;
+            } else {
+                app.backends.key = backend;
+            }
+            if let Some(shared) = &app.shared_backends {
+                if let Ok(mut guard) = shared.lock() {
+                    *guard = app.backends;
+                }
+            }
+        }
+        "auto_analyse" => {
+            app.auto_analyse = parse_on_off(key, value)?;
+            AUTO_ANALYSE.store(app.auto_analyse, Ordering::Relaxed);
+        }
+        "grid_offset_ms" => {
+            app.grid_offset_ms = value
+                .trim()
+                .parse()
+                .map_err(|_| format!("grid_offset_ms: `{value}` is not a number"))?;
+            if let Ok(mut offset) = GRID_OFFSET_MS.lock() {
+                *offset = app.grid_offset_ms;
+            }
+        }
+        "key_format" => {
+            app.key_format = match value.trim() {
+                "camelot" => KeyFormat::Camelot,
+                "classic" | "traditional" => KeyFormat::Traditional,
+                other => {
+                    return Err(format!("key_format: `{other}` is not camelot | classic"));
+                }
+            };
+            KEY_FORMAT.store(
+                if app.key_format == KeyFormat::Camelot {
+                    0
+                } else {
+                    1
+                },
+                Ordering::Relaxed,
+            );
+            app.reload_browser();
+            app.library_dirty = true;
+        }
+        "follow" => app.follow_commands = parse_on_off(key, value)?,
+        other => return Err(format!("unknown preference `{other}`")),
+    }
+    Ok(())
+}
+
+fn parse_on_off(key: &str, value: &str) -> Result<bool, String> {
+    match value.trim() {
+        "on" | "true" | "1" => Ok(true),
+        "off" | "false" | "0" => Ok(false),
+        other => Err(format!("{key}: `{other}` is not on | off")),
+    }
+}
 
 fn run(
     config_path: Option<String>,
@@ -1025,10 +1186,13 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     let midi_legacy_map = config.controller.map.clone();
     let midi_config_path = config.path.clone();
     let midi_mixer = config.mixer.clone();
-    let backends = Backends {
+    let backends = Arc::new(Mutex::new(Backends {
         beats: config.analysis.beats,
         key: config.analysis.key,
-    };
+    }));
+    let initial_backends = *backends
+        .lock()
+        .map_err(|_| "the analysis backend lock is poisoned".to_owned())?;
     let auto_analyse = config.analysis.auto_analyse;
 
     logging::info(format!("boot: audio @ {} Hz", live.audio.sample_rate));
@@ -1087,7 +1251,7 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
 
     let mut app = AppState::new(
         decks,
-        backends,
+        initial_backends,
         notice_rx,
         event_rx,
         dispatcher.slots(),
@@ -1095,6 +1259,7 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     );
     app.library = library.clone();
     app.auto_analyse = auto_analyse;
+    app.shared_backends = Some(Arc::clone(&backends));
     app.sample_rate = live.audio.sample_rate;
     app.ring_frames = live.audio.ring_frames;
     app.profile_path = Some(config_path.clone());
@@ -1119,6 +1284,18 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     app.waveform_high_hz = pref.waveform.high_hz;
     app.decoder_start_ms = pref.library.decoder_start_ms;
     app.grid_offset_ms = pref.library.grid_offset_ms;
+    if let Ok(mut offset) = GRID_OFFSET_MS.lock() {
+        *offset = pref.library.grid_offset_ms;
+    }
+    KEY_FORMAT.store(
+        if pref.display.key_format == KeyFormat::Camelot {
+            0
+        } else {
+            1
+        },
+        Ordering::Relaxed,
+    );
+    AUTO_ANALYSE.store(auto_analyse, Ordering::Relaxed);
     app.sync_library(&pref.library);
     app.reload_browser();
 
@@ -1146,7 +1323,6 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
         wave_palette,
         backends,
         decoder_start_ms: pref.library.decoder_start_ms,
-        grid_offset_ms: pref.library.grid_offset_ms,
         config_path: config_path.clone(),
     };
     Ok((pipeline, dispatcher, library, app, boot))
@@ -1256,6 +1432,29 @@ fn pump(
                     } else {
                         Ok(())
                     });
+                }
+                StateRequest::DisableMidi { reply } => {
+                    app.midi_port = None;
+                    app.midi.clear();
+                    for spec in &mut app.controller_sessions {
+                        spec.port = None;
+                    }
+                    dispatcher.clear_midi();
+                    let _ = reply.send(Ok(()));
+                }
+                StateRequest::ApplyPreference { key, value, reply } => {
+                    let _ = reply.send(apply_preference_to_app(app, &key, &value));
+                }
+                StateRequest::SyncLibrary { path, reply } => {
+                    let result = match preference::load(&path) {
+                        Ok((pref, _notes)) => {
+                            app.sync_library(&pref.library);
+                            app.library_dirty = true;
+                            Ok(())
+                        }
+                        Err(err) => Err(err),
+                    };
+                    let _ = reply.send(result);
                 }
                 StateRequest::Shutdown { reply } => {
                     let _ = reply.send(());

@@ -19,6 +19,11 @@ class PanelButton extends StatefulWidget {
     this.style,
     this.scale,
     this.rawLabel = false,
+    this.glyph,
+    this.subLabel,
+    this.iconAxis = Axis.horizontal,
+    this.glyphSize = 16,
+    this.trailing,
     super.key,
   });
 
@@ -33,6 +38,13 @@ class PanelButton extends StatefulWidget {
   /// Leave the label alone instead of applying the deck-control capitalization. Menu keys use
   /// this so `Cue` stays title case instead of becoming the transport key's `CUE`.
   final bool rawLabel;
+
+  /// An optional drawn mark; [iconAxis] puts it left of the label or above it.
+  final GlyphKind? glyph;
+  final String? subLabel;
+  final Axis iconAxis;
+  final double glyphSize;
+  final Widget? trailing;
 
   @override
   State<PanelButton> createState() => _PanelButtonState();
@@ -56,6 +68,66 @@ class _PanelButtonState extends State<PanelButton> {
         : _hover
         ? T.text
         : T.dim;
+    final label = Text(
+      widget.rawLabel ? widget.label : capitalizeWords(widget.label),
+      maxLines: 1,
+      overflow: TextOverflow.clip,
+      textAlign: TextAlign.center,
+      style: style.copyWith(color: foreground),
+    );
+    final subLabel = widget.subLabel == null
+        ? null
+        : Text(
+            widget.subLabel!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: (widget.iconAxis == Axis.vertical ? Ty.labelSmall : Ty.meta)
+                .copyWith(
+                  color: active ? foreground.withValues(alpha: 0.8) : T.faint,
+                ),
+          );
+    final glyph = widget.glyph == null
+        ? null
+        : Glyph(widget.glyph!, size: widget.glyphSize, color: foreground);
+
+    final Widget content;
+    if (glyph == null && subLabel == null && widget.trailing == null) {
+      content = label;
+    } else if (widget.iconAxis == Axis.vertical) {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ?glyph,
+          if (glyph != null) const SizedBox(height: 7),
+          label,
+          if (subLabel != null) ...[const SizedBox(height: 3), subLabel],
+        ],
+      );
+    } else {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ?glyph,
+          if (glyph != null) const SizedBox(width: 9),
+          Flexible(
+            child: subLabel == null
+                ? label
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [label, const SizedBox(height: 3), subLabel],
+                  ),
+          ),
+          if (widget.trailing != null) ...[
+            const SizedBox(width: 8),
+            widget.trailing!,
+          ],
+        ],
+      );
+    }
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hover = true),
@@ -80,12 +152,10 @@ class _PanelButtonState extends State<PanelButton> {
             enabled: enabled,
           ),
           alignment: Alignment.center,
-          child: Text(
-            widget.rawLabel ? widget.label : capitalizeWords(widget.label),
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: style.copyWith(color: foreground),
-          ),
+          padding: widget.iconAxis == Axis.vertical
+              ? const EdgeInsets.symmetric(horizontal: 6, vertical: 6)
+              : null,
+          child: content,
         ),
       ),
     );
@@ -236,6 +306,7 @@ class GlyphButton extends StatefulWidget {
     required this.glyph,
     required this.onTap,
     this.size = 26,
+    this.iconSize,
     this.active = false,
     this.glass = false,
     this.scale,
@@ -245,6 +316,7 @@ class GlyphButton extends StatefulWidget {
   final GlyphKind glyph;
   final VoidCallback? onTap;
   final double size;
+  final double? iconSize;
   final bool active;
   final bool glass;
   final ControlScale? scale;
@@ -294,7 +366,11 @@ class _GlyphButtonState extends State<GlyphButton> {
             glass: widget.glass,
           ),
           alignment: Alignment.center,
-          child: Glyph(widget.glyph, size: size * 0.55, color: foreground),
+          child: Glyph(
+            widget.glyph,
+            size: widget.iconSize ?? size * 0.55,
+            color: foreground,
+          ),
         ),
       ),
     );

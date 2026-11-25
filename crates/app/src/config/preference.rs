@@ -6,9 +6,11 @@
 //! defaults". These are the `[preference]` section of the one config file.
 
 use std::fs;
+use std::path::Path;
 
 use library::SourceKind;
 use protocol::KeyFormat;
+use toml_edit::{DocumentMut, Item, Table, Value};
 
 /// A terminal colour, kept independent of the renderer.
 ///
@@ -241,6 +243,70 @@ pub struct Preference {
     pub library: LibrarySettings,
     pub display: DisplaySettings,
     pub theme: Theme,
+}
+
+/// Adds one plain folder to `[preference.library].folders`, preserving comments and order.
+pub fn add_library_folder(source: &str, folder: &str) -> Result<(), String> {
+    if super::profile::is_builtin(source) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    let folder = folder.trim();
+    if folder.is_empty() {
+        return Err("library folder: the path is empty".to_owned());
+    }
+    let text = fs::read_to_string(Path::new(source)).map_err(|err| format!("{source}: {err}"))?;
+    let mut doc: DocumentMut = text.parse().map_err(|err| format!("{source}: {err}"))?;
+    let folders = folders_array(&mut doc)?;
+    if !folders.iter().any(|entry| entry.as_str() == Some(folder)) {
+        folders.push(folder);
+    }
+    fs::write(Path::new(source), doc.to_string()).map_err(|err| format!("{source}: {err}"))
+}
+
+/// Removes one folder from `[preference.library].folders`.
+pub fn remove_library_folder(source: &str, folder: &str) -> Result<(), String> {
+    if super::profile::is_builtin(source) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    let text = fs::read_to_string(Path::new(source)).map_err(|err| format!("{source}: {err}"))?;
+    let mut doc: DocumentMut = text.parse().map_err(|err| format!("{source}: {err}"))?;
+    let folders = folders_array(&mut doc)?;
+    let mut index = None;
+    for (position, entry) in folders.iter().enumerate() {
+        if entry.as_str() == Some(folder.trim()) {
+            index = Some(position);
+            break;
+        }
+    }
+    if let Some(index) = index {
+        folders.remove(index);
+    }
+    fs::write(Path::new(source), doc.to_string()).map_err(|err| format!("{source}: {err}"))
+}
+
+fn folders_array(doc: &mut DocumentMut) -> Result<&mut toml_edit::Array, String> {
+    if !doc.contains_key("preference") {
+        doc.insert("preference", Item::Table(Table::new()));
+    }
+    let preference = doc
+        .get_mut("preference")
+        .and_then(Item::as_table_mut)
+        .ok_or_else(|| "`preference` must be a table".to_owned())?;
+    if !preference.contains_key("library") {
+        preference.insert("library", Item::Table(Table::new()));
+    }
+    let library = preference
+        .get_mut("library")
+        .and_then(Item::as_table_mut)
+        .ok_or_else(|| "`preference.library` must be a table".to_owned())?;
+    if !library.contains_key("folders") {
+        library.insert("folders", Item::Value(Value::Array(toml_edit::Array::new())));
+    }
+    library
+        .get_mut("folders")
+        .and_then(Item::as_value_mut)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "`preference.library.folders` must be an array".to_owned())
 }
 
 /// Reads a preference file. A missing file is not an error: the defaults apply.
@@ -775,5 +841,28 @@ mod tests {
         let (standalone, standalone_notes) = parse("[waveform]\nbackend = \"braille\"\n").unwrap();
         assert_eq!(standalone.waveform.backend, WaveformBackend::Braille);
         assert!(standalone_notes.is_empty(), "{standalone_notes:?}");
+    }
+
+    #[test]
+    fn add_and_remove_library_folders_keep_the_array() {
+        let dir = std::env::temp_dir().join(format!(
+            "pipefader-pref-{}-{}",
+            std::process::id(),
+            library::library::db::unix_now()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        fs::write(&path, "# keep\n[preference]\n[preference.library]\nfolders = []\n").unwrap();
+        let source = path.display().to_string();
+        add_library_folder(&source, "/music").unwrap();
+        add_library_folder(&source, "/music").unwrap();
+        add_library_folder(&source, "/usb").unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# keep"), "{text}");
+        assert_eq!(text.matches("\"/music\"").count(), 1, "{text}");
+        assert!(text.contains("\"/usb\""), "{text}");
+        remove_library_folder(&source, "/usb").unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("\"/usb\""), "{text}");
     }
 }

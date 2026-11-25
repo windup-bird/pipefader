@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/controls/cover.dart';
 import 'package:pipefader_gui/core/format.dart';
+import 'package:pipefader_gui/core/i18n.dart';
 import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/theme.dart';
 import 'package:pipefader_gui/core/theme_scope.dart';
@@ -137,7 +138,9 @@ class DeckInfo extends StatelessWidget {
                                       row2H,
                                       Alignment.centerLeft,
                                       Text(
-                                        deck.view.title,
+                                        deck.view.title == 'No Track'
+                                            ? L10nScope.of(context).noTrack
+                                            : deck.view.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Ty.title.copyWith(

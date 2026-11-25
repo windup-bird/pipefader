@@ -24,9 +24,9 @@ bridge 把 boot 阶段、panic 和 Flutter 侧上报的错误写到 `SessionPath
 
 配置来源是一个字符串：真实文件路径，或内建哨兵 `BUILTIN_PROFILE = "<built-in>/config.toml"` / `BUILTIN_MAP = "<built-in>/mapping.toml"`。内建内容编译进二进制，不落盘，所有读取都经过 `profile::read_profile_text` / `read_map_text`；内建 profile 和 map 只读。Flutter 在 Android 上通过 `pipefader/session` MethodChannel 拿到 `filesDir/pipefader`，`frb.start` 把这四个路径装进 `app::paths`，并让 `profile::seed` 在首次启动时把内建 config 和 `mapping.toml` 写到私有目录（Android 用 `seed_android`，同一份模板改成 48k、单 master）；桌面不 seed，继续跑内建模板。
 
-写配置统一用 `toml_edit`，保留注释和键顺序。`profile` 管 controller 指针和整体 profile，`output` 管 `[[mixer.output]]` 的增删/绑定，`map` 枚举可选的 controller map，`settings` 管采样率、crossfader、cue blend、autogain 这类可编辑项。GUI 的 Menu 通过 bridge 的 `menu_state`、`output_*`、`midi_ports`、`midi_maps`、`set_midi_*`、`set_setting` 调它们；TUI 直接调同一批 app 函数。
+写配置统一用 `toml_edit`，保留注释和键顺序。`profile` 管 controller 指针和整体 profile，`output` 管 `[[mixer.output]]` 的增删/绑定，`map` 枚举 controller map 并能把用户选中的 map 校验后装进 profile 目录，`preference` 读写曲库文件夹，`settings` 管可编辑项。`settings::pages` 直接描述 Mixer / Audio / Analysis / Display 的分组和选项，GUI 只渲染；新增字段改 Rust 和 i18n，不改 Flutter DTO。GUI 通过 bridge 的 `menu_state`、`output_*`、`midi_*`、`set_midi_*`、`import_midi_map`、`disable_controller`、`library_*`、`analyse_list`、`set_setting` 调它们；TUI 直接调同一批 app 函数。
 
-map 候选是内建 map 加 profile 同目录下能解析成 controller map 的 `.toml`，当前 map 即使不在目录里也会出现在列表。内建 map 的内容来自 `controllers/numark_partymix_3.toml`，菜单名是 “Numark Party Mix 3”；写 map 前先验证，内建哨兵写入 profile 时原样保留，不能当相对路径拼。
+map 候选是内建 map 加 profile 同目录下能解析成 controller map 的 `.toml`，当前 map 即使不在目录里也会出现在列表。内建 map 的内容来自 `controllers/numark_partymix_3.toml`，菜单名是 “Numark Party Mix 3”；写 map 前先验证，内建哨兵写入 profile 时原样保留，不能当相对路径拼。`app::browser::playlist_tree` 是曲库树的后端来源：返回 `parent_id` 和 `has_children`，bridge 只做 DTO 映射，不再自己扁平化路径。
 
 ## Flutter
 
@@ -36,6 +36,6 @@ Flutter 不引第三方 pub 依赖，Material 用 SDK 拆出的 `material_ui`，
 
 ## 菜单现状
 
-logo 菜单所有层级顶部贴边居中，菜单 logo 用主界面的 `LogoFaders`，从 header 的 rect 平移进来。根页是 layout 选择、两个居中的 deck 数按钮、MIDI/Map、Output、Settings、Logs。Output 是 Master/Precue 分类加 CH 列表，支持刷新、增删，最后一路也能删；增加时可从 host 的 output device 列表选设备与 stereo pair，Android 上改拓扑只写配置并要求重启；MIDI 页有端口列表、map 文件列表和共享刷新键；Settings 编辑 profile、采样率、crossfader、cue blend、autogain；Logs 读 `bridge.log` 最近 400 行，引擎没起来也能用。内建 profile 的写操作禁用。
+logo 菜单所有层级顶部贴边居中，菜单 logo 用主界面的 `LogoFaders`，从 header 的 rect 平移进来。面板宽 560（窄屏减 24），内容可滚。根页是四个 layout tile、decks tile、Controller/Output/Mixer/Preferences 四条整行大键；Logs 移到 Preferences 底部。Controller 是端口列表和端口详情（Disable、Choose a user map、map 列表），map 通过系统文件窗口选择，Android 用 SAF 读字节、Linux 用 GTK 读字节，后端校验并复制到 profile 目录。Output 是 Master/Precue 两个大键、当前输出行和两级的 Add 流程，最后一路也能删，Android 改拓扑只写配置并要求重启。Mixer/Preferences 渲染后端 `settings::pages` 的分组：Mixer 对应 `[mixer]`，Preferences 分 Audio/Library/Analysis/Display；sample rate、keylock block、stems provider 需要重启。曲库文件夹可以在 Preferences 或 browser 的 Add 里增删，后者写 `[preference.library].folders` 并触发重扫。Analyse 分析当前 list，由后端单 worker 顺序跑。Logs 读 `bridge.log` 最近 400 行，引擎没起来也能用。内建 profile 的写操作禁用。
 
 无引擎预览只有一个 master；Android 首启 seed 也只有一个 master（48k），桌面的内建模板仍是 `main(master) + headphones(cue)`。输出拓扑改动在 Android 上由后端 `restart_required` 标记要求重启，桌面即时 reload。

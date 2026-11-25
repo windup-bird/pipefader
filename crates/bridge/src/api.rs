@@ -7,7 +7,7 @@
 use crate::frb_generated::StreamSink;
 
 use crate::session;
-use app::config::{map, output, profile, settings};
+use app::config::{map, output, preference, profile, settings};
 use protocol::OutputRole;
 
 // ---------------------------------------------------------------------------
@@ -216,6 +216,49 @@ pub struct MapFileDto {
     pub builtin: bool,
 }
 
+/// One selectable value on a settings row.
+pub struct SettingsOptionDto {
+    pub label: String,
+    pub value: String,
+}
+
+/// One editable row. The Flutter layer localises known keys and falls back to `label`.
+pub struct SettingsRowDto {
+    pub key: String,
+    pub label: String,
+    pub note: String,
+    pub kind: String,
+    pub value: String,
+    pub options: Vec<SettingsOptionDto>,
+    pub needs_restart: bool,
+    pub enabled: bool,
+}
+
+pub struct SettingsSectionDto {
+    pub title: String,
+    pub rows: Vec<SettingsRowDto>,
+}
+
+pub struct SettingsPageDto {
+    pub id: String,
+    pub title: String,
+    pub sections: Vec<SettingsSectionDto>,
+}
+
+/// One source the library cache knows about.
+pub struct LibrarySourceDto {
+    pub id: i32,
+    pub name: String,
+    pub path: String,
+    pub origin: String,
+}
+
+/// The Preferences › Library page's data.
+pub struct LibrarySettingsDto {
+    pub folders: Vec<String>,
+    pub sources: Vec<LibrarySourceDto>,
+}
+
 /// Everything the logo menu needs from the session's profile.
 pub struct MenuStateDto {
     pub profile: String,
@@ -223,11 +266,9 @@ pub struct MenuStateDto {
     pub midi_port: String,
     pub midi_map: String,
     pub outputs: Vec<OutputDto>,
-    pub sample_rate: u32,
-    pub crossfader_curve: String,
-    pub cue_blend: f32,
-    pub autogain: bool,
-    /// Android output changes are written but not applied until the next start.
+    pub settings: Vec<SettingsPageDto>,
+    pub library: LibrarySettingsDto,
+    /// Android output and live-value changes are written but not applied until the next start.
     pub restart_required: bool,
 }
 
@@ -240,8 +281,10 @@ pub struct LibraryRoot {
 pub struct LibraryList {
     pub id: i32,
     pub source_id: i32,
+    pub parent_id: Option<i32>,
     pub name: String,
     pub kind: String,
+    pub has_children: bool,
 }
 
 pub struct TrackDto {
@@ -499,20 +542,57 @@ fn read_menu_state() -> Result<MenuStateDto, String> {
             gain: entry.gain,
         })
         .collect();
-    let decoded = settings::read(&profile_path)?;
+    let pages = settings::pages(&profile_path)?;
     let (midi_port, midi_map) = midi_pair(&config, &profile_path);
+    let folders = preference::load(&profile_path)
+        .map(|(pref, _notes)| pref.library.folders)
+        .unwrap_or_default();
+    let sources = session::library_sources().unwrap_or_default();
     Ok(MenuStateDto {
         profile: profile_path.clone(),
         builtin: profile::is_builtin(&profile_path),
         midi_port,
         midi_map,
         outputs,
-        sample_rate: decoded.sample_rate,
-        crossfader_curve: decoded.crossfader_curve,
-        cue_blend: decoded.cue_blend,
-        autogain: decoded.autogain,
-        restart_required: session::output_restart_required(),
+        settings: pages.into_iter().map(settings_page_dto).collect(),
+        library: LibrarySettingsDto { folders, sources },
+        restart_required: session::restart_required(),
     })
+}
+
+fn settings_page_dto(page: settings::SettingsPage) -> SettingsPageDto {
+    SettingsPageDto {
+        id: page.id,
+        title: page.title,
+        sections: page
+            .sections
+            .into_iter()
+            .map(|section| SettingsSectionDto {
+                title: section.title,
+                rows: section
+                    .rows
+                    .into_iter()
+                    .map(|row| SettingsRowDto {
+                        key: row.key,
+                        label: row.label,
+                        note: row.note,
+                        kind: row.kind,
+                        value: row.value,
+                        options: row
+                            .options
+                            .into_iter()
+                            .map(|option| SettingsOptionDto {
+                                label: option.label,
+                                value: option.value,
+                            })
+                            .collect(),
+                        needs_restart: row.needs_restart,
+                        enabled: row.enabled,
+                    })
+                    .collect(),
+            })
+            .collect(),
+    }
 }
 
 /// Adds a destination for a role. The GUI starts from one master and can add either role; the
@@ -598,7 +678,7 @@ fn pair_from(channels: Option<Vec<u16>>) -> Option<(u16, u16)> {
 /// for a restart instead; desktop keeps the live reload.
 fn apply_output_change() -> Result<(), String> {
     if cfg!(target_os = "android") {
-        session::mark_output_restart();
+        session::mark_restart();
         Ok(())
     } else {
         session::reload_mixer()
@@ -715,6 +795,65 @@ pub fn set_midi_map(map_path: String) -> Result<MenuStateDto, String> {
     read_menu_state()
 }
 
+/// Clears the controller's device and closes the live input. The map is kept.
+pub fn disable_controller() -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    if profile::is_builtin(&profile_path) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    profile::clear_controller_device(std::path::Path::new(&profile_path))?;
+    session::disable_midi()?;
+    read_menu_state()
+}
+
+/// Validates a map chosen from the host's file dialog, copies it beside the profile and points the
+/// controller at it. The bytes come from the platform picker, so this works the same on Android
+/// (SAF has no usable path) and the desktop.
+pub fn import_midi_map(name: String, bytes: Vec<u8>) -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    if profile::is_builtin(&profile_path) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    let stored = map::install(&profile_path, &name, &bytes)?;
+    profile::write_controller(
+        std::path::Path::new(&profile_path),
+        None,
+        Some(std::path::Path::new(&stored)),
+    )?;
+    session::reconnect_midi(None, Some(stored))?;
+    read_menu_state()
+}
+
+/// Adds a folder to `[preference.library].folders` and rescans the browser. The path comes from
+/// the host's folder picker; Android converts its SAF tree to a real path first.
+pub fn library_add_folder(path: String) -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    if profile::is_builtin(&profile_path) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    preference::add_library_folder(&profile_path, &path)?;
+    session::sync_library(&profile_path)?;
+    read_menu_state()
+}
+
+/// Removes a folder from the library sources and rescans.
+pub fn library_remove_folder(path: String) -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    if profile::is_builtin(&profile_path) {
+        return Err("the built-in profile is read-only".to_owned());
+    }
+    preference::remove_library_folder(&profile_path, &path)?;
+    session::sync_library(&profile_path)?;
+    read_menu_state()
+}
+
+/// Re-reads the library configuration and asks the scan service to refresh.
+pub fn library_rescan() -> Result<MenuStateDto, String> {
+    let profile_path = session::config_path()?;
+    session::sync_library(&profile_path)?;
+    read_menu_state()
+}
+
 fn midi_pair(config: &profile::Config, profile_path: &str) -> (String, String) {
     let port = config
         .controller
@@ -741,13 +880,17 @@ fn midi_pair(config: &profile::Config, profile_path: &str) -> (String, String) {
     (port, map)
 }
 
-/// Changes one machine setting and, when the engine can take it live, reloads the topology. The
-/// sample rate is written but needs a restart, which the menu marks separately.
+/// Changes one machine setting. Mixer topology is reloaded live; the session-side preferences are
+/// handed to the session thread; the values that need a new process mark the restart flag.
 pub fn set_setting(key: String, value: String) -> Result<MenuStateDto, String> {
     let profile_path = session::config_path()?;
     settings::set(&profile_path, &key, &value)?;
-    if !settings::SettingsSnapshot::needs_restart(&key) {
+    if settings::needs_restart(&key) {
+        session::mark_restart();
+    } else if settings::is_mixer_key(&key) {
         session::reload_mixer()?;
+    } else if settings::is_session_key(&key) {
+        session::apply_preference(&key, &value)?;
     }
     read_menu_state()
 }
@@ -886,6 +1029,11 @@ pub fn load_track(deck: u8, location_id: i32) -> Result<(), String> {
 
 pub fn analyse_track(location_id: i32) -> Result<(), String> {
     session::analyse_track(location_id)
+}
+
+/// Runs the analyser over every track in one playlist on a single background worker.
+pub fn analyse_list(playlist_id: i32) -> Result<(), String> {
+    session::analyse_list(playlist_id)
 }
 
 pub fn library_roots() -> Result<Vec<LibraryRoot>, String> {

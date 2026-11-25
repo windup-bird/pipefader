@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/core/device.dart';
 import 'package:pipefader_gui/core/format.dart';
 import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/theme.dart';
@@ -22,17 +23,17 @@ class MenuPageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 30,
+      height: 40,
       child: Row(
         children: [
-          GlyphButton(glyph: GlyphKind.chevronLeft, size: 22, onTap: onBack),
-          const SizedBox(width: 8),
+          GlyphButton(glyph: GlyphKind.chevronLeft, size: 26, onTap: onBack),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               titleCaseWords(title),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Ty.label.copyWith(color: T.text, fontSize: T.s11),
+              style: Ty.pageTitle,
             ),
           ),
           ?trailing,
@@ -42,59 +43,66 @@ class MenuPageHeader extends StatelessWidget {
   }
 }
 
-/// One navigation row in the root menu: glyph, label, chevron.
-class MenuActionRow extends StatefulWidget {
-  const MenuActionRow({
+/// A page header that stays put while the body scrolls. The overlay gives every page a bounded
+/// height; this frame keeps the back/title/refresh row outside the scroll view.
+class MenuPageFrame extends StatelessWidget {
+  const MenuPageFrame({required this.header, required this.child, super.key});
+
+  final Widget header;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        const SizedBox(height: 14),
+        Flexible(
+          fit: FlexFit.loose,
+          child: SingleChildScrollView(
+            key: const ValueKey('menu-page-scroll'),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One full-width choice row: a key face, a label, an optional second line, and a trailing mark
+/// (a check on the current item, or a small action). Every list page uses this instead of drawing
+/// its own hover row.
+class MenuListRow extends StatelessWidget {
+  const MenuListRow({
     required this.label,
-    required this.glyph,
     required this.onTap,
+    this.note,
+    this.selected = false,
+    this.trailing,
     super.key,
   });
 
   final String label;
-  final GlyphKind glyph;
-  final VoidCallback onTap;
-
-  @override
-  State<MenuActionRow> createState() => _MenuActionRowState();
-}
-
-class _MenuActionRowState extends State<MenuActionRow> {
-  bool _hover = false;
+  final String? note;
+  final bool selected;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          height: 36,
-          color: _hover ? T.surface : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Row(
-            children: [
-              Glyph(widget.glyph, size: 15, color: _hover ? T.accent : T.dim),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  titleCaseWords(widget.label),
-                  style: Ty.menuRow.copyWith(color: _hover ? T.text : T.dim),
-                ),
-              ),
-              Glyph(
-                GlyphKind.chevronRight,
-                size: 12,
-                color: _hover ? T.accent : T.faint,
-              ),
-            ],
-          ),
-        ),
-      ),
+    return PanelButton(
+      label: label,
+      rawLabel: true,
+      subLabel: note,
+      active: selected,
+      height: 46,
+      onTap: onTap,
+      trailing:
+          trailing ??
+          (selected ? const Glyph(GlyphKind.check, size: 20, color: T.text) : null),
+      style: Ty.menuRow.copyWith(fontSize: T.s12),
     );
   }
 }
@@ -212,14 +220,41 @@ class _MenuRefreshButtonState extends State<MenuRefreshButton>
     super.dispose();
   }
 
+  bool _hover = false;
+  bool _pressed = false;
+
   @override
   Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: _spin,
-      child: GlyphButton(
-        glyph: GlyphKind.refresh,
-        size: 24,
-        onTap: widget.menu.refreshing ? null : widget.onTap,
+    final enabled = !widget.menu.refreshing;
+    final foreground = !enabled ? T.faint : (_hover ? T.text : T.dim);
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: enabled
+            ? (_) {
+                setState(() => _pressed = false);
+                widget.onTap();
+              }
+            : null,
+        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: keyFace(
+            pressed: _pressed,
+            hover: _hover,
+            enabled: enabled,
+          ),
+          alignment: Alignment.center,
+          child: RotationTransition(
+            turns: _spin,
+            child: Glyph(GlyphKind.refresh, size: 16, color: foreground),
+          ),
+        ),
       ),
     );
   }
@@ -232,8 +267,8 @@ class MenuSectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(titleCaseWords(text), style: Ty.labelSmall),
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(titleCaseWords(text), style: Ty.section),
   );
 }
 
@@ -256,82 +291,6 @@ class MenuStatusLine extends StatelessWidget {
         style: Ty.meta.copyWith(
           color: error == null ? T.faint : T.error,
           height: 1.25,
-        ),
-      ),
-    );
-  }
-}
-
-/// A flat selectable row with a check on the current item. Used by MIDI inputs and map entries.
-class MenuSelectRow extends StatefulWidget {
-  const MenuSelectRow({
-    required this.label,
-    required this.selected,
-    this.note,
-    this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final String? note;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  @override
-  State<MenuSelectRow> createState() => _MenuSelectRowState();
-}
-
-class _MenuSelectRowState extends State<MenuSelectRow> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
-    final color = widget.selected
-        ? T.accent
-        : _hover && enabled
-        ? T.text
-        : T.dim;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 90),
-          height: 32,
-          color: _hover && enabled ? T.surface : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Ty.menuRow.copyWith(fontSize: T.s10, color: color),
-                ),
-              ),
-              if (widget.note != null)
-                Flexible(
-                  child: Text(
-                    widget.note!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: Ty.meta.copyWith(color: T.faint),
-                  ),
-                ),
-              SizedBox(
-                width: 16,
-                child: widget.selected
-                    ? const Glyph(GlyphKind.check, size: 10, color: T.accent)
-                    : null,
-              ),
-            ],
-          ),
         ),
       ),
     );

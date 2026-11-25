@@ -13,6 +13,8 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.os.Environment
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
@@ -25,6 +27,9 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var sessionChannel: MethodChannel? = null
+    private var fileChannel: MethodChannel? = null
+    private var pendingFile: MethodChannel.Result? = null
+    private var pendingDirectory: MethodChannel.Result? = null
     private var volumeCallback: StorageManager.StorageVolumeCallback? = null
     private var mediaReceiver: BroadcastReceiver? = null
     private var usbPermissionReceiver: BroadcastReceiver? = null
@@ -49,6 +54,19 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "listVolumes" -> result.success(listVolumes())
+                "restartApp" -> {
+                    restartApp()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        val fileChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FILE_CHANNEL)
+        this.fileChannel = fileChannel
+        fileChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pickMapFile" -> pickMapFile(result)
+                "pickDirectory" -> pickDirectory(result)
                 else -> result.notImplemented()
             }
         }
@@ -219,6 +237,136 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_PICK_MAP) {
+            val result = pendingFile ?: return
+            pendingFile = null
+            val uri = data?.data
+            if (resultCode != RESULT_OK || uri == null) {
+                result.success(null)
+                return
+            }
+            try {
+                val bytes =
+                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null) {
+                    result.error("read-failed", "the document could not be opened", null)
+                    return
+                }
+                val name = displayName(uri) ?: "map.toml"
+                result.success(mapOf("name" to name, "bytes" to bytes))
+            } catch (error: Exception) {
+                result.error("read-failed", error.message, null)
+            }
+            return
+        }
+        if (requestCode == REQUEST_PICK_DIRECTORY) {
+            val result = pendingDirectory ?: return
+            pendingDirectory = null
+            val uri = data?.data
+            if (resultCode != RESULT_OK || uri == null) {
+                result.success(null)
+                return
+            }
+            val path = treeToPath(uri)
+            if (path == null) {
+                result.error(
+                    "unsupported-provider",
+                    "choose a folder on local or removable storage",
+                    null,
+                )
+            } else {
+                result.success(path)
+            }
+        }
+    }
+
+    /**
+     * A controller map is read as bytes: SAF has no path the Rust side could open, and both
+     * platforms use the same import path afterward.
+     */
+    private fun pickMapFile(result: MethodChannel.Result) {
+        if (pendingFile != null) {
+            result.error("busy", "a file dialog is already open", null)
+            return
+        }
+        pendingFile = result
+        try {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            startActivityForResult(intent, REQUEST_PICK_MAP)
+        } catch (error: Exception) {
+            pendingFile = null
+            result.error("unavailable", error.message, null)
+        }
+    }
+
+    /** The library scanner needs a real path, so the SAF tree is converted for external storage. */
+    private fun pickDirectory(result: MethodChannel.Result) {
+        if (pendingDirectory != null) {
+            result.error("busy", "a folder dialog is already open", null)
+            return
+        }
+        pendingDirectory = result
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_PICK_DIRECTORY)
+        } catch (error: Exception) {
+            pendingDirectory = null
+            result.error("unavailable", error.message, null)
+        }
+    }
+
+    private fun displayName(uri: Uri): String? =
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index < 0) null else cursor.getString(index)
+            }
+            ?: uri.lastPathSegment
+
+    /** `primary:Music` -> `/storage/emulated/0/Music`; `ABCD-1234:Music` -> `/storage/ABCD-1234/Music`. */
+    private fun treeToPath(uri: Uri): String? {
+        if (!DocumentsContract.isTreeUri(uri)) return null
+        if (uri.authority != "com.android.externalstorage.documents") return null
+        val document = DocumentsContract.getTreeDocumentId(uri)
+        val parts = document.split(":", limit = 2)
+        val volume = parts[0]
+        val relative = if (parts.size > 1) parts[1] else ""
+        val root =
+            if (volume == "primary") {
+                Environment.getExternalStorageDirectory().absolutePath
+            } else {
+                "/storage/$volume"
+            }
+        return if (relative.isEmpty()) root else "$root/$relative"
+    }
+
+    /** Kills the process after queueing a fresh activity; the Rust session boots again from disk. */
+    private fun restartApp() {
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+        val pending =
+            PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT,
+            )
+        try {
+            pending.send()
+        } catch (_: PendingIntent.CanceledException) {
+            // The launcher already has the task; the process exit below is still enough.
+        }
+        finishAffinity()
+        Runtime.getRuntime().exit(0)
+    }
+
     /**
      * Volumes already attached when the app starts. The Dart side asks for this after the engine
      * exists; sending them from configureFlutterEngine would race the Dart handler registration.
@@ -255,6 +403,9 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val SESSION_CHANNEL = "pipefader/session"
+        const val FILE_CHANNEL = "pipefader/file"
+        const val REQUEST_PICK_MAP = 42
+        const val REQUEST_PICK_DIRECTORY = 43
         const val ACTION_USB_PERMISSION = "com.example.pipefader_gui.USB_PERMISSION"
         const val MIDI_STREAMING_SUBCLASS = 3
         const val STORAGE_REQUEST = 41

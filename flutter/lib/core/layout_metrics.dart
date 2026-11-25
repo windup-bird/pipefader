@@ -42,6 +42,13 @@ const double landscapeLogoSize = 32;
 const double browsingInfoMinH = 56;
 const double browsingInfoMaxH = 120;
 
+/// The info row's height inside one deck section. The browsing layout keeps this number, so
+/// opening the browser changes the height below the identity rows, not their internal scale.
+double stackedInfoForSection(double sectionHeight) =>
+    (sectionHeight * stackedInfoShare)
+        .clamp(stackedMinInfoH, stackedMaxInfoH)
+        .toDouble();
+
 // ── stacked ──
 const double stackedHeaderH = 40;
 const double stackedControlShare = 0.34;
@@ -61,3 +68,16 @@ const int allInOneControlFlex = 20;
 const double allInOneWaveGap = 6;
 const double allInOneControlGap = 8;
 const double allInOneMinHeight = 360;
+
+// ── menu ──
+// The panel is wider than the old 440 so the full-width action keys and the
+// four layout tiles have room; phones still clamp to the viewport.
+const double menuMaxWidth = 560;
+const double menuHPad = 20;
+const double menuTopGap = 16;
+const double menuBottomGap = 18;
+const double menuTileH = 78;
+const double menuDeckH = 66;
+const double menuRowH = 50;
+const double menuListRowH = 46;
+const double menuSectionGap = 14;
