@@ -66,6 +66,7 @@ class _UnitHeaderState extends State<UnitHeader> {
               key: _gear,
               glyph: GlyphKind.settings,
               size: gearSize,
+              iconSize: gearSize * 0.8,
               onTap: () => showUnitMenu(
                 context: context,
                 anchorKey: _gear,

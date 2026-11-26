@@ -20,9 +20,11 @@ class PanelButton extends StatefulWidget {
     this.scale,
     this.rawLabel = false,
     this.glyph,
+    this.iconBuilder,
     this.subLabel,
     this.iconAxis = Axis.horizontal,
     this.glyphSize = 16,
+    this.padding,
     this.trailing,
     super.key,
   });
@@ -41,9 +43,15 @@ class PanelButton extends StatefulWidget {
 
   /// An optional drawn mark; [iconAxis] puts it left of the label or above it.
   final GlyphKind? glyph;
+
+  /// A mark that needs the key's foreground colour, such as a layout diagram.
+  /// Takes precedence over [glyph].
+  final Widget Function(Color color)? iconBuilder;
+
   final String? subLabel;
   final Axis iconAxis;
   final double glyphSize;
+  final EdgeInsetsGeometry? padding;
   final Widget? trailing;
 
   @override
@@ -90,17 +98,18 @@ class _PanelButtonState extends State<PanelButton> {
     final glyph = widget.glyph == null
         ? null
         : Glyph(widget.glyph!, size: widget.glyphSize, color: foreground);
+    final mark = widget.iconBuilder?.call(foreground) ?? glyph;
 
     final Widget content;
-    if (glyph == null && subLabel == null && widget.trailing == null) {
+    if (mark == null && subLabel == null && widget.trailing == null) {
       content = label;
     } else if (widget.iconAxis == Axis.vertical) {
       content = Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ?glyph,
-          if (glyph != null) const SizedBox(height: 7),
+          ?mark,
+          if (mark != null) const SizedBox(height: 7),
           label,
           if (subLabel != null) ...[const SizedBox(height: 3), subLabel],
         ],
@@ -110,8 +119,8 @@ class _PanelButtonState extends State<PanelButton> {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ?glyph,
-          if (glyph != null) const SizedBox(width: 9),
+          ?mark,
+          if (mark != null) const SizedBox(width: 9),
           Flexible(
             child: subLabel == null
                 ? label
@@ -152,9 +161,11 @@ class _PanelButtonState extends State<PanelButton> {
             enabled: enabled,
           ),
           alignment: Alignment.center,
-          padding: widget.iconAxis == Axis.vertical
-              ? const EdgeInsets.symmetric(horizontal: 6, vertical: 6)
-              : null,
+          padding:
+              widget.padding ??
+              (widget.iconAxis == Axis.vertical
+                  ? const EdgeInsets.symmetric(horizontal: 6, vertical: 6)
+                  : null),
           child: content,
         ),
       ),

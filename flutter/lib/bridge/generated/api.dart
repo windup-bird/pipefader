@@ -819,10 +819,19 @@ class LibraryRoot {
   final String name;
   final String kind;
 
-  const LibraryRoot({required this.id, required this.name, required this.kind});
+  /// `folder`, `local` or `usb`; the browser uses it for the source mark.
+  final String origin;
+
+  const LibraryRoot({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.origin,
+  });
 
   @override
-  int get hashCode => id.hashCode ^ name.hashCode ^ kind.hashCode;
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ kind.hashCode ^ origin.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -831,7 +840,8 @@ class LibraryRoot {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
-          kind == other.kind;
+          kind == other.kind &&
+          origin == other.origin;
 }
 
 /// The Preferences › Library page's data.

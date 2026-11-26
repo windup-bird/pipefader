@@ -20,6 +20,7 @@ const double _tempoWidth = 56;
 const double _minKeyWidth = 190;
 const double _minKeylockWidth = 230;
 const double _minTempoWidth = 260;
+const double _coverInset = 4;
 
 /// One deck's identity. The plan's grid is 1:2:2: the cover spans the first two
 /// rows, the third row is the whole-track overview directly under the cover.
@@ -105,15 +106,17 @@ class DeckInfo extends StatelessWidget {
                             cursor: onCoverTap == null
                                 ? MouseCursor.defer
                                 : SystemMouseCursors.click,
-                            child: CoverArt(
-                              size: topH,
-                              seed: deck.view.coverSeed,
-                              color: accent,
-                              image: deck.cover,
+                            child: Padding(
+                              padding: const EdgeInsets.all(_coverInset),
+                              child: CoverArt(
+                                size: topH - _coverInset * 2,
+                                seed: deck.view.coverSeed,
+                                color: accent,
+                                image: deck.cover,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Expanded(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,

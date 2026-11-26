@@ -276,6 +276,8 @@ pub struct LibraryRoot {
     pub id: i32,
     pub name: String,
     pub kind: String,
+    /// `folder`, `local` or `usb`; the browser uses it for the source mark.
+    pub origin: String,
 }
 
 pub struct LibraryList {

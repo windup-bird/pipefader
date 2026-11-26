@@ -34,14 +34,6 @@ class L10n {
   String get logs => pick('Logs', '日志');
   String get readingProfile => pick('Reading profile', '正在读取配置');
 
-  String layout(String key) => switch (key) {
-    'full' => pick('Full', '完整'),
-    'landscape' => pick('Landscape', '横向'),
-    'stacked' => pick('Stacked', '堆叠'),
-    'allInOne' => pick('All-in-one', '一体'),
-    _ => key,
-  };
-
   String decks(int count) => isZh ? '$count Deck' : '$count Decks';
 
   // Controller -------------------------------------------------------------

@@ -1030,6 +1030,7 @@ pub(crate) fn library_roots() -> Result<Vec<LibraryRoot>, String> {
             id: source.id as i32,
             name: source.display_name(),
             kind: format!("{:?}", source.kind),
+            origin: source.origin.as_str().to_owned(),
         })
         .collect())
 }

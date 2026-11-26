@@ -16,20 +16,20 @@ class LogoMark extends StatelessWidget {
 }
 
 /// One fader per deck, the mark's two-fader shape scaled out: a thin stem with
-/// a wide handle. A sounding deck rides its handle high; a silent one drops it
-/// low. When no deck is making sound every handle rests at the top, so the mark
-/// still reads as the brand at rest. The leader is the accent, the rest grey.
+/// a wide handle. Each handle follows its deck's channel fader, from the bottom
+/// at 0 to the top at 1, so the mark reads as the mixer rather than the
+/// transport. The leader is the accent, the rest grey.
 class LogoFaders extends StatelessWidget {
   const LogoFaders({
-    required this.sounding,
+    required this.levels,
     required this.leader,
     this.size = 28,
     super.key,
   });
 
-  /// One entry per deck: true when that deck is producing sound. A sounding
-  /// deck puts its handle near the top, a silent one drops it to the bottom.
-  final List<bool> sounding;
+  /// One entry per deck: 0 puts the handle at the bottom, anything above 0 at
+  /// the top. An empty list draws a single resting fader at the top.
+  final List<double> levels;
 
   /// Index of the leader, or -1 when no deck is playing.
   final int leader;
@@ -42,11 +42,17 @@ class LogoFaders extends StatelessWidget {
     // mark instead of squeezing each fader. Height drives the size, width grows
     // with the count.
     final s = size;
-    final count = sounding.isEmpty ? 1 : sounding.length;
+    final count = levels.isEmpty ? 1 : levels.length;
     final w = widthFor(s, count);
-    return CustomPaint(
-      size: Size(w, s),
-      painter: _LogoFadersPainter(sounding, leader),
+    final target = _Levels(levels);
+    return TweenAnimationBuilder<_Levels>(
+      tween: _LevelsTween(begin: target, end: target),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      builder: (context, animated, _) => CustomPaint(
+        size: Size(w, s),
+        painter: _LogoFadersPainter(animated.values, leader),
+      ),
     );
   }
 
@@ -61,17 +67,58 @@ class LogoFaders extends StatelessWidget {
   static const double _gapRatio = 0.12;
 }
 
-class _LogoFadersPainter extends CustomPainter {
-  _LogoFadersPainter(this.sounding, this.leader);
+/// The tween compares by value, so a model tick that leaves the faders alone
+/// does not restart the chase animation.
+@immutable
+class _Levels {
+  const _Levels(this.values);
 
-  final List<bool> sounding;
+  final List<double> values;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! _Levels || other.values.length != values.length) {
+      return false;
+    }
+    for (var i = 0; i < values.length; i++) {
+      if (values[i] != other.values[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(values);
+}
+
+/// Chases a moving fader instead of snapping. A deck count change cannot be
+/// interpolated across lengths, so the new list lands in one step.
+class _LevelsTween extends Tween<_Levels> {
+  _LevelsTween({super.begin, super.end});
+
+  @override
+  _Levels lerp(double t) {
+    final from = begin?.values;
+    final to = end?.values;
+    if (from == null) return _Levels(to ?? const <double>[]);
+    if (to == null) return _Levels(from);
+    if (from.length != to.length) return _Levels(to);
+    return _Levels([
+      for (var i = 0; i < to.length; i++)
+        from[i] + (to[i] - from[i]) * t,
+    ]);
+  }
+}
+
+class _LogoFadersPainter extends CustomPainter {
+  _LogoFadersPainter(this.levels, this.leader);
+
+  final List<double> levels;
   final int leader;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final count = sounding.isEmpty ? 1 : sounding.length;
+    final count = levels.isEmpty ? 1 : levels.length;
     final s = size.height;
-    final anySounding = sounding.any((on) => on);
     // Fixed proportions: each fader keeps the two-deck width, the gaps stay
     // even, and the group is centred in the (wider) box.
     final faderW = s * LogoFaders._barRatio;
@@ -93,10 +140,9 @@ class _LogoFadersPainter extends CustomPainter {
         Rect.fromLTWH(centreX - stemW / 2, top, stemW, bottom - top),
         Paint()..color = color.withValues(alpha: i == leader ? 0.5 : 0.32),
       );
-      // The handle: a wide horizontal bar. Sounding rides near the top; when
-      // no deck is making sound every handle rests at the top as a mark.
-      final on = !anySounding || (sounding.isEmpty ? true : sounding[i]);
-      final handleTop = on ? top : top + travel;
+      // The handle: a wide horizontal bar at the deck's fader position.
+      final level = levels.isEmpty ? 1.0 : levels[i].clamp(0.0, 1.0);
+      final handleTop = top + travel * (1 - level);
       canvas.drawRect(
         Rect.fromLTWH(x, handleTop, faderW, handleH),
         Paint()..color = color,
@@ -107,10 +153,10 @@ class _LogoFadersPainter extends CustomPainter {
   @override
   bool shouldRepaint(_LogoFadersPainter old) =>
       old.leader != leader ||
-      old.sounding.length != sounding.length ||
-      !_sameSounding(old.sounding, sounding);
+      old.levels.length != levels.length ||
+      !_sameLevels(old.levels, levels);
 
-  bool _sameSounding(List<bool> a, List<bool> b) {
+  bool _sameLevels(List<double> a, List<double> b) {
     for (var i = 0; i < a.length && i < b.length; i++) {
       if (a[i] != b[i]) return false;
     }

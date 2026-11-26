@@ -159,7 +159,7 @@ class _DeckInfoRow extends StatelessWidget {
                   model: model,
                   mode: LayoutMode.landscape,
                   size: landscapeLogoSize,
-                  sounding: state.sounding,
+                  levels: state.levels,
                   leader: state.leader,
                 );
               },

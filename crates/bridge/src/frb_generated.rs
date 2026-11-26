@@ -2661,10 +2661,12 @@ impl SseDecode for crate::api::LibraryRoot {
         let mut var_id = <i32>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_origin = <String>::sse_decode(deserializer);
         return crate::api::LibraryRoot {
             id: var_id,
             name: var_name,
             kind: var_kind,
+            origin: var_origin,
         };
     }
 }
@@ -4038,6 +4040,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::LibraryRoot {
             self.id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.kind.into_into_dart().into_dart(),
+            self.origin.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4899,6 +4902,7 @@ impl SseEncode for crate::api::LibraryRoot {
         <i32>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.kind, serializer);
+        <String>::sse_encode(self.origin, serializer);
     }
 }
 

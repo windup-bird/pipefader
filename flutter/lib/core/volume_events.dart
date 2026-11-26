@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:pipefader_gui/bridge/engine.dart';
 import 'package:pipefader_gui/bridge/generated/api.dart' as frb;
-import 'package:pipefader_gui/bridge/generated/frb_generated.dart';
 
 const MethodChannel _sessionChannel = MethodChannel('pipefader/session');
 
@@ -25,7 +25,7 @@ Future<Object?> _handleVolumeCall(MethodCall call) async {
 
 Future<void> _send(String method, String path) async {
   try {
-    await PipefaderBridge.init();
+    await EngineClient.ensureBridge();
     switch (method) {
       case 'volumeMounted':
         await frb.volumeMounted(root: path);

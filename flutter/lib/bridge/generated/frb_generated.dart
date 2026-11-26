@@ -2629,12 +2629,13 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   LibraryRoot dco_decode_library_root(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return LibraryRoot(
       id: dco_decode_i_32(arr[0]),
       name: dco_decode_String(arr[1]),
       kind: dco_decode_String(arr[2]),
+      origin: dco_decode_String(arr[3]),
     );
   }
 
@@ -3619,7 +3620,13 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     var var_id = sse_decode_i_32(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_kind = sse_decode_String(deserializer);
-    return LibraryRoot(id: var_id, name: var_name, kind: var_kind);
+    var var_origin = sse_decode_String(deserializer);
+    return LibraryRoot(
+      id: var_id,
+      name: var_name,
+      kind: var_kind,
+      origin: var_origin,
+    );
   }
 
   @protected
@@ -4797,6 +4804,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     sse_encode_i_32(self.id, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.kind, serializer);
+    sse_encode_String(self.origin, serializer);
   }
 
   @protected

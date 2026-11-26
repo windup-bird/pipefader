@@ -7,11 +7,12 @@ import 'package:pipefader_gui/core/layout_metrics.dart';
 enum LayoutMode { full, landscape, stacked, allInOne }
 
 extension LayoutModeLabel on LayoutMode {
+  /// The menu name, kept English in every language.
   String get label => switch (this) {
-    LayoutMode.full => 'full',
-    LayoutMode.landscape => 'landscape',
-    LayoutMode.stacked => 'stacked',
-    LayoutMode.allInOne => 'all-in-one',
+    LayoutMode.full => 'Full',
+    LayoutMode.landscape => 'Landscape',
+    LayoutMode.stacked => 'Stacked',
+    LayoutMode.allInOne => 'All-in-one',
   };
 
   bool get isPhone =>

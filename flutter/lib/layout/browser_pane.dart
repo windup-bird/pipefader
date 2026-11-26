@@ -182,7 +182,23 @@ class _BrowserHeader extends StatelessWidget {
                         size: 28,
                         onTap: () => unawaited(model.rescanLibrary()),
                       ),
+                      const SizedBox(width: 4),
+                      GlyphButton(
+                        key: const ValueKey('library-add'),
+                        glyph: GlyphKind.plus,
+                        size: 28,
+                        onTap: () => unawaited(_showAddSource(context, model)),
+                      ),
                       const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.libraryPane,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Ty.menuRow.copyWith(fontSize: T.s11),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                     ],
                   ),
                 ),
@@ -214,18 +230,19 @@ class _BrowserHeader extends StatelessWidget {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final wide = constraints.maxWidth >= 460;
-                      final veryWide = constraints.maxWidth >= 720;
                       return Row(
                         children: [
-                          if (veryWide)
-                            Expanded(
-                              child: Align(
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
                                 alignment: Alignment.centerRight,
                                 child: _StatusLine(model: model),
                               ),
-                            )
-                          else
-                            const Spacer(),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           if (wide)
                             PanelButton(
                               key: const ValueKey('browser-analyse'),
@@ -235,6 +252,9 @@ class _BrowserHeader extends StatelessWidget {
                               rawLabel: true,
                               glyph: GlyphKind.analyse,
                               height: 30,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               active: model.analysing,
                               onTap: model.canAnalyse && !model.analysing
                                   ? () => unawaited(model.analyseList())
@@ -588,6 +608,9 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
+GlyphKind _sourceGlyph(LibEntry entry) =>
+    entry.origin == 'usb' ? GlyphKind.usb : GlyphKind.folderFilled;
+
 class _LibraryColumn extends StatelessWidget {
   const _LibraryColumn({required this.model});
 
@@ -599,18 +622,6 @@ class _LibraryColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
-          child: PanelButton(
-            key: const ValueKey('library-add'),
-            label: l10n.add,
-            rawLabel: true,
-            glyph: GlyphKind.plus,
-            height: 32,
-            onTap: () => unawaited(_showAddSource(context, model)),
-            style: Ty.button.copyWith(fontSize: T.s9),
-          ),
-        ),
         Expanded(
           child: model.libraryRoots.isEmpty
               ? Padding(
@@ -625,6 +636,7 @@ class _LibraryColumn extends StatelessWidget {
                   itemCount: model.libraryRoots.length,
                   itemBuilder: (context, index) => EntryRow(
                     label: model.libraryRoots[index].name,
+                    icon: _sourceGlyph(model.libraryRoots[index]),
                     selected: model.selectedLibrary == index,
                     onTap: () => model.selectLibrary(index),
                   ),
@@ -755,6 +767,7 @@ class EntryRow extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
     this.depth = 0,
     this.expandable = false,
     this.expanded = false,
@@ -764,6 +777,7 @@ class EntryRow extends StatefulWidget {
   });
 
   final String label;
+  final GlyphKind? icon;
   final bool selected;
   final VoidCallback onTap;
   final int depth;
@@ -801,7 +815,7 @@ class _EntryRowState extends State<EntryRow> {
               ? T.surfaceLo
               : Colors.transparent,
           padding: EdgeInsets.only(
-            left: 10 + widget.depth * 14.0,
+            left: 6 + widget.depth * 14.0,
             right: 10,
           ),
           alignment: Alignment.centerLeft,
@@ -817,15 +831,24 @@ class _EntryRowState extends State<EntryRow> {
                         child: Center(
                           child: Glyph(
                             widget.expanded
-                                ? GlyphKind.chevronDown
-                                : GlyphKind.chevronRight,
+                                ? GlyphKind.caretDown
+                                : GlyphKind.caretRight,
                             size: 11,
                             color: widget.selected ? T.accent : T.faint,
                           ),
                         ),
                       )
-                    : null,
+                    : widget.icon == null
+                    ? null
+                    : Center(
+                        child: Glyph(
+                          widget.icon!,
+                          size: 17,
+                          color: widget.selected ? T.accent : T.faint,
+                        ),
+                      ),
               ),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   widget.label,
@@ -1127,6 +1150,7 @@ class PhoneBrowserPane extends StatelessWidget {
           for (var index = 0; index < model.libraryRoots.length; index++)
             EntryRow(
               label: model.libraryRoots[index].name,
+              icon: _sourceGlyph(model.libraryRoots[index]),
               selected: model.selectedLibrary == index,
               onTap: () {
                 model.selectLibrary(index);

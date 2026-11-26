@@ -29,7 +29,7 @@ class Header extends StatelessWidget {
           model: model,
           mode: mode,
           size: height * 0.66,
-          sounding: state.sounding,
+          levels: state.levels,
           leader: state.leader,
         ),
       ),
@@ -42,7 +42,7 @@ class LogoButton extends StatefulWidget {
     required this.model,
     required this.mode,
     required this.size,
-    this.sounding = const <bool>[false, false],
+    this.levels = const <double>[1, 1],
     this.leader = -1,
     super.key,
   });
@@ -51,8 +51,8 @@ class LogoButton extends StatefulWidget {
   final LayoutMode mode;
   final double size;
 
-  /// One entry per deck; empty falls back to the resting mark.
-  final List<bool> sounding;
+  /// One fader position per deck; empty falls back to the resting mark.
+  final List<double> levels;
   final int leader;
 
   @override
@@ -72,9 +72,18 @@ class _LogoButtonState extends State<LogoButton> {
         behavior: HitTestBehavior.opaque,
         onTap: () {
           final box = context.findRenderObject();
-          final rect = box is RenderBox && box.hasSize
-              ? box.localToGlobal(Offset.zero) & box.size
-              : null;
+          Rect? rect;
+          if (box is RenderBox && box.hasSize) {
+            // The tap target carries padding; fly from the mark itself so the
+            // menu's start size matches what the header is showing.
+            final full = box.localToGlobal(Offset.zero) & box.size;
+            final count = widget.levels.isEmpty ? 1 : widget.levels.length;
+            rect = Rect.fromCenter(
+              center: full.center,
+              width: LogoFaders.widthFor(widget.size, count),
+              height: widget.size,
+            );
+          }
           showAppMenu(
             context,
             model: widget.model,
@@ -88,7 +97,7 @@ class _LogoButtonState extends State<LogoButton> {
             duration: const Duration(milliseconds: 120),
             opacity: _hover ? 1.0 : 0.86,
             child: LogoFaders(
-              sounding: widget.sounding,
+              levels: widget.levels,
               leader: widget.leader,
               size: widget.size,
             ),

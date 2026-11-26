@@ -1,10 +1,13 @@
 /// One library root in the browser's left column (a plugged USB stick, the
 /// local disk, …).
 class LibEntry {
-  const LibEntry(this.name, {this.id = -1});
+  const LibEntry(this.name, {this.id = -1, this.origin = ''});
 
   final String name;
   final int id;
+
+  /// `folder`, `local` or `usb`, from the source that owns this root.
+  final String origin;
 }
 
 /// One playlist (or saved folder) below a library.

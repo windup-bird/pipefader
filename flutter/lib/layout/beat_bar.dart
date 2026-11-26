@@ -158,7 +158,7 @@ class _BeatBarState extends State<BeatBar> {
     return Container(
       width: barW,
       height: barH,
-      padding: EdgeInsets.all(s.size(2)),
+      padding: EdgeInsets.symmetric(horizontal: s.size(2)),
       color: T.glass,
       child: Column(
         children: [

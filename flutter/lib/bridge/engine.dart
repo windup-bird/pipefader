@@ -17,11 +17,33 @@ class EngineClient {
 
   Stream<frb.SessionEvent> get events => _events.stream;
 
+  /// The generated bridge may only be initialized once, and boot races the
+  /// engine start against the error logger and the Android volume channel. Every
+  /// entry point awaits this one future instead of calling `init` directly.
+  static Future<void>? _bridgeReady;
+
+  static Future<void> ensureBridge() {
+    final ready = _bridgeReady;
+    if (ready != null) return ready;
+    final pending = _initBridge();
+    _bridgeReady = pending;
+    return pending;
+  }
+
+  static Future<void> _initBridge() async {
+    try {
+      await PipefaderBridge.init();
+    } catch (_) {
+      _bridgeReady = null;
+      rethrow;
+    }
+  }
+
   /// Boots the Rust engine and starts listening. Idempotent in Rust, so a
   /// Flutter hot restart reuses the live session instead of opening the sound
   /// card twice.
   static Future<EngineClient> start({frb.SessionPathsDto? paths}) async {
-    await PipefaderBridge.init();
+    await ensureBridge();
     await frb.start(paths: paths);
     final client = EngineClient._();
     client._subscription = frb.subscribe().listen(
@@ -36,7 +58,7 @@ class EngineClient {
   /// loaded there is nowhere to write, so the caller still gets the debug print.
   static Future<void> logClientError(String text) async {
     try {
-      await PipefaderBridge.init();
+      await ensureBridge();
       await frb.logClientError(text: text);
     } catch (error) {
       debugPrint('Pipefader could not log: $error\n$text');
@@ -45,7 +67,7 @@ class EngineClient {
 
   /// The in-app log reader; works even when the engine never attached.
   static Future<List<String>> recentLogs({int limit = 400}) async {
-    await PipefaderBridge.init();
+    await ensureBridge();
     return frb.recentLogs(limit: limit);
   }
 

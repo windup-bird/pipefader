@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:material_ui/material_ui.dart';
 
 import 'package:pipefader_gui/controls/buttons.dart';
+import 'package:pipefader_gui/controls/layout_diagram.dart';
 import 'package:pipefader_gui/core/device.dart';
 import 'package:pipefader_gui/core/glyph.dart';
 import 'package:pipefader_gui/core/i18n.dart';
@@ -192,7 +193,7 @@ class _AppMenuOverlayState extends State<_AppMenuOverlay>
       animation: _repaint,
       builder: (context, _) {
         final status = widget.model.logoStatus(widget.current);
-        final count = status.sounding.isEmpty ? 1 : status.sounding.length;
+        final count = status.levels.isEmpty ? 1 : status.levels.length;
         final target = Rect.fromCenter(
           center: Offset(screen.width / 2, top + menuTopGap + 23),
           width: LogoFaders.widthFor(46, count),
@@ -281,7 +282,7 @@ class _AppMenuOverlayState extends State<_AppMenuOverlay>
               child: IgnorePointer(
                 child: Center(
                   child: LogoFaders(
-                    sounding: status.sounding,
+                    levels: status.levels,
                     leader: status.leader,
                     size: mark.height,
                   ),
@@ -349,18 +350,20 @@ class _RootMenu extends StatelessWidget {
               Expanded(
                 child: PanelButton(
                   key: ValueKey('layout-${LayoutMode.values[index].name}'),
-                  label: l10n.layout(LayoutMode.values[index].name),
+                  label: LayoutMode.values[index].label,
                   rawLabel: true,
-                  glyph: _layoutGlyph(LayoutMode.values[index]),
+                  iconBuilder: (color) => LayoutDiagram(
+                    mode: LayoutMode.values[index],
+                    color: color,
+                  ),
                   iconAxis: Axis.vertical,
-                  glyphSize: 28,
                   active: LayoutMode.values[index] == selected,
                   height: menuTileH,
                   onTap: () {
                     model.setLayout(LayoutMode.values[index]);
                     onClose();
                   },
-                  style: Ty.button.copyWith(fontSize: T.s10),
+                  style: Ty.menuRow.copyWith(fontSize: T.s13),
                 ),
               ),
             ],
@@ -388,7 +391,7 @@ class _RootMenu extends StatelessWidget {
                       model.setPhoneDecks(options[index]);
                     }
                   },
-                  style: Ty.button.copyWith(fontSize: T.s10),
+                  style: Ty.menuRow.copyWith(fontSize: T.s13),
                 ),
               ),
             ],
@@ -461,13 +464,6 @@ class _MenuRow extends StatelessWidget {
     );
   }
 }
-
-GlyphKind _layoutGlyph(LayoutMode mode) => switch (mode) {
-  LayoutMode.full => GlyphKind.layoutFull,
-  LayoutMode.landscape => GlyphKind.layoutLandscape,
-  LayoutMode.stacked => GlyphKind.layoutStacked,
-  LayoutMode.allInOne => GlyphKind.layoutAllInOne,
-};
 
 GlyphKind _decksGlyph(int count) => switch (count) {
   2 => GlyphKind.decks2,

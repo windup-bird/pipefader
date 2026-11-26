@@ -289,18 +289,18 @@ class AppModel extends ChangeNotifier {
   List<DeckRuntime> activeDecks(int count) =>
       decks.take(count).toList(growable: false);
 
-  /// The main mark's per-deck sounding flags and the first playing deck. The menu draws the same
-  /// `LogoFaders`, so both places stay in step without either owning a copy of the rule.
-  ({List<bool> sounding, int leader}) logoStatus(LayoutMode mode) {
+  /// The main mark's per-deck fader levels and the first playing deck. The mark has two states:
+  /// a deck at 0 sits at the bottom, anything above 0 rides at the top. The leader still follows
+  /// the transport. The menu draws the same `LogoFaders`, so both places stay in step.
+  ({List<double> levels, int leader}) logoStatus(LayoutMode mode) {
     final active = activeDecks(deckCountFor(mode));
     var leader = -1;
-    final sounding = <bool>[];
+    final levels = <double>[];
     for (var i = 0; i < active.length; i++) {
-      final on = active[i].playing;
-      sounding.add(on);
-      if (on && leader < 0) leader = i;
+      levels.add(active[i].fader > 0 ? 1.0 : 0.0);
+      if (active[i].playing && leader < 0) leader = i;
     }
-    return (sounding: sounding, leader: leader);
+    return (levels: levels, leader: leader);
   }
 
   List<TrackRow> get visibleTracks => allTracks;
@@ -848,7 +848,11 @@ class AppModel extends ChangeNotifier {
 
     libraryRoots
       ..clear()
-      ..addAll(roots.map((root) => LibEntry(root.name, id: root.id)));
+      ..addAll(
+        roots.map(
+          (root) => LibEntry(root.name, id: root.id, origin: root.origin),
+        ),
+      );
     selectedLibrary = nextSource;
     lists
       ..clear()

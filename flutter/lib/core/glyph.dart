@@ -24,6 +24,8 @@ enum GlyphKind {
   chevronLeft,
   chevronUp,
   chevronDown,
+  caretRight,
+  caretDown,
   check,
   refresh,
 
@@ -34,6 +36,7 @@ enum GlyphKind {
   mixer,
   library,
   folder,
+  folderFilled,
   usb,
   analyse,
   list,
@@ -42,11 +45,7 @@ enum GlyphKind {
   audio,
   trash,
 
-  // Layout and deck count.
-  layoutFull,
-  layoutLandscape,
-  layoutStacked,
-  layoutAllInOne,
+  // Deck count.
   decks2,
   decks3,
   decks4,
@@ -141,6 +140,18 @@ class _GlyphPainter extends CustomPainter {
         _chevron(canvas, stroke, 0, -1);
       case GlyphKind.chevronDown:
         _chevron(canvas, stroke, 0, 1);
+      case GlyphKind.caretRight:
+        _polygon(canvas, const [
+          Offset(9, 6),
+          Offset(9, 18),
+          Offset(18, 12),
+        ], fill);
+      case GlyphKind.caretDown:
+        _polygon(canvas, const [
+          Offset(6, 9),
+          Offset(18, 9),
+          Offset(12, 18),
+        ], fill);
       case GlyphKind.check:
         final bold = Paint()
           ..color = color
@@ -174,12 +185,7 @@ class _GlyphPainter extends CustomPainter {
           point - tangent * 1.2 - normal * 2.0,
         ], fill);
       case GlyphKind.settings:
-        _line(canvas, 3.5, 7, 20.5, 7, stroke);
-        _line(canvas, 3.5, 12, 20.5, 12, stroke);
-        _line(canvas, 3.5, 17, 20.5, 17, stroke);
-        canvas.drawCircle(const Offset(9, 7), 1.7, fill);
-        canvas.drawCircle(const Offset(15, 12), 1.7, fill);
-        canvas.drawCircle(const Offset(10, 17), 1.7, fill);
+        canvas.drawPath(_gearPath(), fill);
       case GlyphKind.controller:
         _rect(canvas, 3, 7, 21, 17, stroke, radius: 4);
         _line(canvas, 7.5, 12, 10.5, 12, stroke);
@@ -230,11 +236,31 @@ class _GlyphPainter extends CustomPainter {
           Offset(3, 19),
           Offset(3, 7),
         ], stroke);
+      case GlyphKind.folderFilled:
+        _polygon(canvas, const [
+          Offset(3, 7),
+          Offset(9.5, 7),
+          Offset(12, 9.5),
+          Offset(21, 9.5),
+          Offset(21, 19),
+          Offset(3, 19),
+        ], fill);
       case GlyphKind.usb:
-        _rect(canvas, 9, 3.5, 15, 7, stroke, radius: 1);
-        _line(canvas, 12, 7, 12, 12, stroke);
-        _rect(canvas, 7.5, 12, 16.5, 20, stroke, radius: 2);
-        canvas.drawCircle(const Offset(12, 16.5), 1.2, fill);
+        // A solid USB stick silhouette: wide body, short plug on the right.
+        final usb = Path()
+          ..addRRect(
+            RRect.fromRectAndRadius(
+              const Rect.fromLTRB(3, 6.5, 17, 17.5),
+              const Radius.circular(1.8),
+            ),
+          )
+          ..addRRect(
+            RRect.fromRectAndRadius(
+              const Rect.fromLTRB(17, 9, 21, 15),
+              const Radius.circular(0.8),
+            ),
+          );
+        canvas.drawPath(usb, fill);
       case GlyphKind.analyse:
         _star(canvas, const Offset(11, 11.5), 6.5, stroke);
         _star(canvas, const Offset(18.5, 6), 2.4, stroke);
@@ -280,51 +306,6 @@ class _GlyphPainter extends CustomPainter {
         ], stroke);
         _line(canvas, 10, 10.5, 10, 16.5, stroke);
         _line(canvas, 14, 10.5, 14, 16.5, stroke);
-      case GlyphKind.layoutFull:
-        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
-        _line(canvas, 3, 9, 21, 9, stroke);
-        _line(canvas, 12, 3, 12, 9, stroke);
-        _line(canvas, 3, 14.5, 21, 14.5, stroke);
-        _line(canvas, 9.5, 14.5, 9.5, 21, stroke);
-        _line(canvas, 14.5, 14.5, 14.5, 21, stroke);
-        _polyline(canvas, const [
-          Offset(5, 12.5),
-          Offset(8, 10.5),
-          Offset(11, 12.5),
-          Offset(14, 10.5),
-          Offset(17, 12.5),
-          Offset(19, 11),
-        ], stroke);
-      case GlyphKind.layoutLandscape:
-        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
-        _line(canvas, 10, 3, 10, 21, stroke);
-        _line(canvas, 10, 11, 21, 11, stroke);
-        _line(canvas, 15.5, 11, 15.5, 21, stroke);
-        _polyline(canvas, const [
-          Offset(5, 14),
-          Offset(7, 12),
-          Offset(9, 14),
-        ], stroke);
-        _line(canvas, 5, 7, 8, 7, stroke);
-      case GlyphKind.layoutStacked:
-        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
-        _line(canvas, 3, 8, 21, 8, stroke);
-        _line(canvas, 3, 13.5, 21, 13.5, stroke);
-        _line(canvas, 3, 18, 21, 18, stroke);
-        _polyline(canvas, const [
-          Offset(6, 11),
-          Offset(9, 9.5),
-          Offset(12, 11),
-          Offset(15, 9.5),
-          Offset(18, 11),
-        ], stroke);
-      case GlyphKind.layoutAllInOne:
-        _rect(canvas, 3, 3, 21, 21, stroke, radius: 2);
-        _line(canvas, 3, 7.5, 21, 7.5, stroke);
-        _line(canvas, 3, 12, 21, 12, stroke);
-        _line(canvas, 3, 16.5, 21, 16.5, stroke);
-        _line(canvas, 9, 7.5, 9, 16.5, stroke);
-        _line(canvas, 15, 7.5, 15, 16.5, stroke);
       case GlyphKind.decks2:
         _faders(canvas, 2, stroke, fill);
       case GlyphKind.decks3:
@@ -433,6 +414,42 @@ class _GlyphPainter extends CustomPainter {
     final wing = Offset(-dy * size * 0.7, dx * size * 0.7);
     canvas.drawLine(back + wing, tip, p);
     canvas.drawLine(back - wing, tip, p);
+  }
+
+  /// Eight square teeth with a round centre hole, filled with the even-odd rule.
+  Path _gearPath() {
+    const center = Offset(12, 12);
+    const outer = 9.2;
+    const valley = 6.9;
+    const hole = 2.6;
+    const teeth = 8;
+    final step = math.pi * 2 / teeth;
+    final tooth = step * 0.20;
+    final root = step * 0.32;
+    Offset point(double angle, double radius) =>
+        center + Offset(math.cos(angle), math.sin(angle)) * radius;
+    final path = Path();
+    for (var i = 0; i < teeth; i++) {
+      final a = i * step;
+      final points = [
+        point(a - tooth, outer),
+        point(a + tooth, outer),
+        point(a + root, valley),
+        point(a + step - root, valley),
+      ];
+      if (i == 0) {
+        path.moveTo(points.first.dx, points.first.dy);
+      } else {
+        path.lineTo(points.first.dx, points.first.dy);
+      }
+      for (final p in points.skip(1)) {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    path.addOval(Rect.fromCircle(center: center, radius: hole));
+    path.fillType = PathFillType.evenOdd;
+    return path;
   }
 
   /// Four-point sparkle used for the browser's analyse action.
