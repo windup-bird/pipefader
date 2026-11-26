@@ -73,7 +73,7 @@ class PipefaderBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 916587909;
+  int get rustContentHash => -1908029296;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -92,6 +92,11 @@ abstract class PipefaderBridgeApi extends BaseApi {
   Future<void> crateApiBeatJump({required int deck, required int beats});
 
   Future<void> crateApiBend({required int deck, required double delta});
+
+  Future<void> crateApiBrowserCommand({
+    required BrowserCommand action,
+    int? deck,
+  });
 
   Future<CoverData?> crateApiCover({required int deck});
 
@@ -410,6 +415,40 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       const TaskConstMeta(debugName: "bend", argNames: ["deck", "delta"]);
 
   @override
+  Future<void> crateApiBrowserCommand({
+    required BrowserCommand action,
+    int? deck,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_browser_command(action, serializer);
+          sse_encode_opt_box_autoadd_u_8(deck, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBrowserCommandConstMeta,
+        argValues: [action, deck],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBrowserCommandConstMeta => const TaskConstMeta(
+    debugName: "browser_command",
+    argNames: ["action", "deck"],
+  );
+
+  @override
   Future<CoverData?> crateApiCover({required int deck}) {
     return handler.executeNormal(
       NormalTask(
@@ -419,7 +458,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -448,7 +487,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -476,7 +515,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -503,7 +542,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -541,7 +580,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -572,7 +611,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -601,7 +640,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -635,7 +674,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -671,7 +710,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -705,7 +744,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -736,7 +775,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -766,7 +805,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -794,7 +833,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -822,7 +861,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -852,7 +891,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -879,7 +918,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -911,7 +950,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -941,7 +980,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -977,7 +1016,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1008,7 +1047,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1038,7 +1077,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1065,7 +1104,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1097,7 +1136,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1133,7 +1172,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1162,7 +1201,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1189,7 +1228,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1216,7 +1255,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1245,7 +1284,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1279,7 +1318,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1315,7 +1354,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1344,7 +1383,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1371,7 +1410,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1399,7 +1438,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1427,7 +1466,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1456,7 +1495,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1485,7 +1524,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1513,7 +1552,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1547,7 +1586,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1578,7 +1617,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1609,7 +1648,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1641,7 +1680,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1671,7 +1710,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1699,7 +1738,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 48,
             port: port_,
           );
         },
@@ -1731,7 +1770,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 48,
+            funcId: 49,
             port: port_,
           );
         },
@@ -1760,7 +1799,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 50,
             port: port_,
           );
         },
@@ -1792,7 +1831,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 51,
             port: port_,
           );
         },
@@ -1826,7 +1865,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 52,
             port: port_,
           );
         },
@@ -1860,7 +1899,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 53,
             port: port_,
           );
         },
@@ -1889,7 +1928,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 54,
             port: port_,
           );
         },
@@ -1917,7 +1956,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 55,
             port: port_,
           );
         },
@@ -1947,7 +1986,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 55,
+              funcId: 56,
               port: port_,
             );
           },
@@ -1978,7 +2017,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2006,7 +2045,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 58,
             port: port_,
           );
         },
@@ -2038,7 +2077,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 59,
             port: port_,
           );
         },
@@ -2067,7 +2106,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2101,7 +2140,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 61,
             port: port_,
           );
         },
@@ -2131,7 +2170,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 61,
+            funcId: 62,
             port: port_,
           );
         },
@@ -2159,7 +2198,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 63,
             port: port_,
           );
         },
@@ -2186,7 +2225,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2214,7 +2253,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 65,
             port: port_,
           );
         },
@@ -2250,7 +2289,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 66,
             port: port_,
           );
         },
@@ -2294,6 +2333,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  BrowserCommand dco_decode_box_autoadd_browser_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_browser_command(raw);
   }
 
   @protected
@@ -2354,6 +2399,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   WaveformData dco_decode_box_autoadd_waveform_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_waveform_data(raw);
+  }
+
+  @protected
+  BrowserCommand dco_decode_browser_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return BrowserCommand.values[raw as int];
   }
 
   @protected
@@ -2843,6 +2894,12 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  BrowserCommand? dco_decode_opt_box_autoadd_browser_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_browser_command(raw);
+  }
+
+  @protected
   CoverData? dco_decode_opt_box_autoadd_cover_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_cover_data(raw);
@@ -2937,8 +2994,8 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   SessionEvent dco_decode_session_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return SessionEvent(
       kind: dco_decode_event_kind(arr[0]),
       tick: dco_decode_opt_box_autoadd_tick(arr[1]),
@@ -2946,6 +3003,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       meta: dco_decode_opt_box_autoadd_deck_meta(arr[3]),
       error: dco_decode_bool(arr[4]),
       text: dco_decode_String(arr[5]),
+      browser: dco_decode_opt_box_autoadd_browser_command(arr[6]),
     );
   }
 
@@ -3221,6 +3279,14 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  BrowserCommand sse_decode_box_autoadd_browser_command(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_browser_command(deserializer));
+  }
+
+  @protected
   CoverData sse_decode_box_autoadd_cover_data(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_cover_data(deserializer));
@@ -3284,6 +3350,13 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_waveform_data(deserializer));
+  }
+
+  @protected
+  BrowserCommand sse_decode_browser_command(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return BrowserCommand.values[inner];
   }
 
   @protected
@@ -3944,6 +4017,19 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  BrowserCommand? sse_decode_opt_box_autoadd_browser_command(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_browser_command(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   CoverData? sse_decode_opt_box_autoadd_cover_data(
     SseDeserializer deserializer,
   ) {
@@ -4108,6 +4194,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     var var_meta = sse_decode_opt_box_autoadd_deck_meta(deserializer);
     var var_error = sse_decode_bool(deserializer);
     var var_text = sse_decode_String(deserializer);
+    var var_browser = sse_decode_opt_box_autoadd_browser_command(deserializer);
     return SessionEvent(
       kind: var_kind,
       tick: var_tick,
@@ -4115,6 +4202,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
       meta: var_meta,
       error: var_error,
       text: var_text,
+      browser: var_browser,
     );
   }
 
@@ -4435,6 +4523,15 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_browser_command(
+    BrowserCommand self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_browser_command(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_cover_data(
     CoverData self,
     SseSerializer serializer,
@@ -4510,6 +4607,15 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_waveform_data(self, serializer);
+  }
+
+  @protected
+  void sse_encode_browser_command(
+    BrowserCommand self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -5069,6 +5175,19 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_browser_command(
+    BrowserCommand? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_browser_command(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_cover_data(
     CoverData? self,
     SseSerializer serializer,
@@ -5219,6 +5338,7 @@ class PipefaderBridgeApiImpl extends PipefaderBridgeApiImplPlatform
     sse_encode_opt_box_autoadd_deck_meta(self.meta, serializer);
     sse_encode_bool(self.error, serializer);
     sse_encode_String(self.text, serializer);
+    sse_encode_opt_box_autoadd_browser_command(self.browser, serializer);
   }
 
   @protected

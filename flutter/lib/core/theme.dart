@@ -82,9 +82,10 @@ abstract final class T {
   static const padJumpColor = Color(0xFF6EE7B7); // green
 
   // Waveform.
-  static const waveLo = Color(0xFF24579F);
-  static const waveMid = Color(0xFF3B82F6);
-  static const waveHi = Color(0xFFDCE9FF);
+  static const waveLo = Color(0xFF35465D);
+  static const waveMid = Color(0xFF67809F);
+  static const waveHi = Color(0xFFBBCADF);
+  static const waveTintStrength = 0.45;
   static const playhead = Color(0xFFFF4D4F);
   // Opaque TUI grid greys. The old translucent whites washed out to ~#333/#5C
   // over the near-black waveform band, which made the grid nearly invisible.

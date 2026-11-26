@@ -871,8 +871,9 @@ class _TracksColumn extends StatelessWidget {
             ),
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+        return _TrackViewport(
+          selected: model.selectedTrack,
+          itemExtent: _TrackRow.height,
           itemCount: tracks.length,
           itemBuilder: (context, index) {
             final track = tracks[index];
@@ -954,6 +955,8 @@ class _TrackDragFeedback extends StatelessWidget {
 }
 
 class _TrackRow extends StatefulWidget {
+  static const height = 30.0;
+
   const _TrackRow({
     required this.index,
     required this.track,
@@ -991,7 +994,7 @@ class _TrackRowState extends State<_TrackRow> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          height: 30,
+          height: _TrackRow.height,
           color: selected
               ? T.surfaceHi
               : _hover
@@ -1294,8 +1297,9 @@ class _TrackList extends StatelessWidget {
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    return _TrackViewport(
+      selected: model.selectedTrack,
+      itemExtent: _PhoneTrackRow.height,
       itemCount: tracks.length,
       itemBuilder: (context, index) {
         final track = tracks[index];
@@ -1318,7 +1322,78 @@ class _TrackList extends StatelessWidget {
   }
 }
 
+/// Reveal the browser cursor after external navigation, without forcing the
+/// view back to it when the user scrolls manually.
+class _TrackViewport extends StatefulWidget {
+  const _TrackViewport({
+    required this.selected,
+    required this.itemExtent,
+    required this.itemCount,
+    required this.itemBuilder,
+  });
+
+  final int selected;
+  final double itemExtent;
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  State<_TrackViewport> createState() => _TrackViewportState();
+}
+
+class _TrackViewportState extends State<_TrackViewport> {
+  static const _padding = 4.0;
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _revealCursor();
+  }
+
+  @override
+  void didUpdateWidget(_TrackViewport old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected || old.itemCount != widget.itemCount) {
+      _revealCursor();
+    }
+  }
+
+  void _revealCursor() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final pos = _scroll.position;
+      final top = _padding + widget.selected * widget.itemExtent;
+      final bottom = top + widget.itemExtent;
+      final target = top < pos.pixels
+          ? top
+          : bottom > pos.pixels + pos.viewportDimension
+          ? bottom - pos.viewportDimension
+          : pos.pixels;
+      final pixels = target.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+      if (pixels != pos.pixels) _scroll.jumpTo(pixels);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListView.builder(
+    controller: _scroll,
+    padding: const EdgeInsets.symmetric(vertical: _padding),
+    itemExtent: widget.itemExtent,
+    itemCount: widget.itemCount,
+    itemBuilder: widget.itemBuilder,
+  );
+}
+
 class _PhoneTrackRow extends StatelessWidget {
+  static const height = 44.0;
+
   const _PhoneTrackRow({
     required this.track,
     required this.selected,
@@ -1335,7 +1410,7 @@ class _PhoneTrackRow extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        height: 44,
+        height: height,
         color: selected ? T.surfaceHi : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
@@ -1374,7 +1449,9 @@ class _PhoneTrackRow extends StatelessWidget {
               bpmText(track.bpm),
               style: Ty.labelSmall.copyWith(color: T.dim),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
+            Text(track.key, style: Ty.labelSmall.copyWith(color: T.dim)),
+            const SizedBox(width: 10),
             Text(
               shortClock(track.seconds),
               style: Ty.labelSmall.copyWith(color: T.faint),

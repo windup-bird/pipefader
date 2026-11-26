@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 916587909;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1908029296;
 
 // Section: executor
 
@@ -175,6 +175,40 @@ fn wire__crate__api__bend_impl(
             move |context| {
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::api::bend(api_deck, api_delta)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__browser_command_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "browser_command",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_action = <crate::api::BrowserCommand>::sse_decode(&mut deserializer);
+            let api_deck = <Option<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::browser_command(api_action, api_deck)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -2274,6 +2308,22 @@ impl SseDecode for bool {
     }
 }
 
+impl SseDecode for crate::api::BrowserCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::BrowserCommand::Up,
+            1 => crate::api::BrowserCommand::Down,
+            2 => crate::api::BrowserCommand::Open,
+            3 => crate::api::BrowserCommand::Exit,
+            4 => crate::api::BrowserCommand::Load,
+            5 => crate::api::BrowserCommand::Refresh,
+            _ => unreachable!("Invalid variant for BrowserCommand: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::ChannelTick {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2453,6 +2503,8 @@ impl SseDecode for crate::api::EventKind {
             4 => crate::api::EventKind::Log,
             5 => crate::api::EventKind::LibraryChanged,
             6 => crate::api::EventKind::Stopped,
+            7 => crate::api::EventKind::Browser,
+            8 => crate::api::EventKind::AnalysisListFinished,
             _ => unreachable!("Invalid variant for EventKind: {}", inner),
         };
     }
@@ -3050,6 +3102,17 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<crate::api::BrowserCommand> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::BrowserCommand>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::CoverData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3207,6 +3270,7 @@ impl SseDecode for crate::api::SessionEvent {
         let mut var_meta = <Option<crate::api::DeckMeta>>::sse_decode(deserializer);
         let mut var_error = <bool>::sse_decode(deserializer);
         let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_browser = <Option<crate::api::BrowserCommand>>::sse_decode(deserializer);
         return crate::api::SessionEvent {
             kind: var_kind,
             tick: var_tick,
@@ -3214,6 +3278,7 @@ impl SseDecode for crate::api::SessionEvent {
             meta: var_meta,
             error: var_error,
             text: var_text,
+            browser: var_browser,
         };
     }
 }
@@ -3553,67 +3618,68 @@ fn pde_ffi_dispatcher_primary_impl(
         2 => wire__crate__api__analyse_track_impl(port, ptr, rust_vec_len, data_len),
         3 => wire__crate__api__beat_jump_impl(port, ptr, rust_vec_len, data_len),
         4 => wire__crate__api__bend_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__cover_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__cue_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__deck_meta_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__disable_controller_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__fx_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__fx_add_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__fx_remove_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__fx_select_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__hot_cue_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__import_midi_map_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__jump_step_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__library_add_folder_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__library_lists_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__library_remove_folder_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__library_rescan_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__library_roots_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__library_search_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__library_tracks_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__load_path_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__load_track_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__log_client_error_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__logs_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__loop_action_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__loop_beats_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__menu_state_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__midi_maps_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__midi_ports_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__nudge_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__output_add_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__output_bind_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__output_devices_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__output_refresh_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__output_remove_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__recent_logs_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__scale_jump_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__seek_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__set_crossfader_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__set_eq_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__set_key_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__set_keylock_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__set_level_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__set_midi_map_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__set_midi_port_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__set_tempo_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__set_tempo_fader_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__set_tempo_range_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__set_wave_view_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__shutdown_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__start_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__subscribe_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__sync_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__toggle_cue_send_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__transport_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__vinyl_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__vinyl_turn_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__volume_mounted_impl(port, ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__volume_unmounted_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__wave_palette_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__waveform_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__waveform_strip_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__browser_command_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__cover_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__cue_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__deck_meta_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__disable_controller_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__fx_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__fx_add_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__fx_remove_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__fx_select_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__hot_cue_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__import_midi_map_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__jump_step_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__library_add_folder_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__library_lists_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__library_remove_folder_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__library_rescan_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__library_roots_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__library_search_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__library_tracks_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__load_path_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__load_track_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__log_client_error_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__logs_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__loop_action_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__loop_beats_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__menu_state_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__midi_maps_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__midi_ports_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__nudge_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__output_add_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__output_bind_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__output_devices_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__output_refresh_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__output_remove_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__recent_logs_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__scale_jump_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__seek_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__set_crossfader_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__set_eq_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__set_key_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__set_keylock_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__set_level_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__set_midi_map_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__set_midi_port_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__set_tempo_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__set_tempo_fader_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__set_tempo_range_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__set_wave_view_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__shutdown_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__start_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__subscribe_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__sync_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__toggle_cue_send_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__transport_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__vinyl_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__vinyl_turn_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__volume_mounted_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__volume_unmounted_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__wave_palette_impl(port, ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__waveform_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__waveform_strip_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3632,6 +3698,26 @@ fn pde_ffi_dispatcher_sync_impl(
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::BrowserCommand {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Up => 0.into_dart(),
+            Self::Down => 1.into_dart(),
+            Self::Open => 2.into_dart(),
+            Self::Exit => 3.into_dart(),
+            Self::Load => 4.into_dart(),
+            Self::Refresh => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::BrowserCommand {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::BrowserCommand> for crate::api::BrowserCommand {
+    fn into_into_dart(self) -> crate::api::BrowserCommand {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ChannelTick {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -3799,6 +3885,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::EventKind {
             Self::Log => 4.into_dart(),
             Self::LibraryChanged => 5.into_dart(),
             Self::Stopped => 6.into_dart(),
+            Self::Browser => 7.into_dart(),
+            Self::AnalysisListFinished => 8.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -4163,6 +4251,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::SessionEvent {
             self.meta.into_into_dart().into_dart(),
             self.error.into_into_dart().into_dart(),
             self.text.into_into_dart().into_dart(),
+            self.browser.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4515,6 +4604,26 @@ impl SseEncode for bool {
     }
 }
 
+impl SseEncode for crate::api::BrowserCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::BrowserCommand::Up => 0,
+                crate::api::BrowserCommand::Down => 1,
+                crate::api::BrowserCommand::Open => 2,
+                crate::api::BrowserCommand::Exit => 3,
+                crate::api::BrowserCommand::Load => 4,
+                crate::api::BrowserCommand::Refresh => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::ChannelTick {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4643,6 +4752,8 @@ impl SseEncode for crate::api::EventKind {
                 crate::api::EventKind::Log => 4,
                 crate::api::EventKind::LibraryChanged => 5,
                 crate::api::EventKind::Stopped => 6,
+                crate::api::EventKind::Browser => 7,
+                crate::api::EventKind::AnalysisListFinished => 8,
                 _ => {
                     unimplemented!("");
                 }
@@ -5148,6 +5259,16 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<crate::api::BrowserCommand> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::BrowserCommand>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::CoverData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5280,6 +5401,7 @@ impl SseEncode for crate::api::SessionEvent {
         <Option<crate::api::DeckMeta>>::sse_encode(self.meta, serializer);
         <bool>::sse_encode(self.error, serializer);
         <String>::sse_encode(self.text, serializer);
+        <Option<crate::api::BrowserCommand>>::sse_encode(self.browser, serializer);
     }
 }
 

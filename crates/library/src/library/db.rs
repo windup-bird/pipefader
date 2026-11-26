@@ -105,6 +105,21 @@ impl Default for ImportCalibration {
     }
 }
 
+// Both browser queries show current analysis, falling back to tags for a missing BPM or key.
+const BROWSER_TRACK_SELECT: &str = "
+    SELECT t.id, l.id, t.title, t.artist, t.album,
+           COALESCE(NULLIF(u.bpm, 0), NULLIF(a.bpm, 0), t.bpm),
+           COALESCE(u.key_pc, a.key_pc, t.key_pc),
+           CASE WHEN u.key_pc IS NOT NULL THEN u.key_mode
+                WHEN a.key_pc IS NOT NULL THEN a.key_mode ELSE t.key_mode END,
+           CASE WHEN u.key_pc IS NOT NULL THEN u.key_confidence
+                WHEN a.key_pc IS NOT NULL THEN a.key_confidence ELSE t.key_confidence END,
+           t.duration_frames, t.sample_rate, l.path
+    FROM track t
+    JOIN track_location l ON l.track_id = t.id
+    LEFT JOIN analysis a ON a.track_id = t.id AND a.algorithm = ?2 AND a.version = ?3
+    LEFT JOIN usb_analysis_summary u ON u.content_key = t.content_key";
+
 /// The library cache handle. Cheap to clone through an `Arc`; all access serialises on one mutex.
 pub struct LibraryDb {
     conn: Mutex<Connection>,
@@ -135,6 +150,14 @@ impl LibraryDb {
              PRAGMA foreign_keys=ON;",
         )?;
         migrate(&conn)?;
+        // Removable-media analysis is visible in the browser until this session ends, but is
+        // never written to the cache. Match by content key so recycled track IDs cannot leak it.
+        conn.execute_batch(
+            "CREATE TEMP TABLE usb_analysis_summary (
+                content_key TEXT PRIMARY KEY, bpm REAL, key_pc INTEGER, key_mode TEXT,
+                key_confidence REAL
+             )",
+        )?;
         Ok(Self {
             conn: Mutex::new(conn),
             path,
@@ -316,17 +339,13 @@ impl LibraryDb {
     /// The tracks directly in one list, in the order the source gave them.
     pub fn tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<TrackRow>> {
         let conn = self.lock()?;
-        let mut statement = conn.prepare(
-            "SELECT t.id, l.id, t.title, t.artist, t.album, t.bpm,
-                    t.key_pc, t.key_mode, t.key_confidence,
-                    t.duration_frames, t.sample_rate, l.path
-             FROM playlist_item pi
-             JOIN track_location l ON l.id = pi.location_id
-             JOIN track t ON t.id = l.track_id
+        let mut statement = conn.prepare(&format!(
+            "{BROWSER_TRACK_SELECT}
+             JOIN playlist_item pi ON pi.location_id = l.id
              WHERE pi.playlist_id = ?1
              ORDER BY pi.position",
-        )?;
-        let rows = statement.query_map([playlist_id], |row| {
+        ))?;
+        let rows = statement.query_map(params![playlist_id, ANALYSIS_ALGORITHM, ANALYSIS_VERSION], |row| {
             let title: Option<String> = row.get(2)?;
             let path: String = row.get(11)?;
             Ok(TrackRow {
@@ -357,19 +376,15 @@ impl LibraryDb {
     pub fn search_tracks(&self, query: &str, limit: usize) -> Result<Vec<TrackRow>> {
         let needle = format!("%{}%", query.trim());
         let conn = self.lock()?;
-        let mut statement = conn.prepare(
-            "SELECT t.id, l.id, t.title, t.artist, t.album, t.bpm,
-                    t.key_pc, t.key_mode, t.key_confidence,
-                    t.duration_frames, t.sample_rate, l.path
-             FROM track t
-             JOIN track_location l ON l.track_id = t.id
+        let mut statement = conn.prepare(&format!(
+            "{BROWSER_TRACK_SELECT}
              WHERE t.title LIKE ?1 COLLATE NOCASE
                 OR t.artist LIKE ?1 COLLATE NOCASE
                 OR l.path LIKE ?1 COLLATE NOCASE
              ORDER BY t.artist COLLATE NOCASE, t.title COLLATE NOCASE
-             LIMIT ?2",
-        )?;
-        let rows = statement.query_map(rusqlite::params![needle, limit as i64], |row| {
+             LIMIT ?4",
+        ))?;
+        let rows = statement.query_map(params![needle, ANALYSIS_ALGORITHM, ANALYSIS_VERSION, limit as i64], |row| {
             let title: Option<String> = row.get(2)?;
             let path: String = row.get(11)?;
             Ok(TrackRow {
@@ -694,14 +709,13 @@ impl LibraryDb {
 
     /// Stores the analyser result for a track, replacing an older result.
     ///
-    /// Tracks whose only locations come from USB sources are **not** persisted: the media is
+    /// Tracks with a USB location are **not** persisted: the media is
     /// removable, so a cached grid outlives the device it was computed on (and the file may be
     /// re-analysed on the device's own clock next time). The grid still reaches the deck for
     /// this session; it just never enters the `analysis` table.
     pub fn save_analysis(&self, track_id: i64, analysis: &TrackAnalysis) -> Result<()> {
-        let from_usb: bool = {
-            let conn = self.lock()?;
-            conn.query_row(
+        let conn = self.lock()?;
+        let from_usb: bool = conn.query_row(
                 "SELECT EXISTS(
                      SELECT 1 FROM track_location tl
                      JOIN source s ON s.id = tl.source_id
@@ -710,13 +724,7 @@ impl LibraryDb {
                 params![track_id],
                 |row| row.get::<_, i64>(0),
             )
-            .map(|exists| exists != 0)?
-        };
-        if from_usb {
-            return Ok(());
-        }
-        let beat_frames_json = serde_json::to_string(&analysis.beatgrid.beat_frames)
-            .map_err(|err| LibraryError::Invalid(format!("analysis JSON: {err}")))?;
+            .map(|exists| exists != 0)?;
         let (key_pc, key_mode, key_confidence) = match analysis.key {
             Some(key) => (
                 Some(i64::from(key.pc)),
@@ -725,7 +733,17 @@ impl LibraryDb {
             ),
             None => (None, None, None),
         };
-        let conn = self.lock()?;
+        if from_usb {
+            conn.execute(
+                "INSERT OR REPLACE INTO usb_analysis_summary
+                    (content_key, bpm, key_pc, key_mode, key_confidence)
+                 SELECT content_key, ?2, ?3, ?4, ?5 FROM track WHERE id = ?1",
+                params![track_id, analysis.bpm, key_pc, key_mode, key_confidence],
+            )?;
+            return Ok(());
+        }
+        let beat_frames_json = serde_json::to_string(&analysis.beatgrid.beat_frames)
+            .map_err(|err| LibraryError::Invalid(format!("analysis JSON: {err}")))?;
         conn.execute(
             "INSERT INTO analysis
                 (track_id, bpm, key_pc, key_mode, key_confidence,

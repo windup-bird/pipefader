@@ -312,6 +312,8 @@ pub enum EventKind {
     Log,
     LibraryChanged,
     Stopped,
+    Browser,
+    AnalysisListFinished,
 }
 
 /// Events pushed from the session thread. The fields not used by a particular [`EventKind`]
@@ -324,11 +326,36 @@ pub struct SessionEvent {
     pub meta: Option<DeckMeta>,
     pub error: bool,
     pub text: String,
+    pub browser: Option<BrowserCommand>,
 }
 
 // ---------------------------------------------------------------------------
 // Actions. These map onto `protocol::Command`, but the FFI never exposes that enum.
 // ---------------------------------------------------------------------------
+
+/// FFI representation of `protocol::BrowserAction`. Only `Load` uses the optional deck.
+#[derive(Clone, Copy)]
+pub enum BrowserCommand {
+    Up,
+    Down,
+    Open,
+    Exit,
+    Load,
+    Refresh,
+}
+
+pub fn browser_command(action: BrowserCommand, deck: Option<u8>) -> Result<(), String> {
+    use protocol::BrowserAction;
+    let action = match action {
+        BrowserCommand::Up => BrowserAction::Up,
+        BrowserCommand::Down => BrowserAction::Down,
+        BrowserCommand::Open => BrowserAction::Open,
+        BrowserCommand::Exit => BrowserAction::Exit,
+        BrowserCommand::Load => BrowserAction::Load { deck },
+        BrowserCommand::Refresh => BrowserAction::Refresh,
+    };
+    session::send_browser_action(action)
+}
 
 pub enum TransportAction {
     Toggle,

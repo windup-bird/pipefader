@@ -17,12 +17,12 @@ use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use library::analyser::Backends;
 use library::LibraryDb;
 use protocol::{
-    Backend, BeatLen, Command, CueOp, FaderTarget, FxChainId, FxSlotRef, HotCueOp, KeyFormat,
+    Backend, BeatLen, BrowserAction, Command, CueOp, FaderTarget, FxChainId, FxSlotRef, HotCueOp, KeyFormat,
     KeylockMode, LoopOp, NudgeOp, OutputOp, Stem, SyncOp, VinylOp,
 };
 
 use crate::api::{
-    ChannelTick, CoverData, CueAction, DeckFxTick, DeckMeta, DeckTick, EqBand, FxOp, FxParamDto,
+    BrowserCommand, ChannelTick, CoverData, CueAction, DeckFxTick, DeckMeta, DeckTick, EqBand, FxOp, FxParamDto,
     FxSlotDto, HotCueAction, LevelKind, LevelTarget, LibraryList, LibraryRoot, LibrarySourceDto,
     LogDto, LoopAction,
     NudgeAction, SessionEvent, SessionPathsDto, SyncAction, Tick, TrackDto, TransportAction,
@@ -95,6 +95,7 @@ pub(crate) enum StateRequest {
 #[derive(Clone)]
 pub(crate) struct BootData {
     pub dispatcher: Arc<Dispatcher>,
+    pub browser_tx: Sender<BrowserAction>,
     pub library: Option<Arc<LibraryDb>>,
     pub sample_rate: u32,
     pub wave_palette: WavePalette,
@@ -108,6 +109,7 @@ pub(crate) struct Handle {
     pub dispatcher: Arc<Dispatcher>,
     pub library: Option<Arc<LibraryDb>>,
     pub state_tx: Sender<StateRequest>,
+    pub browser_tx: Sender<BrowserAction>,
     pub sink: Arc<Mutex<Option<crate::frb_generated::StreamSink<SessionEvent>>>>,
     pub alive: Arc<AtomicBool>,
     pub sample_rate: u32,
@@ -245,6 +247,7 @@ pub(crate) fn start(paths: Option<SessionPathsDto>) -> Result<(), String> {
             logging::info(format!("start: ready on {}", boot.config_path));
             *guard = Some(Arc::new(Handle {
                 dispatcher: boot.dispatcher,
+                browser_tx: boot.browser_tx,
                 library: boot.library,
                 state_tx,
                 sink,
@@ -303,6 +306,7 @@ pub(crate) fn subscribe(
         meta: None,
         error: false,
         text: String::new(),
+        browser: None,
     })
     .map_err(|_| "could not prime the event stream".to_owned())?;
     *handle
@@ -938,6 +942,10 @@ pub(crate) fn load_track(deck: u8, location_id: i32) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn send_browser_action(action: BrowserAction) -> Result<(), String> {
+    global()?.browser_tx.send(action).map_err(|err| err.to_string())
+}
+
 pub(crate) fn analyse_track(location_id: i32) -> Result<(), String> {
     let handle = global()?;
     let location_id = i64::from(location_id);
@@ -957,7 +965,7 @@ pub(crate) fn analyse_track(location_id: i32) -> Result<(), String> {
     Ok(())
 }
 
-/// Analyses every track in one playlist on a single worker. The session emits `LibraryChanged`
+/// Analyses every track in one playlist on a single worker. The session emits `AnalysisListFinished`
 /// when the cache is complete.
 pub(crate) fn analyse_list(playlist_id: i32) -> Result<(), String> {
     let handle = global()?;
@@ -1307,10 +1315,8 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
             legacy_map: midi_legacy_map,
             config_path: &midi_config_path,
             mixer: &midi_mixer,
-            decks,
         },
-        &mut dispatcher,
-        &pipeline,
+        &dispatcher,
         &mut app,
     );
     logging::info("boot: ready");
@@ -1318,6 +1324,7 @@ fn boot(config_path: Option<String>) -> Result<Booted, String> {
     let dispatcher = Arc::new(dispatcher);
     let boot = BootData {
         dispatcher: Arc::clone(&dispatcher),
+        browser_tx: app.browser_tx.clone(),
         library: library.clone(),
         sample_rate: live.audio.sample_rate,
         wave_palette,
@@ -1379,6 +1386,7 @@ fn pump(
                             meta: Some(next),
                             error: false,
                             text: String::new(),
+                            browser: None,
                         },
                     );
                 }
@@ -1471,18 +1479,43 @@ fn pump(
         }
         app.drain();
         let library_changed = std::mem::take(&mut app.library_dirty);
-        if library_changed {
+        let analysis_finished = std::mem::take(&mut app.analysis_list_finished);
+        if library_changed || analysis_finished {
             send_event(
                 sink,
                 SessionEvent {
-                    kind: crate::api::EventKind::LibraryChanged,
+                    kind: if analysis_finished {
+                        crate::api::EventKind::AnalysisListFinished
+                    } else {
+                        crate::api::EventKind::LibraryChanged
+                    },
                     tick: None,
                     deck: 0,
                     meta: None,
                     error: false,
                     text: String::new(),
+                    browser: None,
                 },
             );
+        }
+        for action in app.drain_browser_actions() {
+            let (browser, deck) = match action {
+                BrowserAction::Up => (BrowserCommand::Up, None),
+                BrowserAction::Down => (BrowserCommand::Down, None),
+                BrowserAction::Open => (BrowserCommand::Open, None),
+                BrowserAction::Exit => (BrowserCommand::Exit, None),
+                BrowserAction::Load { deck } => (BrowserCommand::Load, deck),
+                BrowserAction::Refresh => (BrowserCommand::Refresh, None),
+            };
+            send_event(sink, SessionEvent {
+                kind: crate::api::EventKind::Browser,
+                tick: None,
+                deck: deck.unwrap_or(u8::MAX),
+                meta: None,
+                error: false,
+                text: String::new(),
+                browser: Some(browser),
+            });
         }
 
         for deck in 0..decks {
@@ -1497,6 +1530,7 @@ fn pump(
                         meta: None,
                         error: false,
                         text: String::new(),
+                        browser: None,
                     },
                 );
             }
@@ -1511,6 +1545,7 @@ fn pump(
                         meta: None,
                         error: false,
                         text: String::new(),
+                        browser: None,
                     },
                 );
             }
@@ -1528,6 +1563,7 @@ fn pump(
                         meta: None,
                         error: matches!(line.level, app::response::Level::Error),
                         text: line.text.clone(),
+                        browser: None,
                     },
                 );
             }
@@ -1576,6 +1612,7 @@ fn pump(
                     meta: None,
                     error: false,
                     text: String::new(),
+                    browser: None,
                 },
             );
         }
@@ -1592,6 +1629,7 @@ fn pump(
             meta: None,
             error: false,
             text: String::new(),
+            browser: None,
         },
     );
     alive.store(false, Ordering::SeqCst);
@@ -1606,13 +1644,11 @@ struct MidiBoot<'a> {
     legacy_map: Option<String>,
     config_path: &'a Path,
     mixer: &'a audio::MixerConfig,
-    decks: usize,
 }
 
 fn attach_controllers(
     boot: &MidiBoot<'_>,
-    dispatcher: &mut Dispatcher,
-    pipeline: &AudioPipeline,
+    dispatcher: &Dispatcher,
     app: &mut AppState,
 ) {
     let map_path = boot
@@ -1636,32 +1672,10 @@ fn attach_controllers(
         })
         .collect();
     app.deck_routes = routes;
-    app.controller_sessions = sessions.clone();
     app.midi_port = sessions.first().and_then(|entry| entry.port.clone());
     app.midi_map = sessions.first().map(|entry| entry.map.clone());
-    for entry in &sessions {
-        let Some(port) = entry.port.as_deref() else {
-            continue;
-        };
-        match app::midi::attach_file(
-            port,
-            &entry.map,
-            &entry.routes,
-            boot.decks,
-            dispatcher.command_tx.clone(),
-            pipeline.response_rx(),
-            &dispatcher.notices,
-        ) {
-            Ok(session) => {
-                dispatcher.set_midi(session.control(), session.state());
-                app.midi.push(session);
-            }
-            Err(err) => app.push_log(app::response::LogLine::info(format!(
-                "[midi] {}: {err}; continuing without it",
-                entry.id
-            ))),
-        }
-    }
+    app.controller_sessions = sessions;
+    app.connect_midi(dispatcher.command_tx.clone(), &dispatcher.notices, dispatcher);
 }
 
 fn gui_cache_dir() -> Option<std::path::PathBuf> {

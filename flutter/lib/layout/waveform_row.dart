@@ -49,17 +49,14 @@ class WaveformRow extends StatelessWidget {
               ),
               if (beatBar)
                 Positioned(
-                  left: 8,
+                  left: 0,
                   top: 0,
                   bottom: 0,
-                  child: Center(
-                    child: BeatBar(
-                      model: model,
-                      deck: deck,
-                      rowHeight: constraints.maxHeight,
-                      rowWidth: constraints.maxWidth,
-                      stacked: stacked,
-                    ),
+                  child: BeatBar(
+                    model: model,
+                    deck: deck,
+                    rowHeight: constraints.maxHeight,
+                    stacked: stacked,
                   ),
                 ),
             ],
@@ -135,7 +132,7 @@ class WaveformBand extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: hpad),
+                  padding: EdgeInsets.only(right: hpad),
                   child: Column(
                     children: [
                       for (var i = 0; i < decks.length; i++) ...[

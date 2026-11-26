@@ -92,17 +92,18 @@ class _CrossfaderState extends State<Crossfader> {
                 final dx = event.localPosition.dx - _lastX;
                 _lastX = event.localPosition.dx;
                 if (half <= 0) return;
-                setState(() => _value = (_value + dx / half).clamp(-1.0, 1.0));
+                final value = (_value + dx / half).clamp(-1.0, 1.0);
+                if (value == _value) return;
+                setState(() => _value = value);
+                widget.onChanged(value);
               },
               onPointerUp: (_) {
                 if (!_active) return;
                 setState(() => _active = false);
-                widget.onChanged(_value);
               },
               onPointerCancel: (_) {
                 if (!_active) return;
                 setState(() => _active = false);
-                widget.onChanged(_value);
               },
               child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(end: _active ? slotOpen : scale.size(2)),

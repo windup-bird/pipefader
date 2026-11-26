@@ -8,7 +8,13 @@ import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `apply_output_change`, `midi_pair`, `pair_from`, `parse_role`, `read_menu_state`, `settings_page_dto`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `fmt`
+
+Future<void> browserCommand({required BrowserCommand action, int? deck}) =>
+    PipefaderBridge.instance.api.crateApiBrowserCommand(
+      action: action,
+      deck: deck,
+    );
 
 /// Boots the engine, config, library and state pump. Idempotent: a second call while a
 /// session is alive is a no-op, which is what Flutter hot restart needs.
@@ -346,6 +352,9 @@ Future<List<TrackDto>> librarySearch({
   limit: limit,
 );
 
+/// FFI representation of `protocol::BrowserAction`. Only `Load` uses the optional deck.
+enum BrowserCommand { up, down, open, exit, load, refresh }
+
 /// One mixer channel's performance positions, straight from the engine's meters query.
 class ChannelTick {
   final double flow;
@@ -643,6 +652,8 @@ enum EventKind {
   log,
   libraryChanged,
   stopped,
+  browser,
+  analysisListFinished,
 }
 
 enum FxOp { setParam, enable, disable, trigger, momentaryDown, momentaryUp }
@@ -1097,6 +1108,7 @@ class SessionEvent {
   final DeckMeta? meta;
   final bool error;
   final String text;
+  final BrowserCommand? browser;
 
   const SessionEvent({
     required this.kind,
@@ -1105,6 +1117,7 @@ class SessionEvent {
     this.meta,
     required this.error,
     required this.text,
+    this.browser,
   });
 
   @override
@@ -1114,7 +1127,8 @@ class SessionEvent {
       deck.hashCode ^
       meta.hashCode ^
       error.hashCode ^
-      text.hashCode;
+      text.hashCode ^
+      browser.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1126,7 +1140,8 @@ class SessionEvent {
           deck == other.deck &&
           meta == other.meta &&
           error == other.error &&
-          text == other.text;
+          text == other.text &&
+          browser == other.browser;
 }
 
 /// The paths the host knows and Rust cannot discover on Android (no HOME or XDG).

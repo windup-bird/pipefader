@@ -461,7 +461,16 @@ class AppModel extends ChangeNotifier {
         // one on the model so a future status strip can show it.
         _lastLog = event.text;
       case frb.EventKind.libraryChanged:
-        unawaited(_afterLibraryChanged());
+        unawaited(refreshLibrary());
+      case frb.EventKind.analysisListFinished:
+        analysing = false;
+        notifyListeners();
+        unawaited(refreshLibrary());
+      case frb.EventKind.browser:
+        final action = event.browser;
+        if (action != null) {
+          applyBrowserAction(action, deck: event.deck == 255 ? null : event.deck);
+        }
       case frb.EventKind.stopped:
         break;
     }
@@ -813,55 +822,42 @@ class AppModel extends ChangeNotifier {
   Future<void> refreshLibrary() async {
     if (engine == null) return;
     final epoch = ++_libraryEpoch;
-    final previousSource = selectedLibrary;
-    final previousList = selectedList;
-    final roots = await engine!.libraryRoots();
+    final client = engine!;
+    final sourceId = selectedLibrary < libraryRoots.length
+        ? libraryRoots[selectedLibrary].id
+        : null;
+    final listId = selectedListId;
+    final roots = await client.libraryRoots();
     if (epoch != _libraryEpoch) return;
+    final sourceIndex = roots.indexWhere((root) => root.id == sourceId);
+    final nextSource = sourceIndex < 0 ? 0 : sourceIndex;
+    final fetchedLists = roots.isEmpty
+        ? <ListEntry>[]
+        : (await client.libraryLists(roots[nextSource].id)).map(_listFrom).toList();
+    if (epoch != _libraryEpoch) return;
+    final listIndex = fetchedLists.indexWhere((entry) => entry.id == listId);
+    final nextList = listIndex < 0 ? _defaultListIndex(fetchedLists) : listIndex;
+    final playlist = fetchedLists.isEmpty ? null : fetchedLists[nextList].id;
+    final term = searchText.trim();
+    final tracks = term.isNotEmpty
+        ? await _searchRows(client, term)
+        : playlist == null
+        ? <frb.TrackDto>[]
+        : await client.libraryTracks(playlist);
+    if (epoch != _libraryEpoch) return;
+
     libraryRoots
       ..clear()
       ..addAll(roots.map((root) => LibEntry(root.name, id: root.id)));
-    selectedLibrary = roots.isEmpty
-        ? 0
-        : previousSource.clamp(0, roots.length - 1);
-    selectedTrack = 0;
-    notifyListeners();
-    if (roots.isEmpty) {
-      lists.clear();
-      allTracks.clear();
-      notifyListeners();
-      return;
-    }
-    final fetchedLists = await engine!.libraryLists(roots[selectedLibrary].id);
-    if (epoch != _libraryEpoch) return;
+    selectedLibrary = nextSource;
     lists
       ..clear()
-      ..addAll(
-        fetchedLists.map(
-          (list) => ListEntry(
-            list.name,
-            id: list.id,
-            sourceId: list.sourceId,
-            parentId: list.parentId,
-            hasChildren: list.hasChildren,
-          ),
-        ),
-      );
-    selectedList = fetchedLists.isEmpty
-        ? 0
-        : previousList.clamp(0, fetchedLists.length - 1);
-    _expandedLists.removeWhere(
-      (id) => !fetchedLists.any((entry) => entry.id == id),
-    );
-    if (fetchedLists.isEmpty) {
-      allTracks.clear();
-      notifyListeners();
-      return;
-    }
-    await _loadTracks(fetchedLists[selectedList].id, epoch);
-    if (analysing) {
-      analysing = false;
-      notifyListeners();
-    }
+      ..addAll(fetchedLists);
+    selectedList = nextList;
+    _playlistId = playlist;
+    _expandedLists.removeWhere((id) => !lists.any((entry) => entry.id == id));
+    _replaceTracks(tracks, preserveCursor: true);
+    notifyListeners();
   }
 
   Future<void> _loadLists(int sourceId, int epoch) async {
@@ -869,17 +865,7 @@ class AppModel extends ChangeNotifier {
     if (epoch != _libraryEpoch) return;
     this.lists
       ..clear()
-      ..addAll(
-        lists.map(
-          (list) => ListEntry(
-            list.name,
-            id: list.id,
-            sourceId: list.sourceId,
-            parentId: list.parentId,
-            hasChildren: list.hasChildren,
-          ),
-        ),
-      );
+      ..addAll(lists.map(_listFrom));
     selectedList = _defaultListIndex(this.lists);
     _expandedLists.removeWhere(
       (id) => !this.lists.any((entry) => entry.id == id),
@@ -888,6 +874,7 @@ class AppModel extends ChangeNotifier {
     if (this.lists.isNotEmpty) {
       await _loadTracks(this.lists[selectedList].id, epoch);
     } else {
+      _playlistId = null;
       allTracks.clear();
       notifyListeners();
     }
@@ -897,12 +884,28 @@ class AppModel extends ChangeNotifier {
     final tracks = await engine!.libraryTracks(playlistId);
     if (epoch != _libraryEpoch) return;
     _playlistId = playlistId;
+    _replaceTracks(tracks);
+    notifyListeners();
+  }
+
+  void _replaceTracks(List<frb.TrackDto> tracks, {bool preserveCursor = false}) {
+    final location = preserveCursor && selectedTrack < allTracks.length
+        ? allTracks[selectedTrack].locationId
+        : null;
     allTracks
       ..clear()
       ..addAll(tracks.map(_trackFrom));
-    selectedTrack = 0;
-    notifyListeners();
+    final index = allTracks.indexWhere((track) => track.locationId == location);
+    selectedTrack = index < 0 ? 0 : index;
   }
+
+  static ListEntry _listFrom(frb.LibraryList list) => ListEntry(
+    list.name,
+    id: list.id,
+    sourceId: list.sourceId,
+    parentId: list.parentId,
+    hasChildren: list.hasChildren,
+  );
 
   static int _defaultListIndex(List<ListEntry> lists) {
     final leaf = lists.indexWhere((entry) => !entry.hasChildren);
@@ -919,14 +922,6 @@ class AppModel extends ChangeNotifier {
     locationId: track.locationId,
   );
 
-  Future<void> _afterLibraryChanged() async {
-    await refreshLibrary();
-    if (analysing) {
-      analysing = false;
-      notifyListeners();
-    }
-  }
-
   Future<void> _search(String query) async {
     final epoch = ++_libraryEpoch;
     final term = query.trim();
@@ -939,28 +934,26 @@ class AppModel extends ChangeNotifier {
     }
     final engine = this.engine;
     if (engine == null) return;
-    var tracks = <frb.TrackDto>[];
-    if (searchListId != null) {
-      tracks = await engine.libraryTracks(searchListId!);
-      tracks = _matching(tracks, term);
-    } else if (searchSourceId != null) {
-      final lists = await engine.libraryLists(searchSourceId!);
-      final seen = <int>{};
-      for (final list in lists) {
-        for (final track in await engine.libraryTracks(list.id)) {
-          if (seen.add(track.locationId)) tracks.add(track);
-        }
-      }
-      tracks = _matching(tracks, term);
-    } else {
-      tracks = await engine.librarySearch(term);
-    }
+    final tracks = await _searchRows(engine, term);
     if (epoch != _libraryEpoch) return;
-    allTracks
-      ..clear()
-      ..addAll(tracks.map(_trackFrom));
-    selectedTrack = 0;
+    _replaceTracks(tracks);
     notifyListeners();
+  }
+
+  Future<List<frb.TrackDto>> _searchRows(EngineClient client, String term) async {
+    final listId = searchListId;
+    final sourceId = searchSourceId;
+    if (listId != null) return _matching(await client.libraryTracks(listId), term);
+    if (sourceId == null) return client.librarySearch(term);
+    final lists = await client.libraryLists(sourceId);
+    final seen = <int>{};
+    final tracks = <frb.TrackDto>[];
+    for (final list in lists) {
+      for (final track in await client.libraryTracks(list.id)) {
+        if (seen.add(track.locationId)) tracks.add(track);
+      }
+    }
+    return _matching(tracks, term);
   }
 
   static List<frb.TrackDto> _matching(List<frb.TrackDto> tracks, String query) {
@@ -1402,6 +1395,44 @@ class AppModel extends ChangeNotifier {
 
   // ---- browser -------------------------------------------------------------
 
+  /// Applies the same browser command whether it came from MIDI or the protocol API.
+  void applyBrowserAction(frb.BrowserCommand action, {int? deck}) {
+    switch (action) {
+      case frb.BrowserCommand.up:
+      case frb.BrowserCommand.down:
+        if (visibleTracks.isEmpty) return;
+        if (currentLayout != LayoutMode.full) {
+          browserOverlayOpen = true;
+          browseDepth = 2;
+        }
+        final step = action == frb.BrowserCommand.up ? -1 : 1;
+        selectTrack((selectedTrack + step).clamp(0, visibleTracks.length - 1));
+      case frb.BrowserCommand.open:
+        if (currentLayout != LayoutMode.full && !browserOverlayOpen) {
+          openBrowserOverlay();
+        } else if (currentLayout != LayoutMode.full && browseDepth < 2 && !searchOpen) {
+          browseInto();
+        } else {
+          loadTrackOnto(decks.first, selectedTrack);
+        }
+      case frb.BrowserCommand.exit:
+        if (searchOpen) {
+          toggleSearch();
+        } else if (currentLayout != LayoutMode.full && browseDepth > 0) {
+          browseBack();
+        } else if (browserOverlayOpen) {
+          closeBrowserOverlay();
+        }
+      case frb.BrowserCommand.load:
+        final index = deck ?? 0;
+        if (index >= 0 && index < decks.length) {
+          loadTrackOnto(decks[index], selectedTrack);
+        }
+      case frb.BrowserCommand.refresh:
+        unawaited(rescanLibrary());
+    }
+  }
+
   void toggleLibrary() {
     libraryOpen = !libraryOpen;
     notifyListeners();
@@ -1414,7 +1445,10 @@ class AppModel extends ChangeNotifier {
 
   void toggleSearch() {
     searchOpen = !searchOpen;
-    if (!searchOpen) searchText = '';
+    if (!searchOpen && searchText.isNotEmpty) {
+      searchText = '';
+      if (engine != null) unawaited(_search(''));
+    }
     notifyListeners();
   }
 
@@ -1468,6 +1502,7 @@ class AppModel extends ChangeNotifier {
     if (entry.id >= 0) {
       final index = lists.indexWhere((item) => item.id == entry.id);
       if (index >= 0) selectedList = index;
+      selectedTrack = 0;
       if (engine != null) {
         final epoch = ++_libraryEpoch;
         unawaited(_loadTracks(entry.id, epoch));

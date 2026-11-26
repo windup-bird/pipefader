@@ -200,7 +200,7 @@ class _DeckSection extends StatelessWidget {
               child: ColoredBox(
                 color: T.wave,
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: hpad),
+                  padding: EdgeInsets.only(right: hpad),
                   child: Stack(
                     children: [
                       Positioned.fill(

@@ -21,7 +21,6 @@ class BeatBar extends StatefulWidget {
     required this.model,
     required this.deck,
     required this.rowHeight,
-    required this.rowWidth,
     this.stacked = false,
     super.key,
   });
@@ -29,7 +28,6 @@ class BeatBar extends StatefulWidget {
   final AppModel model;
   final DeckRuntime deck;
   final double rowHeight;
-  final double rowWidth;
   final bool stacked;
 
   @override
@@ -53,16 +51,11 @@ class _BeatBarState extends State<BeatBar> {
     final model = widget.model;
     final deck = widget.deck;
     final stacked = widget.stacked;
-    var barH = (widget.rowHeight * 0.72)
-        .clamp(stacked ? 48.0 : 42.0, stacked ? 110.0 : 76.0)
-        .toDouble();
-    final rowMaxH = widget.rowHeight - 8;
-    if (barH > rowMaxH) barH = rowMaxH;
-    var barW = (barH * (stacked ? 1.0 : 1.3))
-        .clamp(stacked ? 96.0 : 112.0, stacked ? 112.0 : 150.0)
-        .toDouble();
-    final rowMaxW = widget.rowWidth - 16;
-    if (barW > rowMaxW) barW = rowMaxW;
+    final barH = widget.rowHeight;
+    final barW = (barH * (stacked ? 1.0 : 1.3)).clamp(
+      stacked ? 96.0 : 112.0,
+      stacked ? 112.0 : 150.0,
+    );
     final s = ControlScale(barH, base: stacked ? 56 : 42);
     final mode = _mode;
     final manual = mode == BeatMode.manualloop && !deck.loopActive;

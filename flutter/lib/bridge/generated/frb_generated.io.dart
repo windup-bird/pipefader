@@ -37,6 +37,9 @@ abstract class PipefaderBridgeApiImplPlatform
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  BrowserCommand dco_decode_box_autoadd_browser_command(dynamic raw);
+
+  @protected
   CoverData dco_decode_box_autoadd_cover_data(dynamic raw);
 
   @protected
@@ -65,6 +68,9 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   WaveformData dco_decode_box_autoadd_waveform_data(dynamic raw);
+
+  @protected
+  BrowserCommand dco_decode_browser_command(dynamic raw);
 
   @protected
   ChannelTick dco_decode_channel_tick(dynamic raw);
@@ -232,6 +238,9 @@ abstract class PipefaderBridgeApiImplPlatform
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  BrowserCommand? dco_decode_opt_box_autoadd_browser_command(dynamic raw);
+
+  @protected
   CoverData? dco_decode_opt_box_autoadd_cover_data(dynamic raw);
 
   @protected
@@ -345,6 +354,11 @@ abstract class PipefaderBridgeApiImplPlatform
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  BrowserCommand sse_decode_box_autoadd_browser_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CoverData sse_decode_box_autoadd_cover_data(SseDeserializer deserializer);
 
   @protected
@@ -377,6 +391,9 @@ abstract class PipefaderBridgeApiImplPlatform
   WaveformData sse_decode_box_autoadd_waveform_data(
     SseDeserializer deserializer,
   );
+
+  @protected
+  BrowserCommand sse_decode_browser_command(SseDeserializer deserializer);
 
   @protected
   ChannelTick sse_decode_channel_tick(SseDeserializer deserializer);
@@ -558,6 +575,11 @@ abstract class PipefaderBridgeApiImplPlatform
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  BrowserCommand? sse_decode_opt_box_autoadd_browser_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CoverData? sse_decode_opt_box_autoadd_cover_data(
     SseDeserializer deserializer,
   );
@@ -689,6 +711,12 @@ abstract class PipefaderBridgeApiImplPlatform
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_browser_command(
+    BrowserCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_cover_data(
     CoverData self,
     SseSerializer serializer,
@@ -733,6 +761,12 @@ abstract class PipefaderBridgeApiImplPlatform
   @protected
   void sse_encode_box_autoadd_waveform_data(
     WaveformData self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_browser_command(
+    BrowserCommand self,
     SseSerializer serializer,
   );
 
@@ -969,6 +1003,12 @@ abstract class PipefaderBridgeApiImplPlatform
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_browser_command(
+    BrowserCommand? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_cover_data(

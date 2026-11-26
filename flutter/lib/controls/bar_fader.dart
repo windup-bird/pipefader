@@ -92,17 +92,18 @@ class _BarFaderState extends State<BarFader> {
               _lastY = event.localPosition.dy;
               final span = widget.bipolar ? half : travel;
               if (span <= 0) return;
-              setState(() => _value = _clamp(_value + dy / span));
+              final value = _clamp(_value + dy / span);
+              if (value == _value) return;
+              setState(() => _value = value);
+              widget.onChanged(value);
             },
             onPointerUp: (_) {
               if (!_active) return;
               setState(() => _active = false);
-              widget.onChanged(_value);
             },
             onPointerCancel: (_) {
               if (!_active) return;
               setState(() => _active = false);
-              widget.onChanged(_value);
             },
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(end: _active ? width : scale.size(2)),

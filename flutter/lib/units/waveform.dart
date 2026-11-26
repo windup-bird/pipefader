@@ -10,6 +10,11 @@ import 'package:pipefader_gui/core/theme.dart';
 /// The scrolling waveform: two channels around a centre line, three bands
 /// layered from the centre out, the beat grid over the top, playhead pinned to
 /// the middle — the terminal's view, at pixel resolution.
+// Keep the configured band hues, but blend them toward the UI's muted palette.
+Color _bandColor(int? argb, Color tint) => argb == null || argb == 0
+    ? tint
+    : Color.lerp(tint, Color(argb), T.waveTintStrength)!;
+
 class Waveform extends StatelessWidget {
   const Waveform({
     required this.deck,
@@ -232,9 +237,9 @@ class _WaveformPainter extends CustomPainter {
       ..lineTo(lastX, centre)
       ..close();
 
-    final low = _color(palette?.low ?? 0, T.waveLo);
-    final mid = _color(palette?.mid ?? 0, T.waveMid);
-    final high = _color(palette?.high ?? 0, T.waveHi);
+    final low = _bandColor(palette?.low, T.waveLo);
+    final mid = _bandColor(palette?.mid, T.waveMid);
+    final high = _bandColor(palette?.high, T.waveHi);
     canvas.drawPath(leftLow, Paint()..color = low);
     canvas.drawPath(rightLow, Paint()..color = low);
     canvas.drawPath(leftMid, Paint()..color = mid);
@@ -317,9 +322,9 @@ class _WaveformPainter extends CustomPainter {
       ..lineTo(width, centre)
       ..close();
 
-    final low = _color(palette?.low ?? 0, T.waveLo);
-    final mid = _color(palette?.mid ?? 0, T.waveMid);
-    final high = _color(palette?.high ?? 0, T.waveHi);
+    final low = _bandColor(palette?.low, T.waveLo);
+    final mid = _bandColor(palette?.mid, T.waveMid);
+    final high = _bandColor(palette?.high, T.waveHi);
     canvas.drawPath(leftLow, Paint()..color = low);
     canvas.drawPath(rightLow, Paint()..color = low);
     canvas.drawPath(leftMid, Paint()..color = mid);
@@ -490,9 +495,9 @@ class _OverviewPainter extends CustomPainter {
     if (played > 0) {
       canvas.save();
       canvas.clipRect(Rect.fromLTWH(0, 0, played, height));
-      canvas.drawPath(lowPath, Paint()..color = _color(palette?.low ?? 0, T.waveLo));
-      canvas.drawPath(midPath, Paint()..color = _color(palette?.mid ?? 0, T.waveMid));
-      canvas.drawPath(highPath, Paint()..color = _color(palette?.high ?? 0, T.waveHi));
+      canvas.drawPath(lowPath, Paint()..color = _bandColor(palette?.low, T.waveLo));
+      canvas.drawPath(midPath, Paint()..color = _bandColor(palette?.mid, T.waveMid));
+      canvas.drawPath(highPath, Paint()..color = _bandColor(palette?.high, T.waveHi));
       canvas.restore();
     }
 

@@ -319,6 +319,7 @@ pub struct AppState {
     /// Set when a library scan event arrived. Front-ends that do not consume the
     /// Miller-column browser directly (the GUI bridge) use it to refresh their own view.
     pub library_dirty: bool,
+    pub analysis_list_finished: bool,
 
     pub midi: Vec<MidiSession>,
     /// The chosen (or flag-supplied) port, remembered across reconnects.
@@ -435,6 +436,7 @@ impl AppState {
             pending_states: 0,
             meters: None,
             library_dirty: false,
+            analysis_list_finished: false,
             midi: Vec::new(),
             midi_port: None,
             midi_map: None,
@@ -842,6 +844,7 @@ impl AppState {
             self.push_log(line);
             changed = true;
         }
+        let mut analysis_changed = false;
         while let Ok(event) = self.event_rx.try_recv() {
             match event {
                 UiEvent::Loaded { deck_id, path } => {
@@ -857,9 +860,23 @@ impl AppState {
                         *grid = Some(analysis.beatgrid);
                     }
                 }
-                UiEvent::LibraryChanged => self.library_dirty = true,
+                UiEvent::LibraryChanged => {
+                    self.library_dirty = true;
+                    analysis_changed = true;
+                }
+                UiEvent::AnalysisListFinished => {
+                    self.analysis_list_finished = true;
+                    analysis_changed = true;
+                }
             }
             changed = true;
+        }
+        if analysis_changed {
+            if let Some(db) = self.library.clone() {
+                if let Err(err) = self.browser.refresh_tracks(&db) {
+                    self.push_log(LogLine::error(format!("library: {err}")));
+                }
+            }
         }
         while let Ok((index, cover)) = self.cover_rx.try_recv() {
             if let Some(slot) = self.covers.get_mut(index) {

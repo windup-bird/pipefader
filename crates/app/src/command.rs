@@ -52,8 +52,10 @@ pub enum UiEvent {
         deck_id: u8,
         analysis: TrackAnalysis,
     },
-    /// A background library job finished; the browser should re-read the cache.
+    /// A track analysis was saved; the browser should re-read the cache.
     LibraryChanged,
+    /// A batch finished (including empty batches and failed tracks).
+    AnalysisListFinished,
 }
 
 /// One slot as the front-end remembers it: the stable **role** of the position, and what is in it
@@ -2561,6 +2563,8 @@ pub fn spawn_load_with(
                             if let Some((db, track_id)) = auto.cache {
                                 if let Err(err) = db.save_analysis(track_id, &analysis) {
                                     notices::error(&notices_tx, format!("[analyse] cache: {err}"));
+                                } else if let Some(tap) = &events {
+                                    let _ = tap.send(UiEvent::LibraryChanged);
                                 }
                             }
                             notices::info(
@@ -2611,10 +2615,16 @@ pub fn spawn_analyse_track(
     dispatcher: &Dispatcher,
 ) {
     let notices_tx = dispatcher.notices.clone();
+    let events = dispatcher.events.clone();
     let sample_rate = dispatcher.live().audio.sample_rate;
     std::thread::Builder::new()
         .name("library-analyse".to_owned())
-        .spawn(move || analyse_one(&track, &db, backends, &notices_tx, sample_rate))
+        .spawn(move || {
+            analyse_one(&track, &db, backends, &notices_tx, sample_rate);
+            if let Some(events) = events {
+                let _ = events.send(UiEvent::LibraryChanged);
+            }
+        })
         .ok();
 }
 
@@ -2628,7 +2638,7 @@ pub fn spawn_analyse_list(
 ) {
     if tracks.is_empty() {
         if let Some(events) = &dispatcher.events {
-            let _ = events.send(UiEvent::LibraryChanged);
+            let _ = events.send(UiEvent::AnalysisListFinished);
         }
         return;
     }
@@ -2640,7 +2650,7 @@ pub fn spawn_analyse_list(
         &notices_tx,
         format!("[analyse] {count} track(s): running {backends:?}..."),
     );
-    std::thread::Builder::new()
+    if let Err(err) = std::thread::Builder::new()
         .name("library-analyse-list".to_owned())
         .spawn(move || {
             for track in tracks {
@@ -2648,10 +2658,15 @@ pub fn spawn_analyse_list(
             }
             notices::info(&notices_tx, format!("[analyse] list done: {count} track(s)"));
             if let Some(events) = events {
-                let _ = events.send(UiEvent::LibraryChanged);
+                let _ = events.send(UiEvent::AnalysisListFinished);
             }
         })
-        .ok();
+    {
+        notices::error(&dispatcher.notices, format!("[analyse] worker: {err}"));
+        if let Some(events) = &dispatcher.events {
+            let _ = events.send(UiEvent::AnalysisListFinished);
+        }
+    }
 }
 
 fn analyse_one(
